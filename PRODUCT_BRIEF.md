@@ -1,6 +1,6 @@
 # Garmin Data Workbench: product direction
 
-Status: November 1, 2026. The first manual-sync CLI, local SQLite archive and FIT decoding are implemented and have been verified against one day of data. A read-only local MCP adapter and a scheduler-friendly catch-up command are implemented; scheduler installation and the broader features below remain planned. The goal is an independent public product; [existing community projects](EXISTING_PROJECTS.md) inform our choices, but overlap with them does not rule out building our own.
+Status: November 1, 2026. The first manual-sync CLI, local SQLite archive and FIT decoding are implemented and have been verified against one day of data. An MCP adapter, catch-up command, and opt-in macOS schedule setup are implemented; the broader features below remain planned. The goal is an independent public product; [existing community projects](EXISTING_PROJECTS.md) inform our choices, but overlap with them does not rule out building our own.
 
 ## The idea
 

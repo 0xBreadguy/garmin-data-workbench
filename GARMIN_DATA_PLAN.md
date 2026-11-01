@@ -1,6 +1,6 @@
 # Garmin Data Workbench: data plan
 
-Research checked: November 1, 2026. A first manual-sync CLI and SQLite archive have been implemented and verified against one day of live data. The broader plan below includes work not yet built, including scheduler installation, full historical reconciliation and richer MCP analysis. A read-only MCP adapter and scheduler-friendly catch-up command are now implemented.
+Research checked: November 1, 2026. A first manual-sync CLI and SQLite archive have been implemented and verified against one day of live data. The broader plan below includes work not yet built, including scheduler installation beyond macOS, full historical reconciliation and richer MCP analysis. Local MCP, macOS scheduler setup and a scheduler-friendly catch-up command are now implemented.
 
 ## Goal and recommendation
 

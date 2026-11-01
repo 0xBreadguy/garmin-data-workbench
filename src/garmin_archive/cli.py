@@ -65,6 +65,11 @@ def parser() -> argparse.ArgumentParser:
     sync_parser.add_argument("--refresh", action="store_true", help="Re-fetch completed days in the selected range")
     sync_parser.add_argument("--pause", type=float, default=0.3, help="Seconds between requests (default: 0.3)")
     sync_parser.add_argument("--catch-up", action="store_true", help="Resume from the last successful catch-up run; suitable for scheduling")
+    sync_parser.add_argument("--lookback-days", type=_positive, default=7, help="Days to recheck for late uploads during catch-up (1–31; default: 7)")
+
+    setup = commands.add_parser("setup", help="Configure or change scheduled sync on macOS")
+    setup.add_argument("--every-hours", type=_positive, help="Hours between scheduled syncs (1–168)")
+    setup.add_argument("--lookback-days", type=_positive, default=2, help="Recent days to recheck each run (1–31; default: 2)")
 
     commands.add_parser("status", help="Show archive coverage and sync errors")
     commands.add_parser("path", help="Print the SQLite database path")
@@ -99,6 +104,9 @@ def _sync(archive: Archive, args: argparse.Namespace) -> int:
     if start > end or not math.isfinite(args.pause) or args.pause < 0:
         print("Start must not be after end, and pause must not be negative.", file=sys.stderr)
         return 2
+    if not 1 <= getattr(args, "lookback_days", 7) <= 31:
+        print("Lookback must be between 1 and 31 days.", file=sys.stderr)
+        return 2
     if args.catch_up and args.end:
         print("--catch-up always syncs through today; omit --to.", file=sys.stderr)
         return 2
@@ -128,8 +136,9 @@ def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: d
                 )
         else:
             # Recheck a week for late uploads, and include all time missed while offline.
+            overlap = timedelta(days=getattr(args, "lookback_days", 7) - 1)
             start = (max(date.fromisoformat(row["start_day"]),
-                         min(end - timedelta(days=6), date.fromisoformat(row["last_success_day"]) - timedelta(days=6)))
+                         min(end - overlap, date.fromisoformat(row["last_success_day"]) - overlap))
                      if row["last_success_day"] else date.fromisoformat(row["start_day"]))
         if start > end:
             print("Catch-up checkpoint is in the future; check the system date.", file=sys.stderr)
@@ -242,6 +251,26 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Cannot open archive ({type(error).__name__}).", file=sys.stderr)
         return 1
     try:
+        if args.command == "setup":
+            from .schedule import configure_schedule
+            hours = args.every_hours
+            if hours is None:
+                if not sys.stdin.isatty():
+                    print("Run setup interactively or pass --every-hours.", file=sys.stderr)
+                    return 2
+                try:
+                    answer = input("How often should Garmin data update? Enter hours [6]: ").strip()
+                    hours = int(answer) if answer else 6
+                except (EOFError, KeyboardInterrupt, ValueError):
+                    print("Setup cancelled; enter a whole number of hours.", file=sys.stderr)
+                    return 2
+            try:
+                result = configure_schedule(archive.data_dir, hours, args.lookback_days)
+            except (OSError, RuntimeError, ValueError) as error:
+                print(f"Could not configure scheduled sync: {error}", file=sys.stderr)
+                return 1
+            _print_json(result)
+            return 0
         if args.command == "sync":
             return _sync(archive, args)
         if args.command == "status":

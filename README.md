@@ -23,7 +23,7 @@ Bring your own Garmin Personal API key, sync your health data and activities, an
 - **Sync** your health data and activities to a local archive.
 - **Explore** the detailed records in your activity FIT files.
 - **Query** your data with SQL, JSON, CSV, or your own scripts.
-- **Connect an assistant** to the local archive through a read-only MCP server.
+- **Connect an assistant** to the local archive through MCP; data tools are read-only, and setup can configure local sync.
 - **Build with us** if there's something you'd like to improve.
 
 We're early. Run sync yourself or schedule catch-up with your operating system, then connect a local MCP client to the archive.
@@ -104,6 +104,16 @@ uv run garmin-archive status
 
 The first run saves its starting date even if it fails. Later runs revisit the last seven days and include days since the last fully successful catch-up; completed older days are skipped. A failure or interruption doesn't advance the checkpoint. An interrupted run can remain marked `running` in status until the next run. A broken activity file can keep a run from completing; inspect `status` and use `sync --catch-up --refresh` to retry its download. `--refresh` also re-fetches the selected days. Large missed ranges can take a long time and make many requests. Garmin may return empty or incomplete historical responses, so a successful run is not proof of complete history.
 
+On macOS, `uv run garmin-archive setup` asks how many hours should pass between updates, then installs a per-user schedule. The default is every six hours, rechecking the most recent two days for late uploads. Set the values explicitly or change them later:
+
+```sh
+uv run garmin-archive setup --every-hours 6 --lookback-days 2
+```
+
+Intervals range from 1 to 168 hours and lookback from 1 to 31 days. More frequent syncs and longer lookback windows make more Garmin requests; the exact quota is not published. Two days is a practical starting point, not a guarantee: uploads arriving later may need a longer lookback or a manual refresh. Missed scheduled runs are covered from the last successful catch-up, subject to Garmin returning the historical data. The tool only changes its own managed schedule. Check for separately configured cron or launchd jobs to avoid duplicate syncs. A machine that is off or asleep may update later.
+
+In an MCP client, ask the assistant to configure or change the sync frequency. It can check `setup_status` and call `configure_sync` after you choose an interval; that tool changes the local schedule and doesn't run a sync immediately. MCP clients differ, so an assistant's setup question may appear in conversation rather than automatically when the server connects.
+
 For example, on macOS or Linux, add a daily job with `crontab -e` after the first run. Replace the path with the absolute path to this checkout (use a stable location, not a temporary worktree):
 
 ```cron
@@ -127,7 +137,7 @@ After `uv sync` and at least one archive sync, configure your MCP client to laun
 }
 ```
 
-For a custom archive, set `args` to `["--data-dir", "/absolute/path/to/archive-directory"]`. The server opens the existing database read-only; it does not sync or need a Garmin key. Its tools return a day overview, up to 90 days of metric trends, coverage, activities, daily responses and paginated FIT records. `get_day` and `get_trend` currently support steps, distance, resting heart rate, sleep duration and overnight HRV when Garmin returns the expected fields. Every trend includes dated points, units and missing or failed days; its mean uses only available values. A failed refresh never passes an old value off as current. You can ask your assistant to chart the returned points if it supports visualizations. Samples omit coordinates and raw fields. Daily responses and activity names can still contain sensitive information. Returned data may be sent to the AI provider selected in your client, even though the server runs locally. This configuration is a starting example; individual client setup has not yet been verified end-to-end.
+For a custom archive, set `args` to `["--data-dir", "/absolute/path/to/archive-directory"]`. Data tools open the existing database read-only; they do not sync or need a Garmin key. The separate `configure_sync` tool can install or update a local macOS schedule when requested. Data tools return a day overview, up to 90 days of metric trends, coverage, activities, daily responses and paginated FIT records. `get_day` and `get_trend` currently support steps, distance, resting heart rate, sleep duration and overnight HRV when Garmin returns the expected fields. Every trend includes dated points, units and missing or failed days; its mean uses only available values. A failed refresh never passes an old value off as current. You can ask your assistant to chart the returned points if it supports visualizations. Samples omit coordinates and raw fields. Daily responses and activity names can still contain sensitive information. Returned data may be sent to the AI provider selected in your client, even though the server runs locally. Individual client setup still needs a full conversational test.
 
 For Codex CLI, a stable local tool install avoids pointing the configuration at a temporary checkout:
 
@@ -141,7 +151,7 @@ Start a fresh Codex session after registering the server. Try “How did my slee
 
 ### Current limits
 
-- Scheduling is configured outside the app; no scheduler installer is included yet. A first-party dashboard is not a current goal.
+- Guided scheduling is currently available on macOS; use your OS scheduler on other platforms. A first-party dashboard is not a current goal.
 - Trend metrics are limited to five fields; richer comparisons and activity analysis are planned. A raw daily response larger than 64 KB is rejected by MCP; use the local `health` command to inspect it. The field shapes were checked against one account's seven-day archive, but the actual values still need comparison with Garmin Connect and a named assistant setup needs a full conversational test.
 - Each day in a selected range means five health requests and activity pages, followed by original-file downloads. What's available depends on Garmin and your account, so we can't promise complete history or every metric.
 - The archive keeps the latest response for each day and the first successfully decoded original for each activity. It doesn't keep earlier revisions or catch every activity edit or deletion yet. Garmin's account export is a separate backup you can keep.
