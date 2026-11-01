@@ -23,9 +23,10 @@ Bring your own Garmin Personal API key, sync your health data and activities, an
 - **Sync** your health data and activities to a local archive.
 - **Explore** the detailed records in your activity FIT files.
 - **Query** your data with SQL, JSON, CSV, or your own scripts.
+- **Connect an assistant** to the local archive through a read-only MCP server.
 - **Build with us** if there's something you'd like to improve.
 
-We're early. Sync runs when you ask it to; automatic scheduling and an MCP interface are planned but aren't built yet.
+We're early. Run sync yourself or schedule catch-up with your operating system, then connect a local MCP client to the archive.
 
 [Get started](#personal-api-setup) · [Explore the commands](#sync-and-query) · [Contribute](CONTRIBUTING.md)
 
@@ -90,12 +91,51 @@ sqlite3 "$(uv run garmin-archive path)" \
   'SELECT timestamp, heart_rate_bpm, power_w, cadence_rpm FROM activity_records WHERE activity_id = 123456789 ORDER BY record_index LIMIT 20;'
 ```
 
+### Schedule catch-up
+
+Garmin's Personal API is pull-only: the watch first uploads to Garmin Connect, then this tool fetches from Connect. Start the recurring series with one manual run:
+
+```sh
+uv run garmin-archive sync --catch-up
+# To choose an earlier starting date, use --from on the first catch-up run only:
+# uv run garmin-archive sync --catch-up --from 2026-01-01
+uv run garmin-archive status
+```
+
+The first run saves its starting date even if it fails. Later runs revisit the last seven days and include days since the last fully successful catch-up; completed older days are skipped. A failure or interruption doesn't advance the checkpoint. An interrupted run can remain marked `running` in status until the next run. A broken activity file can keep a run from completing; inspect `status` and use `sync --catch-up --refresh` to retry its download. `--refresh` also re-fetches the selected days. Large missed ranges can take a long time and make many requests. Garmin may return empty or incomplete historical responses, so a successful run is not proof of complete history.
+
+For example, on macOS or Linux, add a daily job with `crontab -e` after the first run. Replace the path with the absolute path to this checkout (use a stable location, not a temporary worktree):
+
+```cron
+15 6 * * * umask 077; "/absolute/path/to/garmin-data-workbench/.venv/bin/garmin-archive" sync --catch-up >> "$HOME/.local/share/garmin-extraction/sync.log" 2>&1
+```
+
+Use the same user account and key file as the manual run. The default log directory is created by that first run; if using `--data-dir` or `XDG_DATA_HOME`, adjust both the command and log path. Review the log and `status` for failures. Cron won't run while the machine is off or asleep; catch-up runs when the next scheduled job actually runs. On macOS, launchd is another option; on Windows use Task Scheduler to run the installed `garmin-archive` executable with `sync --catch-up`. Scheduling is opt-in and must be configured and monitored by the user.
+
+### Connect a local assistant
+
+After `uv sync` and at least one archive sync, configure your MCP client to launch the server over stdio. For clients accepting `mcpServers` JSON, use the absolute path to this checkout's executable:
+
+```json
+{
+  "mcpServers": {
+    "garmin-workbench": {
+      "command": "/absolute/path/to/garmin-data-workbench/.venv/bin/garmin-archive-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+For a custom archive, set `args` to `["--data-dir", "/absolute/path/to/archive-directory"]`. The server opens the existing database read-only; it does not sync or need a Garmin key. Its tools report coverage, list activities, read one daily response and page through decoded FIT records. Samples omit coordinates and raw fields. Daily responses and activity names can still contain sensitive information. Returned data may be sent to the AI provider selected in your client, even though the server runs locally. This configuration is a starting example; individual client setup has not yet been verified end-to-end.
+
 ### Current limits
 
-- Sync is manual right now. There's no background scheduler or MCP server yet.
+- Scheduling is configured outside the app; no scheduler installer or local website is included yet.
+- The MCP tools expose stored data, not trends or cross-day analysis. A daily response larger than 64 KB is rejected by MCP; use the local `health` command to inspect it.
 - Each day in a selected range means five health requests and activity pages, followed by original-file downloads. What's available depends on Garmin and your account, so we can't promise complete history or every metric.
 - The archive keeps the latest response for each day and the first successfully decoded original for each activity. It doesn't keep earlier revisions or catch every activity edit or deletion yet. Garmin's account export is a separate backup you can keep.
-- Don't run two syncs against the same archive at once. Original files and `--full` output can contain precise location data.
+- The CLI rejects concurrent syncs to the same archive. Original files and `--full` output can contain precise location data.
 - Keep Garmin data, tokens, and database files out of the repository. Check the files and history before sharing it or changing its visibility.
 
 ## Development
