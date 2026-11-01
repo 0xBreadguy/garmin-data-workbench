@@ -1,4 +1,4 @@
-"""Read-only, local MCP access to a previously synced archive."""
+"""Local MCP data access and explicit schedule configuration."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from pydantic import Field
 
 from .archive import default_data_dir
 from .queries import day_overview, metric_trend, parse_day
+from .schedule import configure_schedule, schedule_status
 
 DATASETS = {"daily_summary", "sleep", "hrv", "heart_rate", "body_battery"}
 MAX_HEALTH_BYTES = 64_000
@@ -25,12 +26,33 @@ READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldH
 def create_server(data_dir: Path) -> FastMCP:
     server = FastMCP(
         "Garmin Data Workbench",
-        instructions=("Read-only local Garmin archive. Check archive_status for freshness and coverage. "
+        instructions=("Local Garmin archive. Data tools are read-only; configure_sync changes the local schedule. "
+                      "On first use, check setup_status. If the schedule is not configured, ask how often the user "
+                      "wants Garmin data updated; call configure_sync only after they choose. "
+                      "Recommend 6 hours with a 2-day lookback. Check archive_status for freshness and coverage. "
                       "Start with get_day for a day, get_trend for changes, and archive_status for sync health. "
                       "Missing or empty data is not zero; report coverage and stale or failed syncs. "
                       "Responses may be sent to your AI provider."),
     )
     database = (data_dir.expanduser() / "archive.sqlite3").resolve()
+
+    @server.tool(annotations=READ_ONLY)
+    def setup_status() -> dict:
+        """Check whether the local automatic sync schedule is configured; requires no Garmin access."""
+        return schedule_status(data_dir=data_dir)
+
+    @server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False))
+    def configure_sync(
+        every_hours: Annotated[int, Field(ge=1, le=168)],
+        lookback_days: Annotated[int, Field(ge=1, le=31)] = 2,
+    ) -> dict:
+        """Install or change the local macOS sync schedule after the user chooses a frequency.
+
+        every_hours is the interval between syncs. lookback_days is the recent
+        window rechecked for late uploads. This starts no immediate sync and
+        changes no Garmin data. Only call on explicit user instruction.
+        """
+        return configure_schedule(data_dir, every_hours, lookback_days)
 
     @contextmanager
     def open_archive() -> Iterator[sqlite3.Connection]:

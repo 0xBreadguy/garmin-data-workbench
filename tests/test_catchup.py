@@ -72,6 +72,12 @@ class CatchupTest(unittest.TestCase):
         self.invoke(date(2026, 1, 2), date(2026, 1, 8), SyncReport())
         self.assertEqual(self.ranges[-1], (date(2026, 1, 5), date(2026, 1, 8)))
 
+    def test_configurable_lookback_still_covers_missed_days(self):
+        self.args.lookback_days = 2
+        self.invoke(date(2026, 1, 1), date(2026, 1, 7), SyncReport())
+        self.invoke(date(2026, 1, 24), date(2026, 1, 30), SyncReport())
+        self.assertEqual(self.ranges[-1], (date(2026, 1, 6), date(2026, 1, 30)))
+
     def test_auth_failure_preserves_anchor(self):
         with patch("garmin_archive.cli.PersonalApiAuthenticator", side_effect=RuntimeError("secret")), \
              contextlib.redirect_stderr(io.StringIO()) as errors:
