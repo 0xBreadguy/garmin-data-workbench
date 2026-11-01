@@ -147,7 +147,7 @@ codex mcp add garmin-workbench -- "$HOME/.local/bin/garmin-archive-mcp"
 codex mcp get garmin-workbench
 ```
 
-Start a fresh Codex session after registering the server. Try “How did my sleep and resting heart rate change over the last week?” The server uses the host's local date for requests that omit dates. A local tool installation is a snapshot; after updating the workbench, reinstall it with `uv tool install --force --no-cache --from . garmin-data-workbench`. The CLI/IDE configuration is shared by Codex; other hosts may load MCP configuration differently.
+Start a fresh Codex session after registering the server. Try “How did my sleep and resting heart rate change over the last week?” Each sync reads the Garmin profile's measurement system and time zone and keeps just those preferences locally. They are the defaults, so setup does not ask for them. Dates default to the Garmin profile time zone, with the host's local date as a fallback if it is unavailable. Distance summaries include a preferred miles or kilometers value alongside the unchanged meters; agents can use the preference for other presentation or honor your explicit request for different units. Settings can be stale if Garmin is unavailable. Activity timestamps retain their original meaning; the current profile time zone is not necessarily the zone where an older activity occurred. A local tool installation is a snapshot; after updating the workbench, reinstall it with `uv tool install --force --no-cache --from . garmin-data-workbench`. The CLI/IDE configuration is shared by Codex; other hosts may load MCP configuration differently.
 
 ### Current limits
 

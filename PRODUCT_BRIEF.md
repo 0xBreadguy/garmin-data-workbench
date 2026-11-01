@@ -28,6 +28,8 @@ Prioritize clear documentation, good defaults, useful errors and reproducibility
 
 Each person creates their own Personal API key and runs their own installation. Document the one-time key display, expiration, secure storage and a connection check. The key must not be shared with a hosted service. [Garmin's personal FAQ](https://developer.garmin.com/gc-developer-program/personal/personal-faq/) · [personal-key terms](https://connect.garmin.com/web-translations/partner_portal/partner_portal.properties).
 
+Use the Garmin profile's measurement system and time zone as defaults rather than asking during setup. Preserve source units and timestamps, honor explicit user requests for other units, and use the host date only if the profile time zone is unavailable.
+
 Start with the Personal API; a Garmin account export or direct device files may later provide an optional historical import. Garmin business-program access, a hosted multi-user service and monetization are outside the current direction.
 
 ## What the user gets

@@ -15,6 +15,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from .archive import default_data_dir
+from .preferences import display_distance, local_today, profile_preferences
 from .queries import day_overview, metric_trend, parse_day
 from .schedule import configure_schedule, schedule_status
 
@@ -31,6 +32,9 @@ def create_server(data_dir: Path) -> FastMCP:
                       "wants Garmin data updated; call configure_sync only after they choose. "
                       "Recommend 6 hours with a 2-day lookback. Check archive_status for freshness and coverage. "
                       "Start with get_day for a day, get_trend for changes, and archive_status for sync health. "
+                      "Present distances and other measurements using Garmin profile preferences when available; "
+                      "respect an explicit user request for other units. Numerical tool values use their labeled "
+                      "source units and must be converted before presentation. "
                       "Missing or empty data is not zero; report coverage and stale or failed syncs. "
                       "Responses may be sent to your AI provider."),
     )
@@ -68,12 +72,21 @@ def create_server(data_dir: Path) -> FastMCP:
     def get_day(day: str = "") -> dict:
         """Get one day at a glance: supported metrics, activities, and dataset coverage.
 
-        day is YYYY-MM-DD, defaulting to today in the host's local timezone.
+        day is YYYY-MM-DD, defaulting to today in Garmin's profile timezone
+        or the host timezone if unavailable.
         Missing values are null. Raw responses can be requested separately
         with daily_health.
         """
         with open_archive() as db:
-            return day_overview(db, day or date.today().isoformat())
+            prefs = profile_preferences(db)
+            today, today_source = local_today(prefs)
+            result = day_overview(db, day or today.isoformat())
+            distance = result["metrics"]["distance"]
+            distance["display_value"], distance["display_unit"] = display_distance(distance["value"], prefs)
+            for activity in result["activities"]:
+                activity["display_distance"], activity["display_distance_unit"] = display_distance(activity["distance_m"], prefs)
+            result.update({"preferences": prefs, "today_source": today_source})
+            return result
 
     @server.tool(annotations=READ_ONLY)
     def get_trend(metric: str, start: str = "", end: str = "") -> dict:
@@ -81,12 +94,23 @@ def create_server(data_dir: Path) -> FastMCP:
 
         metric is steps, distance, resting_heart_rate, sleep_duration, or
         overnight_hrv. start and end are YYYY-MM-DD. End defaults to today in
-        the host's local timezone; start defaults to six days before end.
+        Garmin's profile timezone (or host timezone if unavailable); start
+        defaults to six days before end.
         Means use only days with values, never missing days.
         """
         with open_archive() as db:
-            end_day = parse_day(end) if end else date.today()
-            return metric_trend(db, metric, start or (end_day - timedelta(days=6)).isoformat(), end_day.isoformat())
+            prefs = profile_preferences(db)
+            today, today_source = local_today(prefs)
+            end_day = parse_day(end) if end else today
+            result = metric_trend(db, metric, start or (end_day - timedelta(days=6)).isoformat(), end_day.isoformat())
+            if metric == "distance":
+                _, unit = display_distance(None, prefs)
+                result["display"] = {"unit": unit,
+                    "points": [{"day": point["day"], "value": display_distance(point["value"], prefs)[0]}
+                               for point in result["points"]],
+                    "mean_of_available_days": display_distance(result["mean_of_available_days"], prefs)[0]}
+            result.update({"preferences": prefs, "today_source": today_source})
+            return result
 
     @server.tool(annotations=READ_ONLY)
     def archive_status() -> dict:
@@ -104,7 +128,10 @@ def create_server(data_dir: Path) -> FastMCP:
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='catchup_state'"
             ).fetchone()
             catchup = db.execute("SELECT * FROM catchup_state WHERE id=1").fetchone() if has_catchup else None
-            return {"source": "local archive", "local_today": date.today().isoformat(),
+            prefs = profile_preferences(db)
+            today, today_source = local_today(prefs)
+            return {"source": "local archive", "local_today": today.isoformat(), "today_source": today_source,
+                    "preferences": prefs,
                     "coverage": coverage, "activity_files": fit,
                     "catch_up": dict(catchup) if catchup else None}
 
@@ -115,6 +142,7 @@ def create_server(data_dir: Path) -> FastMCP:
     ) -> dict:
         """List activity summaries, newest first. Page with offset and limit."""
         with open_archive() as db:
+            prefs = profile_preferences(db)
             rows = [dict(row) for row in db.execute(
                 "SELECT activity_id, day, json_extract(summary_json, '$.activityType.typeKey') AS type, "
                 "json_extract(summary_json, '$.activityName') AS name, "
@@ -123,7 +151,9 @@ def create_server(data_dir: Path) -> FastMCP:
                 "json_extract(summary_json, '$.averageHR') AS average_heart_rate_bpm, fit_status, updated_at "
                 "FROM activities ORDER BY day DESC, activity_id DESC LIMIT ? OFFSET ?", (limit + 1, offset)
             )]
-        return {"source": "local archive", "activities": rows[:limit],
+        for activity in rows:
+            activity["display_distance"], activity["display_distance_unit"] = display_distance(activity["distance_m"], prefs)
+        return {"source": "local archive", "preferences": prefs, "activities": rows[:limit],
                 "units": {"distance_m": "m", "duration_s": "s", "average_heart_rate_bpm": "bpm"},
                 "next_offset": offset + limit if len(rows) > limit else None}
 
@@ -162,6 +192,7 @@ def create_server(data_dir: Path) -> FastMCP:
     ) -> dict:
         """Return a page of recorded FIT samples; excludes precise location and raw fields."""
         with open_archive() as db:
+            prefs = profile_preferences(db)
             activity = db.execute("SELECT day, fit_status, updated_at FROM activities WHERE activity_id=?",
                                   (activity_id,)).fetchone()
             if activity is None:
@@ -171,7 +202,7 @@ def create_server(data_dir: Path) -> FastMCP:
                 "enhanced_speed_mps FROM activity_records WHERE activity_id=? "
                 "ORDER BY record_index LIMIT ? OFFSET ?", (activity_id, limit + 1, offset)
             )]
-        return {"source": "decoded original FIT", "activity_id": activity_id, "day": activity["day"],
+        return {"source": "decoded original FIT", "preferences": prefs, "activity_id": activity_id, "day": activity["day"],
                 "fit_status": activity["fit_status"], "activity_updated_at": activity["updated_at"],
                 "units": {"heart_rate_bpm": "bpm", "power_w": "W", "cadence_rpm": "rpm",
                           "distance_m": "m", "enhanced_speed_mps": "m/s"},
