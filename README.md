@@ -32,7 +32,7 @@ We're early. Run sync yourself or schedule catch-up with your operating system, 
 
 Garmin Data Workbench is an independent open-source project. It isn't affiliated with, endorsed by, or supported by Garmin.
 
-Want more context? The [product brief](PRODUCT_BRIEF.md) covers where we'd like to take the project, the [existing-projects review](EXISTING_PROJECTS.md) looks at related tools, and the [data plan](GARMIN_DATA_PLAN.md) goes into the sources and architecture.
+Want more context? The [product brief](PRODUCT_BRIEF.md) covers where we'd like to take the project, the [existing-projects review](EXISTING_PROJECTS.md) looks at related tools, and the [architecture notes](ARCHITECTURE.md) explain the storage and performance choices.
 
 ## Personal API setup
 
@@ -129,10 +129,20 @@ After `uv sync` and at least one archive sync, configure your MCP client to laun
 
 For a custom archive, set `args` to `["--data-dir", "/absolute/path/to/archive-directory"]`. The server opens the existing database read-only; it does not sync or need a Garmin key. Its tools return a day overview, up to 90 days of metric trends, coverage, activities, daily responses and paginated FIT records. `get_day` and `get_trend` currently support steps, distance, resting heart rate, sleep duration and overnight HRV when Garmin returns the expected fields. Every trend includes dated points, units and missing or failed days; its mean uses only available values. A failed refresh never passes an old value off as current. You can ask your assistant to chart the returned points if it supports visualizations. Samples omit coordinates and raw fields. Daily responses and activity names can still contain sensitive information. Returned data may be sent to the AI provider selected in your client, even though the server runs locally. This configuration is a starting example; individual client setup has not yet been verified end-to-end.
 
+For Codex CLI, a stable local tool install avoids pointing the configuration at a temporary checkout:
+
+```sh
+uv tool install --from . garmin-data-workbench
+codex mcp add garmin-workbench -- "$HOME/.local/bin/garmin-archive-mcp"
+codex mcp get garmin-workbench
+```
+
+Start a fresh Codex session after registering the server. Try “How did my sleep and resting heart rate change over the last week?” The server uses the host's local date for requests that omit dates. A local tool installation is a snapshot; after updating the workbench, reinstall it with `uv tool install --force --no-cache --from . garmin-data-workbench`. The CLI/IDE configuration is shared by Codex; other hosts may load MCP configuration differently.
+
 ### Current limits
 
 - Scheduling is configured outside the app; no scheduler installer is included yet. A first-party dashboard is not a current goal.
-- Trend metrics are limited to five fields; richer comparisons and activity analysis are planned. A raw daily response larger than 64 KB is rejected by MCP; use the local `health` command to inspect it. Field mappings and a named assistant setup still need end-to-end validation against real Personal API data.
+- Trend metrics are limited to five fields; richer comparisons and activity analysis are planned. A raw daily response larger than 64 KB is rejected by MCP; use the local `health` command to inspect it. The field shapes were checked against one account's seven-day archive, but the actual values still need comparison with Garmin Connect and a named assistant setup needs a full conversational test.
 - Each day in a selected range means five health requests and activity pages, followed by original-file downloads. What's available depends on Garmin and your account, so we can't promise complete history or every metric.
 - The archive keeps the latest response for each day and the first successfully decoded original for each activity. It doesn't keep earlier revisions or catch every activity edit or deletion yet. Garmin's account export is a separate backup you can keep.
 - The CLI rejects concurrent syncs to the same archive. Original files and `--full` output can contain precise location data.

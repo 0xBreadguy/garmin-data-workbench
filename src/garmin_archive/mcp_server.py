@@ -6,7 +6,7 @@ import argparse
 import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Annotated, Iterator
 
@@ -15,7 +15,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from .archive import default_data_dir
-from .queries import day_overview, metric_trend
+from .queries import day_overview, metric_trend, parse_day
 
 DATASETS = {"daily_summary", "sleep", "hrv", "heart_rate", "body_battery"}
 MAX_HEALTH_BYTES = 64_000
@@ -43,25 +43,28 @@ def create_server(data_dir: Path) -> FastMCP:
             connection.close()
 
     @server.tool(annotations=READ_ONLY)
-    def get_day(day: str) -> dict:
+    def get_day(day: str = "") -> dict:
         """Get one day at a glance: supported metrics, activities, and dataset coverage.
 
-        day is YYYY-MM-DD. Missing values are null. Raw responses can be
-        requested separately with daily_health.
+        day is YYYY-MM-DD, defaulting to today in the host's local timezone.
+        Missing values are null. Raw responses can be requested separately
+        with daily_health.
         """
         with open_archive() as db:
-            return day_overview(db, day)
+            return day_overview(db, day or date.today().isoformat())
 
     @server.tool(annotations=READ_ONLY)
-    def get_trend(metric: str, start: str, end: str) -> dict:
+    def get_trend(metric: str, start: str = "", end: str = "") -> dict:
         """Get daily values and coverage over 1–90 days inclusive.
 
         metric is steps, distance, resting_heart_rate, sleep_duration, or
-        overnight_hrv. start and end are YYYY-MM-DD. Means use only days
-        with values, never missing days.
+        overnight_hrv. start and end are YYYY-MM-DD. End defaults to today in
+        the host's local timezone; start defaults to six days before end.
+        Means use only days with values, never missing days.
         """
         with open_archive() as db:
-            return metric_trend(db, metric, start, end)
+            end_day = parse_day(end) if end else date.today()
+            return metric_trend(db, metric, start or (end_day - timedelta(days=6)).isoformat(), end_day.isoformat())
 
     @server.tool(annotations=READ_ONLY)
     def archive_status() -> dict:
@@ -79,7 +82,8 @@ def create_server(data_dir: Path) -> FastMCP:
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='catchup_state'"
             ).fetchone()
             catchup = db.execute("SELECT * FROM catchup_state WHERE id=1").fetchone() if has_catchup else None
-            return {"source": "local archive", "coverage": coverage, "activity_files": fit,
+            return {"source": "local archive", "local_today": date.today().isoformat(),
+                    "coverage": coverage, "activity_files": fit,
                     "catch_up": dict(catchup) if catchup else None}
 
     @server.tool(annotations=READ_ONLY)

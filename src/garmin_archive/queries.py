@@ -13,8 +13,8 @@ from typing import Any
 
 # Output name -> (dataset, path within the dated response, unit).
 METRICS = {
-    "steps": ("daily_summary", ("movement", "steps"), "steps"),
-    "distance": ("daily_summary", ("movement", "distanceMeters"), "m"),
+    "steps": ("daily_summary", ("movement", "steps", "value"), "steps"),
+    "distance": ("daily_summary", ("movement", "steps", "distanceInMeters"), "m"),
     "resting_heart_rate": ("heart_rate", ("restingHeartRate",), "bpm"),
     "sleep_duration": ("sleep", ("sleepTimeSeconds",), "s"),
     "overnight_hrv": ("hrv", ("hrvSummary", "lastNightAvg"), "ms"),
@@ -52,23 +52,46 @@ def _dated_object(raw: Any, dataset: str, day: str) -> dict | None:
 
 
 def _point(db: sqlite3.Connection, dataset: str, path: tuple[str, ...], day: str) -> dict:
-    row = db.execute(
-        "SELECT d.data_json, d.fetched_at, s.status, s.error, s.updated_at AS last_attempt "
-        "FROM (SELECT 1) LEFT JOIN daily_data d ON d.dataset=? AND d.day=? "
-        "LEFT JOIN sync_state s ON s.dataset=? AND s.day=?", (dataset, day, dataset, day)
-    ).fetchone()
+    # Single-day responses can contain thousands of samples. Extract only the
+    # summary scalar in SQLite instead of copying and parsing the full payload
+    # in Python on every agent query. Daily summaries need their array checked
+    # for duplicate/mismatched dates and use the conservative path below.
+    if dataset == "daily_summary":
+        row = db.execute(
+            "SELECT d.data_json, d.fetched_at, s.status, s.error, s.updated_at AS last_attempt "
+            "FROM (SELECT 1) LEFT JOIN daily_data d ON d.dataset=? AND d.day=? "
+            "LEFT JOIN sync_state s ON s.dataset=? AND s.day=?", (dataset, day, dataset, day)
+        ).fetchone()
+    else:
+        json_path = "$." + ".".join(path)
+        row = db.execute(
+            "SELECT d.data_json IS NOT NULL AS has_data, d.fetched_at, s.status, s.error, "
+            "s.updated_at AS last_attempt, "
+            "CASE WHEN s.status='ok' THEN json_extract(d.data_json, ?) END AS metric_value, "
+            "CASE WHEN s.status='ok' THEN json_type(d.data_json, ?) END AS metric_type, "
+            "CASE WHEN s.status='ok' THEN json_extract(d.data_json, '$.calendarDate') END AS root_day, "
+            "CASE WHEN s.status='ok' THEN json_extract(d.data_json, '$.hrvSummary.calendarDate') END AS hrv_day "
+            "FROM (SELECT 1) LEFT JOIN daily_data d ON d.dataset=? AND d.day=? "
+            "LEFT JOIN sync_state s ON s.dataset=? AND s.day=?",
+            (json_path, json_path, dataset, day, dataset, day),
+        ).fetchone()
     status = row["status"] or "not_checked"
     point = {"day": day, "status": status, "value": None, "fetched_at": row["fetched_at"],
              "last_attempt": row["last_attempt"], "error": row["error"]}
     # After an unsuccessful refresh, a previously stored value can still exist;
     # do not present that old value as a successful current observation.
-    if status != "ok" or row["data_json"] is None:
+    has_data = row["data_json"] is not None if dataset == "daily_summary" else row["has_data"]
+    if status != "ok" or not has_data:
         if status == "ok":
             point["status"] = "response_missing"
         return point
-    obj: Any = _dated_object(json.loads(row["data_json"]), dataset, day)
-    for key in path:
-        obj = obj.get(key) if isinstance(obj, dict) else None
+    if dataset == "daily_summary":
+        obj: Any = _dated_object(json.loads(row["data_json"]), dataset, day)
+        for key in path:
+            obj = obj.get(key) if isinstance(obj, dict) else None
+    else:
+        matches_day = row["root_day"] in (None, day) and (dataset != "hrv" or row["hrv_day"] in (None, day))
+        obj = row["metric_value"] if matches_day and row["metric_type"] in ("integer", "real") else None
     if isinstance(obj, bool) or not isinstance(obj, (int, float)) or not math.isfinite(obj) or obj < 0:
         point["status"] = "metric_not_returned"
     else:

@@ -23,12 +23,12 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
             sync(archive, FakeClient(), date(2026, 1, 1), date(2026, 1, 1),
                  today=date(2026, 1, 10), pause=0)
             archive.save_daily("daily_summary", "2026-01-01", {"data": [{"calendarDate": "2026-01-01",
-                "movement": {"steps": 0, "distanceMeters": 0}}]})
+                "movement": {"steps": {"value": 0, "distanceInMeters": 0}}}]})
             archive.save_daily("sleep", "2026-01-01", {"calendarDate": "2026-01-01", "sleepTimeSeconds": 27000})
             archive.save_daily("hrv", "2026-01-01", {"hrvSummary": {"calendarDate": "2026-01-01", "lastNightAvg": 42}})
             archive.save_daily("heart_rate", "2026-01-01", {"calendarDate": "2026-01-01", "restingHeartRate": 55})
             archive.save_daily("daily_summary", "2026-01-02", {"data": [{"calendarDate": "2026-01-02",
-                "movement": {"steps": 8000}}]})
+                "movement": {"steps": {"value": 8000}}}]})
             archive.mark_error("daily_summary", "2026-01-02", "HTTP 429")
             archive.close()
             params = StdioServerParameters(command=sys.executable,
@@ -62,6 +62,11 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(overview["metrics"]["sleep_duration"]["value"], 27000)
                     self.assertEqual(overview["metrics"]["overnight_hrv"]["value"], 42)
                     self.assertEqual(overview["activities"][0]["activity_id"], 42)
+                    today = await call("get_day", {})
+                    self.assertEqual(today["day"], date.today().isoformat())
+                    default_trend = await call("get_trend", {"metric": "steps", "end": "2026-01-07"})
+                    self.assertEqual((default_trend["from"], default_trend["to"]),
+                                     ("2026-01-01", "2026-01-07"))
                     trend = await call("get_trend", {"metric": "steps", "start": "2026-01-01", "end": "2026-01-03"})
                     self.assertEqual([p["status"] for p in trend["points"]], ["ok", "error", "not_checked"])
                     self.assertEqual([p["value"] for p in trend["points"]], [0, None, None])
