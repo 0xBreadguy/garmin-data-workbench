@@ -15,6 +15,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from .archive import default_data_dir
+from .queries import day_overview, metric_trend
 
 DATASETS = {"daily_summary", "sleep", "hrv", "heart_rate", "body_battery"}
 MAX_HEALTH_BYTES = 64_000
@@ -25,7 +26,9 @@ def create_server(data_dir: Path) -> FastMCP:
     server = FastMCP(
         "Garmin Data Workbench",
         instructions=("Read-only local Garmin archive. Check archive_status for freshness and coverage. "
-                      "Missing or empty data is not zero. Responses may be sent to your AI provider."),
+                      "Start with get_day for a day, get_trend for changes, and archive_status for sync health. "
+                      "Missing or empty data is not zero; report coverage and stale or failed syncs. "
+                      "Responses may be sent to your AI provider."),
     )
     database = (data_dir.expanduser() / "archive.sqlite3").resolve()
 
@@ -38,6 +41,27 @@ def create_server(data_dir: Path) -> FastMCP:
             yield connection
         finally:
             connection.close()
+
+    @server.tool(annotations=READ_ONLY)
+    def get_day(day: str) -> dict:
+        """Get one day at a glance: supported metrics, activities, and dataset coverage.
+
+        day is YYYY-MM-DD. Missing values are null. Raw responses can be
+        requested separately with daily_health.
+        """
+        with open_archive() as db:
+            return day_overview(db, day)
+
+    @server.tool(annotations=READ_ONLY)
+    def get_trend(metric: str, start: str, end: str) -> dict:
+        """Get daily values and coverage over 1–90 days inclusive.
+
+        metric is steps, distance, resting_heart_rate, sleep_duration, or
+        overnight_hrv. start and end are YYYY-MM-DD. Means use only days
+        with values, never missing days.
+        """
+        with open_archive() as db:
+            return metric_trend(db, metric, start, end)
 
     @server.tool(annotations=READ_ONLY)
     def archive_status() -> dict:
@@ -67,10 +91,14 @@ def create_server(data_dir: Path) -> FastMCP:
         with open_archive() as db:
             rows = [dict(row) for row in db.execute(
                 "SELECT activity_id, day, json_extract(summary_json, '$.activityType.typeKey') AS type, "
-                "json_extract(summary_json, '$.activityName') AS name, fit_status, updated_at "
+                "json_extract(summary_json, '$.activityName') AS name, "
+                "json_extract(summary_json, '$.distance') AS distance_m, "
+                "json_extract(summary_json, '$.duration') AS duration_s, "
+                "json_extract(summary_json, '$.averageHR') AS average_heart_rate_bpm, fit_status, updated_at "
                 "FROM activities ORDER BY day DESC, activity_id DESC LIMIT ? OFFSET ?", (limit + 1, offset)
             )]
         return {"source": "local archive", "activities": rows[:limit],
+                "units": {"distance_m": "m", "duration_s": "s", "average_heart_rate_bpm": "bpm"},
                 "next_offset": offset + limit if len(rows) > limit else None}
 
     @server.tool(annotations=READ_ONLY)
