@@ -1,18 +1,33 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
-
 # Garmin Data Workbench
+
+```text
+  G A R M I N   D A T A
+
+  __      _____  ___ _  _____ ___ _  _  ___ _  _
+  \ \    / / _ \| _ \ |/ / _ ) __| \| |/ __| || |
+   \ \/\/ / (_) |   / ' <| _ \ _|| .` | (__| __ |
+    \_/\_/ \___/|_|_\_|\_\___/___|_|\_|\___|_||_|
+```
+
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-4B6F92?style=flat-square)](https://www.python.org/)
+[![SQLite archive](https://img.shields.io/badge/archive-SQLite-5C7D70?style=flat-square)](https://www.sqlite.org/)
+[![Local first](https://img.shields.io/badge/data-local--first-5C7D70?style=flat-square)](#sync-and-query)
+[![MIT license](https://img.shields.io/badge/license-MIT-777777?style=flat-square)](LICENSE)
 
 **Your Garmin data, ready for your own tools.**
 
 Garmin Data Workbench is a community-built, local-first tool for downloading, owning and querying your Garmin health and activity data. Bring your own Garmin Personal API key and explore your SQLite archive with SQL, scripts and notebooks. An MCP interface and automatic scheduling are planned but are not implemented yet.
 
+- **Sync** health data and activities to a local archive.
+- **Explore** granular activity records decoded from original FIT files.
+- **Query** your data with SQL, JSON, CSV, or your own scripts.
+- **Build together** on an open-source tool for people who want to own their data.
+
+[Get started](#personal-api-setup) · [Explore the commands](#sync-and-query) · [Contribute](CONTRIBUTING.md)
+
 This is an independent open-source project. It is not affiliated with, endorsed by, or supported by Garmin.
 
 See the [product brief](PRODUCT_BRIEF.md) for the proposed experience, the [existing-projects review](EXISTING_PROJECTS.md) for competitive context, and the [data extraction plan](GARMIN_DATA_PLAN.md) for sources, architecture, privacy boundaries, implementation phases, and release requirements.
-
-## Contributing
-
-We welcome bug reports, ideas, documentation improvements, and code from people who want more control over their Garmin data. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started and how to share useful examples without exposing personal data.
 
 ## Personal API setup
 
