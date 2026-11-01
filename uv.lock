@@ -155,7 +155,7 @@ wheels = [
 ]
 
 [[package]]
-name = "garmin-extraction"
+name = "garmin-data-workbench"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
