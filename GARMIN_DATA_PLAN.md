@@ -1,6 +1,6 @@
 # Garmin Data Workbench: data plan
 
-Research checked: November 1, 2026. A first manual-sync CLI and SQLite archive have been implemented and verified against one day of live data. The broader plan below includes work not yet built, including automated scheduling, full historical reconciliation and MCP.
+Research checked: November 1, 2026. A first manual-sync CLI and SQLite archive have been implemented and verified against one day of live data. The broader plan below includes work not yet built, including scheduler installation, full historical reconciliation and richer MCP analysis. A read-only MCP adapter and scheduler-friendly catch-up command are now implemented.
 
 ## Goal and recommendation
 
@@ -124,4 +124,4 @@ Before removing an existing hosted connector, compare its results with the perso
 - **Host:** a personal computer is the easiest starting point; an always-on machine makes scheduled collection more dependable. Availability and backup destination remain to be chosen.
 - **Priorities:** identify the first health/training questions and any must-have raw signals so the coverage proof tests what matters.
 - **Unknowns:** actual historical depth, API quotas, precision, original-file fidelity, device provenance and access to proprietary or raw physiology are unverified until tested on this account. The Personal API is read-only/pull-based and depends on data arriving in Connect; it is not a live sensor feed.
-- **Distribution:** choose a project license, initial supported platforms, and a release destination. This is an individual personal-data workflow, not a hosted multi-user service. Verify the accepted Personal API terms before routing API data to other services. A Personal API key has been configured locally and a manual one-day archive sync has succeeded; recurring sync and MCP are not installed.
+- **Distribution:** choose a project license, initial supported platforms, and a release destination. This is an individual personal-data workflow, not a hosted multi-user service. Verify the accepted Personal API terms before routing API data to other services. A Personal API key has been configured locally and a manual one-day archive sync has succeeded; the optional recurring schedule and an assistant connection have not been installed or tested with this account.

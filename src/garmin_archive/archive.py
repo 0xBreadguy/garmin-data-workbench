@@ -25,6 +25,13 @@ CREATE TABLE IF NOT EXISTS sync_state (
     updated_at TEXT NOT NULL,
     PRIMARY KEY (dataset, day)
 );
+CREATE TABLE IF NOT EXISTS catchup_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    start_day TEXT NOT NULL,
+    last_success_day TEXT,
+    last_attempt_at TEXT,
+    last_result TEXT
+);
 CREATE TABLE IF NOT EXISTS activities (
     activity_id INTEGER PRIMARY KEY,
     day TEXT NOT NULL,

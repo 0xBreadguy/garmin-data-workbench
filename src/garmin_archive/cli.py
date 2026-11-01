@@ -6,19 +6,21 @@ import argparse
 import csv
 import json
 import logging
+import math
 import os
 import sys
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from filelock import FileLock, Timeout
 from garmin_personal_api import (
     GarminPersonalApiClient,
     PersonalApiAuthenticator,
     resolve_api_key,
 )
 
-from .archive import Archive, default_data_dir
+from .archive import Archive, default_data_dir, now
 from .sync import DATASETS, sync
 
 
@@ -62,6 +64,7 @@ def parser() -> argparse.ArgumentParser:
     sync_parser.add_argument("--to", dest="end", type=_date, default=None, help="End date, YYYY-MM-DD (default: today)")
     sync_parser.add_argument("--refresh", action="store_true", help="Re-fetch completed days in the selected range")
     sync_parser.add_argument("--pause", type=float, default=0.3, help="Seconds between requests (default: 0.3)")
+    sync_parser.add_argument("--catch-up", action="store_true", help="Resume from the last successful catch-up run; suitable for scheduling")
 
     commands.add_parser("status", help="Show archive coverage and sync errors")
     commands.add_parser("path", help="Print the SQLite database path")
@@ -93,9 +96,48 @@ def _print_json(value: Any) -> None:
 def _sync(archive: Archive, args: argparse.Namespace) -> int:
     end = args.end or date.today()
     start = args.start or end - timedelta(days=6)
-    if start > end or args.pause < 0:
+    if start > end or not math.isfinite(args.pause) or args.pause < 0:
         print("Start must not be after end, and pause must not be negative.", file=sys.stderr)
         return 2
+    if args.catch_up and args.end:
+        print("--catch-up always syncs through today; omit --to.", file=sys.stderr)
+        return 2
+    try:
+        # The lock covers the checkpoint, authentication and all network work.
+        # A process crash releases the OS lock; the file itself is harmless.
+        with FileLock(str(archive.data_dir / "sync.lock"), timeout=0, mode=0o600):
+            return _sync_locked(archive, args, start, end)
+    except Timeout:
+        print("Another sync is already running for this archive.", file=sys.stderr)
+        return 1
+
+
+def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: date) -> int:
+    if args.catch_up:
+        row = archive.connection.execute("SELECT * FROM catchup_state WHERE id=1").fetchone()
+        if row and args.start:
+            print("--from sets the initial catch-up date only; it has already been set.", file=sys.stderr)
+            return 2
+        if row and row["last_success_day"] and date.fromisoformat(row["last_success_day"]) > end:
+            print("Catch-up checkpoint is in the future; check the system date.", file=sys.stderr)
+            return 1
+        if row is None:
+            with archive.connection:
+                archive.connection.execute(
+                    "INSERT INTO catchup_state (id, start_day) VALUES (1, ?)", (start.isoformat(),)
+                )
+        else:
+            # Recheck a week for late uploads, and include all time missed while offline.
+            start = (max(date.fromisoformat(row["start_day"]),
+                         min(end - timedelta(days=6), date.fromisoformat(row["last_success_day"]) - timedelta(days=6)))
+                     if row["last_success_day"] else date.fromisoformat(row["start_day"]))
+        if start > end:
+            print("Catch-up checkpoint is in the future; check the system date.", file=sys.stderr)
+            return 1
+        with archive.connection:
+            archive.connection.execute(
+                "UPDATE catchup_state SET last_attempt_at=?, last_result='running' WHERE id=1", (now(),)
+            )
     # The official client logs URLs and HTTP errors can contain response bodies.
     logging.disable(logging.CRITICAL)
     try:
@@ -104,8 +146,19 @@ def _sync(archive: Archive, args: argparse.Namespace) -> int:
         with GarminPersonalApiClient(token.access_token) as client:
             report = sync(archive, client, start, end, refresh=args.refresh, pause=args.pause)
     except Exception as error:  # noqa: BLE001 -- keep private API response bodies out of the terminal
+        if args.catch_up:
+            with archive.connection:
+                archive.connection.execute("UPDATE catchup_state SET last_result='error' WHERE id=1")
         print(f"Sync could not start ({type(error).__name__}). Check your key and connection.", file=sys.stderr)
         return 1
+    if args.catch_up:
+        with archive.connection:
+            if report.errors:
+                archive.connection.execute("UPDATE catchup_state SET last_result='error' WHERE id=1")
+            else:
+                archive.connection.execute(
+                    "UPDATE catchup_state SET last_result='ok', last_success_day=? WHERE id=1", (end.isoformat(),)
+                )
     _print_json({
         "range": {"from": start.isoformat(), "to": end.isoformat()},
         "health_requests_succeeded": report.checked,
@@ -134,7 +187,8 @@ def _status(archive: Archive) -> int:
     fit_errors = [dict(row) for row in archive.connection.execute(
         "SELECT activity_id, fit_error AS error FROM activities WHERE fit_status='error' ORDER BY activity_id"
     )]
-    _print_json({"database": str(archive.path), "coverage": states, "activity_files": fit, "errors": errors, "fit_errors": fit_errors})
+    catchup = archive.connection.execute("SELECT * FROM catchup_state WHERE id=1").fetchone()
+    _print_json({"database": str(archive.path), "catch_up": dict(catchup) if catchup else None, "coverage": states, "activity_files": fit, "errors": errors, "fit_errors": fit_errors})
     return 0
 
 
