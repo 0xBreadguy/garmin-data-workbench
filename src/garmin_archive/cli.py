@@ -9,6 +9,7 @@ import logging
 import math
 import os
 import sys
+import time
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,9 @@ from garmin_personal_api import (
 )
 
 from .archive import Archive, default_data_dir, now
-from .sync import DATASETS, sync
+from .preferences import clean_profile, local_today, profile_preferences
+from .sync import DATASETS, SyncStopped, _call, sync
+from garmin_personal_api.errors import HttpError
 
 
 def _date(value: str) -> date:
@@ -101,7 +104,7 @@ def _print_json(value: Any) -> None:
 def _sync(archive: Archive, args: argparse.Namespace) -> int:
     end = args.end or date.today()
     start = args.start or end - timedelta(days=6)
-    if start > end or not math.isfinite(args.pause) or args.pause < 0:
+    if (args.end is not None and start > end) or not math.isfinite(args.pause) or args.pause < 0:
         print("Start must not be after end, and pause must not be negative.", file=sys.stderr)
         return 2
     if not 1 <= getattr(args, "lookback_days", 7) <= 31:
@@ -114,19 +117,20 @@ def _sync(archive: Archive, args: argparse.Namespace) -> int:
         # The lock covers the checkpoint, authentication and all network work.
         # A process crash releases the OS lock; the file itself is harmless.
         with FileLock(str(archive.data_dir / "sync.lock"), timeout=0, mode=0o600):
-            return _sync_locked(archive, args, start, end)
+            return _sync_locked(archive, args, start, end, use_profile_default=args.end is None)
     except Timeout:
         print("Another sync is already running for this archive.", file=sys.stderr)
         return 1
 
 
-def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: date) -> int:
+def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: date, *, use_profile_default: bool = False) -> int:
+    row = None
     if args.catch_up:
         row = archive.connection.execute("SELECT * FROM catchup_state WHERE id=1").fetchone()
         if row and args.start:
             print("--from sets the initial catch-up date only; it has already been set.", file=sys.stderr)
             return 2
-        if row and row["last_success_day"] and date.fromisoformat(row["last_success_day"]) > end:
+        if not use_profile_default and row and row["last_success_day"] and date.fromisoformat(row["last_success_day"]) > end:
             print("Catch-up checkpoint is in the future; check the system date.", file=sys.stderr)
             return 1
         if row is None:
@@ -140,7 +144,7 @@ def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: d
             start = (max(date.fromisoformat(row["start_day"]),
                          min(end - overlap, date.fromisoformat(row["last_success_day"]) - overlap))
                      if row["last_success_day"] else date.fromisoformat(row["start_day"]))
-        if start > end:
+        if not use_profile_default and start > end:
             print("Catch-up checkpoint is in the future; check the system date.", file=sys.stderr)
             return 1
         with archive.connection:
@@ -153,7 +157,35 @@ def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: d
         with PersonalApiAuthenticator() as auth:
             token = auth.obtain_token(resolve_api_key())
         with GarminPersonalApiClient(token.access_token) as client:
-            report = sync(archive, client, start, end, refresh=args.refresh, pause=args.pause)
+            warning = None
+            try:
+                profile = _call(client.get_user_profile_settings, args.pause, time.sleep)
+                archive.save_preferences(*clean_profile(profile))
+            except SyncStopped:
+                raise
+            except (HttpError, ValueError, TypeError) as error:
+                # Keep the last successful preferences if a nonfatal request fails.
+                warning = f"Profile settings unavailable ({type(error).__name__}); using cached settings or host date."
+            garmin_today, _ = local_today(profile_preferences(archive.connection))
+            if use_profile_default:
+                end = garmin_today
+                if args.catch_up and row is not None:
+                    if row["last_success_day"]:
+                        if date.fromisoformat(row["last_success_day"]) > end:
+                            raise ValueError("Catch-up checkpoint is in the future")
+                        overlap = timedelta(days=getattr(args, "lookback_days", 7) - 1)
+                        start = max(date.fromisoformat(row["start_day"]),
+                                    min(end - overlap, date.fromisoformat(row["last_success_day"]) - overlap))
+                    else:
+                        start = date.fromisoformat(row["start_day"])
+                elif args.start is None:
+                    start = end - timedelta(days=6)
+                    if args.catch_up:
+                        with archive.connection:
+                            archive.connection.execute("UPDATE catchup_state SET start_day=? WHERE id=1", (start.isoformat(),))
+                if start > end:
+                    raise ValueError("Start date is after Garmin's current date")
+            report = sync(archive, client, start, end, refresh=args.refresh, pause=args.pause, today=garmin_today)
     except Exception as error:  # noqa: BLE001 -- keep private API response bodies out of the terminal
         if args.catch_up:
             with archive.connection:
@@ -177,6 +209,7 @@ def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: d
         "non_fit_originals": report.unsupported,
         "stopped": report.stopped,
         "errors": report.errors,
+        "profile_warning": warning,
     })
     return 1 if report.errors else 0
 

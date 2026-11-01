@@ -23,19 +23,21 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
             sync(archive, FakeClient(), date(2026, 1, 1), date(2026, 1, 1),
                  today=date(2026, 1, 10), pause=0)
             archive.save_daily("daily_summary", "2026-01-01", {"data": [{"calendarDate": "2026-01-01",
-                "movement": {"steps": {"value": 0, "distanceInMeters": 0}}}]})
+                "movement": {"steps": {"value": 0, "distanceInMeters": 1609.344}}}]})
             archive.save_daily("sleep", "2026-01-01", {"calendarDate": "2026-01-01", "sleepTimeSeconds": 27000})
             archive.save_daily("hrv", "2026-01-01", {"hrvSummary": {"calendarDate": "2026-01-01", "lastNightAvg": 42}})
             archive.save_daily("heart_rate", "2026-01-01", {"calendarDate": "2026-01-01", "restingHeartRate": 55})
             archive.save_daily("daily_summary", "2026-01-02", {"data": [{"calendarDate": "2026-01-02",
                 "movement": {"steps": {"value": 8000}}}]})
             archive.mark_error("daily_summary", "2026-01-02", "HTTP 429")
+            archive.save_preferences("statute_us", "America/Los_Angeles")
             archive.close()
             params = StdioServerParameters(command=sys.executable,
                 args=["-m", "garmin_archive.mcp_server", "--data-dir", temp])
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as client:
-                    await client.initialize()
+                    initialized = await client.initialize()
+                    self.assertIn("using Garmin profile preferences", initialized.instructions)
                     tools = await client.list_tools()
                     self.assertEqual({t.name for t in tools.tools},
                                      {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync"})
@@ -59,12 +61,20 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                     empty = await call("daily_health", {"dataset": "body_battery", "day": "2026-01-01"})
                     self.assertEqual(empty["status"], "empty")
                     overview = await call("get_day", {"day": "2026-01-01"})
+                    self.assertEqual(overview["preferences"]["measurement_system"], "statute_us")
+                    self.assertEqual(overview["preferences"]["time_zone"], "America/Los_Angeles")
+                    self.assertEqual(overview["today_source"], "Garmin profile")
                     self.assertEqual(overview["metrics"]["steps"]["value"], 0)
+                    self.assertEqual(overview["metrics"]["distance"]["value"], 1609.344)
+                    self.assertEqual(overview["metrics"]["distance"]["display_value"], 1.0)
+                    self.assertEqual(overview["metrics"]["distance"]["display_unit"], "mi")
                     self.assertEqual(overview["metrics"]["sleep_duration"]["value"], 27000)
                     self.assertEqual(overview["metrics"]["overnight_hrv"]["value"], 42)
                     self.assertEqual(overview["activities"][0]["activity_id"], 42)
                     today = await call("get_day", {})
-                    self.assertEqual(today["day"], date.today().isoformat())
+                    from datetime import datetime
+                    from zoneinfo import ZoneInfo
+                    self.assertEqual(today["day"], datetime.now(ZoneInfo("America/Los_Angeles")).date().isoformat())
                     default_trend = await call("get_trend", {"metric": "steps", "end": "2026-01-07"})
                     self.assertEqual((default_trend["from"], default_trend["to"]),
                                      ("2026-01-01", "2026-01-07"))
@@ -73,6 +83,10 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual([p["value"] for p in trend["points"]], [0, None, None])
                     self.assertEqual(trend["coverage"]["days_with_value"], 1)
                     self.assertEqual(trend["mean_of_available_days"], 0)
+                    distance = await call("get_trend", {"metric": "distance", "start": "2026-01-01", "end": "2026-01-01"})
+                    self.assertEqual(distance["points"][0]["value"], 1609.344)
+                    self.assertEqual(distance["display"]["points"][0]["value"], 1.0)
+                    self.assertEqual(distance["display"]["unit"], "mi")
                     bad_range = await client.call_tool("get_trend", {"metric": "steps", "start": "2025-01-01", "end": "2026-01-01"})
                     self.assertTrue(bad_range.isError)
                     bad = await client.call_tool("activity_records", {"activity_id": 42, "limit": 501})

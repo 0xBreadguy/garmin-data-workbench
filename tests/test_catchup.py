@@ -26,6 +26,7 @@ class FakeClient:
     def __init__(self, token): pass
     def __enter__(self): return self
     def __exit__(self, *args): pass
+    def get_user_profile_settings(self): return {"measurementSystem": "statute_us", "timeZone": "America/Los_Angeles"}
 
 
 class CatchupTest(unittest.TestCase):
