@@ -4,9 +4,9 @@ Status: November 1, 2026. The first manual-sync CLI, local SQLite archive and FI
 
 ## The idea
 
-Build an open-source, local-first tool for people who want to download, own, inspect and query their Garmin data. Each user creates a Garmin Personal API key and operates the software on their own machine or server. The tool maintains a useful local archive and makes it available to SQL, scripts, notebooks and personal AI assistants.
+Build an open-source, local-first workbench that lets people ask their own AI assistant about their Garmin data. Each user creates a Garmin Personal API key and operates the software on their own machine or server. The tool maintains a useful local archive and gives an MCP-compatible assistant clear, bounded access to it. SQL, scripts and notebooks remain available for direct inspection.
 
-The primary outcome is **a trustworthy local dataset that the user controls**. A command-line interface and documented data model make it useful directly; an MCP adapter lets a personal assistant query the same data. This is a tool we want for ourselves and will make public for others who want it, not a hosted service or a business-growth exercise.
+The primary outcome is **a trustworthy agent experience grounded in a local dataset the user controls**. The assistant is the primary interface: it can answer questions and produce visualizations using the user’s chosen tools. We are not prioritizing a first-party dashboard; users who want one may use an independent project such as [Garmin Grafana](https://github.com/arpanghosh8453/garmin-grafana), subject to its own data source and setup. This is a personal tool, not a hosted service or a business-growth exercise.
 
 ## The problem
 
@@ -36,7 +36,7 @@ Start with the Personal API; a Garmin account export or direct device files may 
 2. **Useful data, not just downloads.** Decode activity recordings and normalize daily health data into documented, queryable tables. Preserve original files, source, units and timestamps so an analysis can be traced back to Garmin.
 3. **A clear picture of coverage.** Show last successful sync, available dates by data type, missing or unrecorded days, failed requests, sampling intervals, and unknown fields. Distinguish 'not recorded', 'not returned', 'not yet checked' and 'request failed' where evidence supports the distinction.
 4. **Open ways to work with it.** Provide a documented SQLite schema or views, useful queries and CSV exports. Let scripts, notebooks and local tools use the data without an AI assistant.
-5. **An optional assistant connection.** An MCP adapter calls the same local query layer. Document which assistants and platforms actually work and what data each receives.
+5. **An agent-first interface.** MCP tools answer common questions with bounded, dated results, units, provenance and coverage. Document which assistants and platforms actually work and what data each receives.
 6. **User control.** Run locally or on a user-managed machine, use a personal key, keep raw data outside the repo, and require explicit user action for any external sharing. The MCP transport and AI client determine where returned data goes; a local server does not make a remote model local.
 
 Potential questions include: 'How did my sleep and resting heart rate change during weeks when I rode more?' or 'Compare heart rate, power, and cadence across similar rides.' Return dates, coverage, units and missingness alongside results. Associations aren't proof of cause, and unavailable metrics cannot be reconstructed just by processing the files.
@@ -52,7 +52,7 @@ Build one end-to-end path before expanding scope:
 5. **Query and export:** support exporting an activity's samples and a daily-health table as CSV, plus documented example SQL queries.
 6. **Connect an assistant:** provide a minimal local MCP adapter for listing activities, inspecting a selected activity, querying daily metrics and viewing sync/coverage status; offer bounded time-series ranges and pagination. Document one verified end-to-end assistant setup. The data archive remains useful without MCP.
 
-Start with the official Personal API and test actual coverage. Account-export import, direct device access, additional dashboards and unofficial endpoints are follow-on options only where they fill demonstrated gaps. Do not require recording strength sets or weights to make the core product useful.
+Start with the official Personal API and test actual coverage. Account-export import, direct device access, optional dashboard integrations and unofficial endpoints are follow-on options only where they fill demonstrated gaps. A first-party dashboard is not a current goal. Do not require recording strength sets or weights to make the core product useful.
 
 ## Architecture and data contract
 
@@ -65,7 +65,7 @@ Garmin Personal API ──> sync + original files ──> local data model
 
 Keep retrieval, storage, analysis and adapters separate. Shared query functions should serve the CLI and MCP; neither should contain its own data definitions. Initially model daily metrics, sleep sessions, activities and activity samples, plus source/import/sync metadata. Preserve UTC instants and relevant local dates, units, activity IDs and source files. Keep unknown FIT fields in the retained original file even if a parser cannot yet interpret them.
 
-The MCP layer should return bounded results and metadata: source, date range, units, freshness, sampling and coverage. Don't include location by default in a generic summary. Make exact location and other sensitive fields available when the user asks for them. A query must distinguish absent data from a real zero. The tool should remain useful if MCP is never enabled.
+The agent experience is the main product surface. Favor small, composable question-shaped tools over dumping raw payloads; keep raw access available for inspection. The MCP layer should return bounded results and metadata: source, date range, units, freshness, sampling and coverage. Don't include location by default in a generic summary. Make exact location and other sensitive fields available when the user asks for them. A query must distinguish absent data from a real zero. The tool should remain useful if MCP is never enabled.
 
 ## Validation and launch bar
 

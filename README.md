@@ -14,11 +14,11 @@
 [![Local first](https://img.shields.io/badge/data-local--first-5C7D70?style=flat-square)](#sync-and-query)
 [![MIT license](https://img.shields.io/badge/license-MIT-777777?style=flat-square)](LICENSE)
 
-**Your Garmin data, on your machine, ready to use.**
+**Your Garmin data, on your machine, ready for your agent.**
 
 Your Garmin devices collect a lot of data. This project gives you a way to keep a copy on your own machine and work with it using the tools you already like.
 
-Bring your own Garmin Personal API key, sync your health data and activities, and query the local SQLite archive with SQL, scripts, or notebooks. Original activity files are kept alongside the decoded records, so you can go back to the source when you need to.
+Bring your own Garmin Personal API key, sync your health data and activities, and ask your MCP-compatible assistant about the local archive. You can also query it with SQL, scripts, or notebooks. Original activity files are kept alongside the decoded records, so you can go back to the source when you need to.
 
 - **Sync** your health data and activities to a local archive.
 - **Explore** the detailed records in your activity FIT files.
@@ -127,12 +127,12 @@ After `uv sync` and at least one archive sync, configure your MCP client to laun
 }
 ```
 
-For a custom archive, set `args` to `["--data-dir", "/absolute/path/to/archive-directory"]`. The server opens the existing database read-only; it does not sync or need a Garmin key. Its tools report coverage, list activities, read one daily response and page through decoded FIT records. Samples omit coordinates and raw fields. Daily responses and activity names can still contain sensitive information. Returned data may be sent to the AI provider selected in your client, even though the server runs locally. This configuration is a starting example; individual client setup has not yet been verified end-to-end.
+For a custom archive, set `args` to `["--data-dir", "/absolute/path/to/archive-directory"]`. The server opens the existing database read-only; it does not sync or need a Garmin key. Its tools return a day overview, up to 90 days of metric trends, coverage, activities, daily responses and paginated FIT records. `get_day` and `get_trend` currently support steps, distance, resting heart rate, sleep duration and overnight HRV when Garmin returns the expected fields. Every trend includes dated points, units and missing or failed days; its mean uses only available values. A failed refresh never passes an old value off as current. You can ask your assistant to chart the returned points if it supports visualizations. Samples omit coordinates and raw fields. Daily responses and activity names can still contain sensitive information. Returned data may be sent to the AI provider selected in your client, even though the server runs locally. This configuration is a starting example; individual client setup has not yet been verified end-to-end.
 
 ### Current limits
 
-- Scheduling is configured outside the app; no scheduler installer or local website is included yet.
-- The MCP tools expose stored data, not trends or cross-day analysis. A daily response larger than 64 KB is rejected by MCP; use the local `health` command to inspect it.
+- Scheduling is configured outside the app; no scheduler installer is included yet. A first-party dashboard is not a current goal.
+- Trend metrics are limited to five fields; richer comparisons and activity analysis are planned. A raw daily response larger than 64 KB is rejected by MCP; use the local `health` command to inspect it. Field mappings and a named assistant setup still need end-to-end validation against real Personal API data.
 - Each day in a selected range means five health requests and activity pages, followed by original-file downloads. What's available depends on Garmin and your account, so we can't promise complete history or every metric.
 - The archive keeps the latest response for each day and the first successfully decoded original for each activity. It doesn't keep earlier revisions or catch every activity edit or deletion yet. Garmin's account export is a separate backup you can keep.
 - The CLI rejects concurrent syncs to the same archive. Original files and `--full` output can contain precise location data.
