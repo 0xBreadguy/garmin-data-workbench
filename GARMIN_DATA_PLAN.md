@@ -1,4 +1,4 @@
-# Garmin data extraction plan
+# Garmin Data Workbench: data plan
 
 Research checked: November 1, 2026. A first manual-sync CLI and SQLite archive have been implemented and verified against one day of live data. The broader plan below includes work not yet built, including automated scheduling, full historical reconciliation and MCP.
 

@@ -1,17 +1,23 @@
 <img src="assets/icon.svg" width="64" height="64" alt="">
 
-# Garmin Extraction
+# Garmin Data Workbench
 
-Created in [T3 Code](https://t3.codes).
+**Your Garmin data, ready for your own tools.**
 
-This project is a local-first tool for Garmin users who want to download, own and query their data. Bring your own Personal API key; use the resulting SQLite archive with SQL, scripts and notebooks. An MCP interface and automatic scheduling are planned but are not implemented yet.
+Garmin Data Workbench is a community-built, local-first tool for downloading, owning and querying your Garmin health and activity data. Bring your own Garmin Personal API key and explore your SQLite archive with SQL, scripts and notebooks. An MCP interface and automatic scheduling are planned but are not implemented yet.
+
+This is an independent open-source project. It is not affiliated with, endorsed by, or supported by Garmin.
 
 See the [product brief](PRODUCT_BRIEF.md) for the proposed experience, the [existing-projects review](EXISTING_PROJECTS.md) for competitive context, and the [data extraction plan](GARMIN_DATA_PLAN.md) for sources, architecture, privacy boundaries, implementation phases, and release requirements.
+
+## Contributing
+
+We welcome bug reports, ideas, documentation improvements, and code from people who want more control over their Garmin data. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started and how to share useful examples without exposing personal data.
 
 ## Personal API setup
 
 1. Install Python 3.12 or later and [uv](https://docs.astral.sh/uv/).
-2. Run `uv sync` from this directory to install Garmin's official client and FIT decoder.
+2. Clone this repository and run `uv sync` from its directory to install Garmin's official client and FIT decoder.
 3. Sign in to [Garmin Connect's Personal API key page](https://connect.garmin.com/app/settings/personalApiToken). Create your own key after reviewing Garmin's terms, choose its expiration, and save it securely. Garmin shows the key only once.
 4. Store the key in a local secret store, or in the official client's default file `~/.config/garmin/connect-personal-api-key` with permissions restricted to your user (`0600`). The file must contain only the key. Never put a key or bearer-token cache in this repository or shell history.
 5. Run `uv run python scripts/check_connection.py`. It checks authentication, profile settings, and an activity search without displaying the returned personal data. Garmin's client stores its bearer-token cache under `~/.config/garmin/`; protect this file too.
@@ -46,6 +52,8 @@ uv run garmin-archive export-original 123456789 activity.zip
 ```
 
 Pass `--data-dir /path/to/private/directory` **before** the command to use another location. The tool creates `archive.sqlite3` in that directory; the default location is outside the repository. Choose an encrypted location and back it up using your own backup system. The tool creates new files with owner-only permissions on POSIX systems; review the permissions of any existing directories and backups.
+
+The `garmin-archive` command and `garmin-extraction` data-directory name remain unchanged from the project's initial setup, so existing archives continue to work after the rename.
 
 Older days with successful or empty results are skipped on subsequent runs; the most recent seven days are rechecked for late syncs. Failed days are retried. Use `sync --refresh` to re-fetch the selected health/activity days and retry failed activity-file downloads. Activity files previously decoded successfully are retained rather than re-downloaded. HTTP 429, authentication failures and repeated network/server errors stop the run so it can be resumed later. A failed sync exits nonzero and reports the affected dataset without printing Garmin response bodies.
 

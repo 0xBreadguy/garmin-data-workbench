@@ -1,4 +1,4 @@
-# Product direction: own and query your Garmin data
+# Garmin Data Workbench: product direction
 
 Status: November 1, 2026. The first manual-sync CLI, local SQLite archive and FIT decoding are implemented and have been verified against one day of data. Automated scheduling, MCP and the broader features below remain planned. The goal is an independent public product; [existing community projects](EXISTING_PROJECTS.md) inform our choices, but overlap with them does not rule out building our own.
 

@@ -1,7 +1,7 @@
 [project]
-name = "garmin-extraction"
+name = "garmin-data-workbench"
 version = "0.1.0"
-description = "Local tools for accessing your own Garmin data"
+description = "A local-first, open-source workbench for your Garmin health and activity data"
 requires-python = ">=3.12"
 dependencies = [
     "garmin-connect-personal-api-python>=1.0.0,<2",
