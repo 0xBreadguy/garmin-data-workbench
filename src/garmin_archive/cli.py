@@ -8,6 +8,8 @@ import json
 import logging
 import math
 import os
+import shlex
+import subprocess
 import sys
 import time
 from datetime import date, timedelta
@@ -73,6 +75,20 @@ def parser() -> argparse.ArgumentParser:
     setup = commands.add_parser("setup", help="Configure or change scheduled sync on macOS")
     setup.add_argument("--every-hours", type=_positive, help="Hours between scheduled syncs (1–168)")
     setup.add_argument("--lookback-days", type=_positive, default=2, help="Recent days to recheck each run (1–31; default: 2)")
+
+    install = commands.add_parser("install", help="Set up a local archive and connect an assistant")
+    frequency = install.add_mutually_exclusive_group()
+    frequency.add_argument("--every-hours", type=_positive, help="Hours between scheduled syncs (1–168)")
+    frequency.add_argument("--manual", action="store_true", help="Use manual sync; leave any existing schedule alone")
+    install.add_argument("--lookback-days", type=_positive, default=2, help="Recent days to recheck each run (1–31; default: 2)")
+    install.add_argument("--client", choices=("codex", "claude", "chatgpt", "other"), default="codex",
+                         help="Assistant to connect (default: codex)")
+
+    connect = commands.add_parser("connect", help="Connect an assistant to an existing local archive")
+    connect.add_argument("--client", choices=("codex", "claude", "chatgpt", "other"), default="codex")
+
+    guide = commands.add_parser("assistant-guide", help="Print a handoff for your assistant")
+    guide.add_argument("--client", choices=("dot", "codex", "claude", "other"), default="dot")
 
     commands.add_parser("status", help="Show archive coverage and sync errors")
     commands.add_parser("path", help="Print the SQLite database path")
@@ -274,8 +290,113 @@ def _records(archive: Archive, args: argparse.Namespace) -> int:
     return 0
 
 
+def _install(archive: Archive, args: argparse.Namespace) -> int:
+    """Initialize the archive before connecting the chosen client."""
+    from .install import ensure_key, scheduled_key_available
+    from .schedule import configure_schedule
+
+    hours = args.every_hours
+    if not args.manual and hours is None:
+        if not sys.stdin.isatty():
+            print("Run install interactively or pass --every-hours or --manual.", file=sys.stderr)
+            return 2
+        try:
+            answer = input("How often should Garmin data update? Enter hours [6], or 0 for manual: ").strip()
+            hours = int(answer) if answer else 6
+        except (EOFError, KeyboardInterrupt, ValueError):
+            print("Setup cancelled; enter a whole number of hours.", file=sys.stderr)
+            return 2
+    if hours == 0:
+        hours = None
+    if (hours is not None and not 1 <= hours <= 168) or not 1 <= args.lookback_days <= 31:
+        print("Frequency must be 1–168 hours, and lookback must be 1–31 days.", file=sys.stderr)
+        return 2
+
+    try:
+        key_status = ensure_key()
+    except (OSError, RuntimeError, KeyboardInterrupt) as error:
+        print(f"Could not prepare Garmin key: {error}", file=sys.stderr)
+        return 1
+    print("Garmin key ready (" + key_status + "). Syncing the archive; the first sync covers the last seven days.")
+    sync_args = argparse.Namespace(start=None, end=None, refresh=False, pause=0.3,
+                                   catch_up=True, lookback_days=args.lookback_days)
+    if _sync(archive, sync_args):
+        print("Initial sync did not finish; fix the error above and run install again.", file=sys.stderr)
+        return 1
+
+    schedule_error = None
+    if hours is None:
+        print("Manual sync selected. Any existing schedule was left unchanged.")
+    elif sys.platform != "darwin":
+        schedule_error = "Automatic schedule setup currently supports macOS only; configure your OS scheduler or rerun with --manual."
+    elif not scheduled_key_available():
+        schedule_error = ("Scheduled sync cannot use this shell-only key. Save the same key in "
+                          "~/.config/garmin/connect-personal-api-key with owner-only permissions, then rerun install.")
+    else:
+        try:
+            configure_schedule(archive.data_dir, hours, args.lookback_days)
+            print(f"Scheduled sync every {hours} hours; rechecking {args.lookback_days} recent days.")
+        except (OSError, RuntimeError, ValueError) as error:
+            schedule_error = f"Could not configure scheduled sync: {error}"
+
+    connection_result = _connect(archive, args.client)
+    if schedule_error:
+        print(schedule_error, file=sys.stderr)
+        return 1
+    if connection_result == 2:
+        print("Local setup is complete; the assistant connection still needs the steps above.")
+    return connection_result
+
+
+def _connect(archive: Archive, client: str) -> int:
+    from .install import probe_server, register_claude, register_codex, verify_codex_discovery
+
+    try:
+        probe_server(archive.data_dir)
+        print("Local MCP server can read the archive.")
+        if client == "codex":
+            registration = register_codex(archive.data_dir)
+            verify_codex_discovery()
+            if registration == "existing":
+                print("Existing Codex registration was preserved; confirm it points to this archive if you use a custom path.")
+            else:
+                print("Codex registration added; a fresh Codex runtime discovered its tools.")
+            print('Start a fresh Codex conversation and ask: "How did my sleep change over the last week?"')
+        elif client == "claude":
+            registration = register_claude(archive.data_dir)
+            if registration == "existing":
+                print("Existing Claude Code registration was preserved; confirm it points to this archive if you use a custom path.")
+            else:
+                print("Claude Code registration added. Its tool connection has not been checked in a Claude conversation.")
+            print("Start a fresh Claude Code session, check /mcp, and ask about your Garmin data.")
+        elif client == "chatgpt":
+            print("This command has not configured or verified a ChatGPT connection. A regular ChatGPT conversation needs a separate MCP connection.")
+            print("If Codex is configured too, connect this computer to your dot and ask for a local Codex task; this route is unverified.")
+            print("Run `garmin-archive assistant-guide --client dot` for a handoff to give your dot.")
+            print("For direct ChatGPT MCP access, follow https://developers.openai.com/api/docs/guides/secure-mcp-tunnels")
+            print("to create a tunnel, run its client with garmin-archive-mcp, and add it in ChatGPT. Availability depends on your account.")
+            return 2
+        else:
+            from .install import executable_path
+            command = shlex.join([str(executable_path()), "--data-dir", str(archive.data_dir.resolve())])
+            print(f"Configure your MCP client to launch: {command}")
+            print("Start a fresh client session and test an archive question.")
+            return 2
+    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+        print(f"Could not finish the assistant connection: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "assistant-guide":
+        from .install import assistant_guide
+        print(assistant_guide(args.client))
+        return 0
+    if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
+        print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)
+        return 1
     # Restrict SQLite's journal files too, without modifying the parent shell.
     os.umask(0o077)
     try:
@@ -284,6 +405,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Cannot open archive ({type(error).__name__}).", file=sys.stderr)
         return 1
     try:
+        if args.command == "install":
+            return _install(archive, args)
+        if args.command == "connect":
+            return _connect(archive, args.client)
         if args.command == "setup":
             from .schedule import configure_schedule
             hours = args.every_hours

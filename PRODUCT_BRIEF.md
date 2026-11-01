@@ -1,6 +1,6 @@
 # Garmin Data Workbench: product direction
 
-Status: November 1, 2026. The first manual-sync CLI, local SQLite archive and FIT decoding are implemented and have been verified against one day of data. An MCP adapter, catch-up command, and opt-in macOS schedule setup are implemented; the broader features below remain planned. The goal is an independent public product; [existing community projects](EXISTING_PROJECTS.md) inform our choices, but overlap with them does not rule out building our own.
+Status: November 1, 2026. The local SQLite archive, FIT decoding, catch-up sync, MCP adapter, and guided macOS setup are implemented. A seven-day Garmin sync and a local Codex conversation have worked on one machine. Claude Code registration has been checked in isolation; Dot handoff and other personal-assistant integrations still need end-to-end tests. The broader features below remain planned. The goal is an independent public product; [existing community projects](EXISTING_PROJECTS.md) inform our choices, but overlap with them does not rule out building our own.
 
 ## The idea
 
@@ -29,6 +29,8 @@ Prioritize clear documentation, good defaults, useful errors and reproducibility
 Each person creates their own Personal API key and runs their own installation. Document the one-time key display, expiration, secure storage and a connection check. The key must not be shared with a hosted service. [Garmin's personal FAQ](https://developer.garmin.com/gc-developer-program/personal/personal-faq/) · [personal-key terms](https://connect.garmin.com/web-translations/partner_portal/partner_portal.properties).
 
 Use the Garmin profile's measurement system and time zone as defaults rather than asking during setup. Preserve source units and timestamps, honor explicit user requests for other units, and use the host date only if the profile time zone is unavailable.
+
+Provide a handoff for each client context. Local coding agents need their own MCP registration; a cloud-coordinated personal assistant also needs to know which connected computer holds the archive and how to reach it. Treat registration, tool discovery, and a successful conversation as separate checks.
 
 Start with the Personal API; a Garmin account export or direct device files may later provide an optional historical import. Garmin business-program access, a hosted multi-user service and monetization are outside the current direction.
 
