@@ -6,20 +6,27 @@ import argparse
 import csv
 import json
 import logging
+import math
 import os
+import shlex
+import subprocess
 import sys
+import time
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from filelock import FileLock, Timeout
 from garmin_personal_api import (
     GarminPersonalApiClient,
     PersonalApiAuthenticator,
     resolve_api_key,
 )
 
-from .archive import Archive, default_data_dir
-from .sync import DATASETS, sync
+from .archive import Archive, default_data_dir, now
+from .preferences import clean_profile, local_today, profile_preferences
+from .sync import DATASETS, SyncStopped, _call, sync
+from garmin_personal_api.errors import HttpError
 
 
 def _date(value: str) -> date:
@@ -62,6 +69,26 @@ def parser() -> argparse.ArgumentParser:
     sync_parser.add_argument("--to", dest="end", type=_date, default=None, help="End date, YYYY-MM-DD (default: today)")
     sync_parser.add_argument("--refresh", action="store_true", help="Re-fetch completed days in the selected range")
     sync_parser.add_argument("--pause", type=float, default=0.3, help="Seconds between requests (default: 0.3)")
+    sync_parser.add_argument("--catch-up", action="store_true", help="Resume from the last successful catch-up run; suitable for scheduling")
+    sync_parser.add_argument("--lookback-days", type=_positive, default=7, help="Days to recheck for late uploads during catch-up (1–31; default: 7)")
+
+    setup = commands.add_parser("setup", help="Configure or change scheduled sync on macOS")
+    setup.add_argument("--every-hours", type=_positive, help="Hours between scheduled syncs (1–168)")
+    setup.add_argument("--lookback-days", type=_positive, default=2, help="Recent days to recheck each run (1–31; default: 2)")
+
+    install = commands.add_parser("install", help="Set up a local archive and connect an assistant")
+    frequency = install.add_mutually_exclusive_group()
+    frequency.add_argument("--every-hours", type=_positive, help="Hours between scheduled syncs (1–168)")
+    frequency.add_argument("--manual", action="store_true", help="Use manual sync; leave any existing schedule alone")
+    install.add_argument("--lookback-days", type=_positive, default=2, help="Recent days to recheck each run (1–31; default: 2)")
+    install.add_argument("--client", choices=("codex", "claude", "chatgpt", "other"), default="codex",
+                         help="Assistant to connect (default: codex)")
+
+    connect = commands.add_parser("connect", help="Connect an assistant to an existing local archive")
+    connect.add_argument("--client", choices=("codex", "claude", "chatgpt", "other"), default="codex")
+
+    guide = commands.add_parser("assistant-guide", help="Print a handoff for your assistant")
+    guide.add_argument("--client", choices=("dot", "codex", "claude", "other"), default="dot")
 
     commands.add_parser("status", help="Show archive coverage and sync errors")
     commands.add_parser("path", help="Print the SQLite database path")
@@ -93,19 +120,102 @@ def _print_json(value: Any) -> None:
 def _sync(archive: Archive, args: argparse.Namespace) -> int:
     end = args.end or date.today()
     start = args.start or end - timedelta(days=6)
-    if start > end or args.pause < 0:
+    if (args.end is not None and start > end) or not math.isfinite(args.pause) or args.pause < 0:
         print("Start must not be after end, and pause must not be negative.", file=sys.stderr)
         return 2
+    if not 1 <= getattr(args, "lookback_days", 7) <= 31:
+        print("Lookback must be between 1 and 31 days.", file=sys.stderr)
+        return 2
+    if args.catch_up and args.end:
+        print("--catch-up always syncs through today; omit --to.", file=sys.stderr)
+        return 2
+    try:
+        # The lock covers the checkpoint, authentication and all network work.
+        # A process crash releases the OS lock; the file itself is harmless.
+        with FileLock(str(archive.data_dir / "sync.lock"), timeout=0, mode=0o600):
+            return _sync_locked(archive, args, start, end, use_profile_default=args.end is None)
+    except Timeout:
+        print("Another sync is already running for this archive.", file=sys.stderr)
+        return 1
+
+
+def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: date, *, use_profile_default: bool = False) -> int:
+    row = None
+    if args.catch_up:
+        row = archive.connection.execute("SELECT * FROM catchup_state WHERE id=1").fetchone()
+        if row and args.start:
+            print("--from sets the initial catch-up date only; it has already been set.", file=sys.stderr)
+            return 2
+        if not use_profile_default and row and row["last_success_day"] and date.fromisoformat(row["last_success_day"]) > end:
+            print("Catch-up checkpoint is in the future; check the system date.", file=sys.stderr)
+            return 1
+        if row is None:
+            with archive.connection:
+                archive.connection.execute(
+                    "INSERT INTO catchup_state (id, start_day) VALUES (1, ?)", (start.isoformat(),)
+                )
+        else:
+            # Recheck a week for late uploads, and include all time missed while offline.
+            overlap = timedelta(days=getattr(args, "lookback_days", 7) - 1)
+            start = (max(date.fromisoformat(row["start_day"]),
+                         min(end - overlap, date.fromisoformat(row["last_success_day"]) - overlap))
+                     if row["last_success_day"] else date.fromisoformat(row["start_day"]))
+        if not use_profile_default and start > end:
+            print("Catch-up checkpoint is in the future; check the system date.", file=sys.stderr)
+            return 1
+        with archive.connection:
+            archive.connection.execute(
+                "UPDATE catchup_state SET last_attempt_at=?, last_result='running' WHERE id=1", (now(),)
+            )
     # The official client logs URLs and HTTP errors can contain response bodies.
     logging.disable(logging.CRITICAL)
     try:
         with PersonalApiAuthenticator() as auth:
             token = auth.obtain_token(resolve_api_key())
         with GarminPersonalApiClient(token.access_token) as client:
-            report = sync(archive, client, start, end, refresh=args.refresh, pause=args.pause)
+            warning = None
+            try:
+                profile = _call(client.get_user_profile_settings, args.pause, time.sleep)
+                archive.save_preferences(*clean_profile(profile))
+            except SyncStopped:
+                raise
+            except (HttpError, ValueError, TypeError) as error:
+                # Keep the last successful preferences if a nonfatal request fails.
+                warning = f"Profile settings unavailable ({type(error).__name__}); using cached settings or host date."
+            garmin_today, _ = local_today(profile_preferences(archive.connection))
+            if use_profile_default:
+                end = garmin_today
+                if args.catch_up and row is not None:
+                    if row["last_success_day"]:
+                        if date.fromisoformat(row["last_success_day"]) > end:
+                            raise ValueError("Catch-up checkpoint is in the future")
+                        overlap = timedelta(days=getattr(args, "lookback_days", 7) - 1)
+                        start = max(date.fromisoformat(row["start_day"]),
+                                    min(end - overlap, date.fromisoformat(row["last_success_day"]) - overlap))
+                    else:
+                        start = date.fromisoformat(row["start_day"])
+                elif args.start is None:
+                    start = end - timedelta(days=6)
+                    if args.catch_up:
+                        with archive.connection:
+                            archive.connection.execute("UPDATE catchup_state SET start_day=? WHERE id=1", (start.isoformat(),))
+                if start > end:
+                    raise ValueError("Start date is after Garmin's current date")
+            report = sync(archive, client, start, end, refresh=args.refresh, pause=args.pause, today=garmin_today)
     except Exception as error:  # noqa: BLE001 -- keep private API response bodies out of the terminal
+        if args.catch_up:
+            with archive.connection:
+                archive.connection.execute("UPDATE catchup_state SET last_result='error' WHERE id=1")
         print(f"Sync could not start ({type(error).__name__}). Check your key and connection.", file=sys.stderr)
         return 1
+    if args.catch_up:
+        with archive.connection:
+            if report.errors:
+                archive.connection.execute("UPDATE catchup_state SET last_result='error' WHERE id=1")
+            else:
+                archive.connection.execute(
+                    "UPDATE catchup_state SET last_result='ok', last_success_day=? WHERE id=1", (end.isoformat(),)
+                )
     _print_json({
         "range": {"from": start.isoformat(), "to": end.isoformat()},
         "health_requests_succeeded": report.checked,
@@ -115,6 +225,7 @@ def _sync(archive: Archive, args: argparse.Namespace) -> int:
         "non_fit_originals": report.unsupported,
         "stopped": report.stopped,
         "errors": report.errors,
+        "profile_warning": warning,
     })
     return 1 if report.errors else 0
 
@@ -134,7 +245,8 @@ def _status(archive: Archive) -> int:
     fit_errors = [dict(row) for row in archive.connection.execute(
         "SELECT activity_id, fit_error AS error FROM activities WHERE fit_status='error' ORDER BY activity_id"
     )]
-    _print_json({"database": str(archive.path), "coverage": states, "activity_files": fit, "errors": errors, "fit_errors": fit_errors})
+    catchup = archive.connection.execute("SELECT * FROM catchup_state WHERE id=1").fetchone()
+    _print_json({"database": str(archive.path), "catch_up": dict(catchup) if catchup else None, "coverage": states, "activity_files": fit, "errors": errors, "fit_errors": fit_errors})
     return 0
 
 
@@ -178,8 +290,113 @@ def _records(archive: Archive, args: argparse.Namespace) -> int:
     return 0
 
 
+def _install(archive: Archive, args: argparse.Namespace) -> int:
+    """Initialize the archive before connecting the chosen client."""
+    from .install import ensure_key, scheduled_key_available
+    from .schedule import configure_schedule
+
+    hours = args.every_hours
+    if not args.manual and hours is None:
+        if not sys.stdin.isatty():
+            print("Run install interactively or pass --every-hours or --manual.", file=sys.stderr)
+            return 2
+        try:
+            answer = input("How often should Garmin data update? Enter hours [6], or 0 for manual: ").strip()
+            hours = int(answer) if answer else 6
+        except (EOFError, KeyboardInterrupt, ValueError):
+            print("Setup cancelled; enter a whole number of hours.", file=sys.stderr)
+            return 2
+    if hours == 0:
+        hours = None
+    if (hours is not None and not 1 <= hours <= 168) or not 1 <= args.lookback_days <= 31:
+        print("Frequency must be 1–168 hours, and lookback must be 1–31 days.", file=sys.stderr)
+        return 2
+
+    try:
+        key_status = ensure_key()
+    except (OSError, RuntimeError, KeyboardInterrupt) as error:
+        print(f"Could not prepare Garmin key: {error}", file=sys.stderr)
+        return 1
+    print("Garmin key ready (" + key_status + "). Syncing the archive; the first sync covers the last seven days.")
+    sync_args = argparse.Namespace(start=None, end=None, refresh=False, pause=0.3,
+                                   catch_up=True, lookback_days=args.lookback_days)
+    if _sync(archive, sync_args):
+        print("Initial sync did not finish; fix the error above and run install again.", file=sys.stderr)
+        return 1
+
+    schedule_error = None
+    if hours is None:
+        print("Manual sync selected. Any existing schedule was left unchanged.")
+    elif sys.platform != "darwin":
+        schedule_error = "Automatic schedule setup currently supports macOS only; configure your OS scheduler or rerun with --manual."
+    elif not scheduled_key_available():
+        schedule_error = ("Scheduled sync cannot use this shell-only key. Save the same key in "
+                          "~/.config/garmin/connect-personal-api-key with owner-only permissions, then rerun install.")
+    else:
+        try:
+            configure_schedule(archive.data_dir, hours, args.lookback_days)
+            print(f"Scheduled sync every {hours} hours; rechecking {args.lookback_days} recent days.")
+        except (OSError, RuntimeError, ValueError) as error:
+            schedule_error = f"Could not configure scheduled sync: {error}"
+
+    connection_result = _connect(archive, args.client)
+    if schedule_error:
+        print(schedule_error, file=sys.stderr)
+        return 1
+    if connection_result == 2:
+        print("Local setup is complete; the assistant connection still needs the steps above.")
+    return connection_result
+
+
+def _connect(archive: Archive, client: str) -> int:
+    from .install import probe_server, register_claude, register_codex, verify_codex_discovery
+
+    try:
+        probe_server(archive.data_dir)
+        print("Local MCP server can read the archive.")
+        if client == "codex":
+            registration = register_codex(archive.data_dir)
+            verify_codex_discovery()
+            if registration == "existing":
+                print("Existing Codex registration was preserved; confirm it points to this archive if you use a custom path.")
+            else:
+                print("Codex registration added; a fresh Codex runtime discovered its tools.")
+            print('Start a fresh Codex conversation and ask: "How did my sleep change over the last week?"')
+        elif client == "claude":
+            registration = register_claude(archive.data_dir)
+            if registration == "existing":
+                print("Existing Claude Code registration was preserved; confirm it points to this archive if you use a custom path.")
+            else:
+                print("Claude Code registration added. Its tool connection has not been checked in a Claude conversation.")
+            print("Start a fresh Claude Code session, check /mcp, and ask about your Garmin data.")
+        elif client == "chatgpt":
+            print("This command has not configured or verified a ChatGPT connection. A regular ChatGPT conversation needs a separate MCP connection.")
+            print("If Codex is configured too, connect this computer to your dot and ask for a local Codex task; this route is unverified.")
+            print("Run `garmin-archive assistant-guide --client dot` for a handoff to give your dot.")
+            print("For direct ChatGPT MCP access, follow https://developers.openai.com/api/docs/guides/secure-mcp-tunnels")
+            print("to create a tunnel, run its client with garmin-archive-mcp, and add it in ChatGPT. Availability depends on your account.")
+            return 2
+        else:
+            from .install import executable_path
+            command = shlex.join([str(executable_path()), "--data-dir", str(archive.data_dir.resolve())])
+            print(f"Configure your MCP client to launch: {command}")
+            print("Start a fresh client session and test an archive question.")
+            return 2
+    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+        print(f"Could not finish the assistant connection: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "assistant-guide":
+        from .install import assistant_guide
+        print(assistant_guide(args.client))
+        return 0
+    if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
+        print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)
+        return 1
     # Restrict SQLite's journal files too, without modifying the parent shell.
     os.umask(0o077)
     try:
@@ -188,6 +405,30 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Cannot open archive ({type(error).__name__}).", file=sys.stderr)
         return 1
     try:
+        if args.command == "install":
+            return _install(archive, args)
+        if args.command == "connect":
+            return _connect(archive, args.client)
+        if args.command == "setup":
+            from .schedule import configure_schedule
+            hours = args.every_hours
+            if hours is None:
+                if not sys.stdin.isatty():
+                    print("Run setup interactively or pass --every-hours.", file=sys.stderr)
+                    return 2
+                try:
+                    answer = input("How often should Garmin data update? Enter hours [6]: ").strip()
+                    hours = int(answer) if answer else 6
+                except (EOFError, KeyboardInterrupt, ValueError):
+                    print("Setup cancelled; enter a whole number of hours.", file=sys.stderr)
+                    return 2
+            try:
+                result = configure_schedule(archive.data_dir, hours, args.lookback_days)
+            except (OSError, RuntimeError, ValueError) as error:
+                print(f"Could not configure scheduled sync: {error}", file=sys.stderr)
+                return 1
+            _print_json(result)
+            return 0
         if args.command == "sync":
             return _sync(archive, args)
         if args.command == "status":
