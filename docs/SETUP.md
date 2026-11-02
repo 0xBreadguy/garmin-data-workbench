@@ -18,7 +18,7 @@ Do not copy an existing personal archive or credentials to another host just to 
 
 ## 2. Install the commands
 
-Clone the repository and install from its root:
+Start in a persistent directory, such as `~/src`, rather than `/tmp` on a cloud host. The installed tool environment, key and archive must also survive new sessions. Clone the repository and install from its root:
 
 ```sh
 git clone https://github.com/0xBreadguy/garmin-data-workbench.git
@@ -35,6 +35,22 @@ Run `uv tool dir --bin` to find the executable directory. If the commands aren't
 The user creates their own Garmin Personal API key using the [README's instructions](../README.md#personal-api-setup). Use a hidden terminal prompt or a supported masked secret field. Never paste the key into a conversation or put its value in a shell command.
 
 The Garmin client accepts `GARMIN_PERSONAL_API_KEY` or a key file at `~/.config/garmin/connect-personal-api-key`. Ensure any saved key file is owner-only (`0600` on POSIX) and outside the repository. The provider's secret facility must make the key available to future sync processes if you rely on the environment variable. A scheduled job does not necessarily inherit the interactive environment.
+
+### Without an interactive terminal
+
+If the host's **verified private secret facility** supplies a file, import it without putting the key in command arguments:
+
+```sh
+/absolute/path/to/garmin-archive save-key --from-file /absolute/private/provider-secret
+```
+
+Replace both paths; the second is a file path, never the key itself. On POSIX, the source must be a regular file owned by the running user, with no group or other permissions (usually `0600`). Symlinks are rejected on systems supporting `O_NOFOLLOW`. The command checks the key through live Garmin authentication and a profile request, then saves it at the default key path with owner-only permissions. It does not sync, initialize an archive, connect a client or schedule anything. It refuses to overwrite an existing key file and leaves the source file in place; dispose of that temporary source through the provider's secret facility afterward. An existing `GARMIN_PERSONAL_API_KEY` still takes precedence over the saved file.
+
+This command imports an already-delivered secret; it does **not** supply a masked-entry screen or make chat safe for secrets. If the host has no tested private entry method, stop before requesting a key. Use a supported secret facility or choose another host. An allocated pseudo-terminal alone does not make key entry private. The interactive installer also stops if it cannot hide input rather than falling back to echoed entry.
+
+Accept the cloud host's access model before key validation or syncing: authentication may also create or update the Garmin token cache.
+
+### First sync
 
 Choose one path:
 
@@ -63,13 +79,30 @@ For a local client that accepts `mcpServers` configuration:
 
 Replace the command with the installed executable's absolute path. For a custom archive, set `args` to `["--data-dir", "/absolute/private/archive"]`. The archive must already exist; MCP data queries do not initialize it, sync it, or require a Garmin key.
 
-If Codex or Claude Code is on that machine, `garmin-archive connect --client codex` or `garmin-archive connect --client claude` can register the server without resyncing or changing a schedule. Existing registrations are preserved, so check their target archive. Other clients need their own local configuration. A personal assistant running elsewhere also needs a supported way to reach this machine; see [assistant handoffs](../README.md#personal-assistants-and-chatgpt). An assistant without MCP support can use the local CLI to inspect the archive.
+If Codex or Claude Code is on that machine, `garmin-archive connect --client codex` or `garmin-archive connect --client claude` can register the server without resyncing or changing a schedule. Existing registrations are preserved, so check their target archive. Other clients need their own local configuration. A personal assistant running elsewhere also needs a supported way to reach this machine; see [assistant handoffs](../README.md#personal-assistants-and-chatgpt).
 
-In a fresh client session:
+### Assistants with shell access and no MCP client
+
+An assistant on the archive host can query the same day and trend summaries with the CLI:
+
+```sh
+/absolute/path/to/garmin-archive --data-dir /absolute/private/archive day YYYY-MM-DD
+/absolute/path/to/garmin-archive --data-dir /absolute/private/archive trend sleep_duration --from YYYY-MM-DD --to YYYY-MM-DD
+```
+
+Replace the paths and dates. Both commands read an existing archive without creating, migrating or syncing it and need no Garmin key. They return JSON with the same metric definitions, units, preferences, freshness and coverage as MCP's `get_day` and `get_trend`. The five supported metrics are `steps`, `distance`, `resting_heart_rate`, `sleep_duration` and `overnight_hrv`. Trends are bounded to 90 inclusive days; omitted dates default to Garmin profile today (host date as fallback) and a seven-day range. Source units remain labeled; distance also includes a preferred display value when the profile is available. Failed refreshes mask previously saved values.
+
+For Muse, `garmin-archive --data-dir /absolute/private/archive assistant-guide --client muse` prints a handoff with this installation's executable and archive paths. This is a same-host shell workflow, not a direct Muse MCP integration or remote connector. [Muse compatibility notes](MUSE.md) distinguish reported VM checks from untested live setup. Do not register Codex solely to enable this path; that would configure a different client.
+
+### Verify the selected query path
+
+In a fresh MCP client session:
 
 1. Confirm tool discovery and call `archive_status` and `setup_status`.
 2. Ask about a day that was synced, using `get_day` or a supported `get_trend` metric. Return dates, units, coverage and freshness.
 3. Compare a representative result with the local archive and Garmin Connect. Successful discovery alone is not a successful data query.
+
+For the shell path, use `status`, then `day` or `trend` for a synced date and perform the same comparison. Return dates, units, missing-data caveats and freshness. Shell access to the archive on one VM does not prove another assistant or host can reach it.
 
 There are currently eight MCP tools. Seven read data or status; `configure_sync` changes the local macOS schedule after the user chooses an interval. On Linux, `setup_status` reports `unsupported` for the built-in scheduler. Use an external scheduler if wanted. Do not keep retrying `configure_sync` there.
 
