@@ -25,6 +25,19 @@ CREATE TABLE IF NOT EXISTS sync_state (
     updated_at TEXT NOT NULL,
     PRIMARY KEY (dataset, day)
 );
+CREATE TABLE IF NOT EXISTS catchup_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    start_day TEXT NOT NULL,
+    last_success_day TEXT,
+    last_attempt_at TEXT,
+    last_result TEXT
+);
+CREATE TABLE IF NOT EXISTS profile_preferences (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    measurement_system TEXT,
+    time_zone TEXT,
+    fetched_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS activities (
     activity_id INTEGER PRIMARY KEY,
     day TEXT NOT NULL,
@@ -108,6 +121,15 @@ class Archive:
             "SELECT status FROM sync_state WHERE dataset = ? AND day = ?", (dataset, day)
         ).fetchone()
         return row["status"] if row else None
+
+    def save_preferences(self, measurement_system: str | None, time_zone: str | None) -> None:
+        with self.connection:
+            self.connection.execute(
+                """INSERT INTO profile_preferences VALUES (1, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET measurement_system=excluded.measurement_system,
+                   time_zone=excluded.time_zone, fetched_at=excluded.fetched_at""",
+                (measurement_system, time_zone, now()),
+            )
 
     def set_state(self, dataset: str, day: str, status: str, error: str | None = None) -> None:
         self.connection.execute(
