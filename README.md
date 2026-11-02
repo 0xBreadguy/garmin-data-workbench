@@ -30,6 +30,8 @@ We're early. The guided installer connects Codex and can schedule sync on macOS;
 
 [Get started](#personal-api-setup) · [Explore the commands](#sync-and-query) · [Contribute](CONTRIBUTING.md)
 
+**Setting up with an assistant?** Give it this repository and ask: “Read `AGENTS.md`, then help me follow `docs/SETUP.md` on the machine I choose.” The [setup guide](docs/SETUP.md) covers local and persistent cloud hosts, private key entry, client connections and scheduling. You choose where the archive lives and who can access it. For coding agents, [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) provide the source map and offline development path.
+
 Garmin Data Workbench is an independent open-source project. It isn't affiliated with, endorsed by, or supported by Garmin.
 
 Want more context? The [product brief](PRODUCT_BRIEF.md) covers where we'd like to take the project, the [existing-projects review](EXISTING_PROJECTS.md) looks at related tools, and the [architecture notes](ARCHITECTURE.md) explain the storage and performance choices.
@@ -142,6 +144,16 @@ For example, on macOS or Linux, add a daily job with `crontab -e` after the firs
 
 Use the same user account and key file as the manual run. The default log directory is created by that first run; if using `--data-dir` or `XDG_DATA_HOME`, adjust both the command and log path. Review the log and `status` for failures. Cron won't run while the machine is off or asleep; catch-up runs when the next scheduled job actually runs. On macOS, launchd is another option; on Windows use Task Scheduler to run the installed `garmin-archive` executable with `sync --catch-up`. Scheduling is opt-in and must be configured and monitored by the user.
 
+### Cloud assistant machines
+
+You can also install the workbench on a cloud machine used by an assistant, if its storage persists and you are comfortable storing your Garmin data there. **Other agents or processes running as the same operating-system user can read the key, token cache, and archive**, even when files have owner-only permissions. Original activity files may contain precise GPS locations. Ask your provider about isolation, storage, backups, and who can access the machine before deciding whether to sync. MCP responses may also be sent to the assistant's AI provider.
+
+On Linux, use `garmin-archive install --manual --client other` for guided setup. It needs a Garmin key and starts a sync immediately; it exits with code 2 because connecting the client is a separate step. Supply the key through a secure mechanism supported by your environment, not through a conversation or command history. Verify that the key is available to any future sync process without exposing it in logs.
+
+If cron or systemd is unavailable, a persistent provider-managed routine can run `garmin-archive sync --catch-up` at an interval you choose, provided it can access the same installation, archive, and key. Test one short sync and inspect `garmin-archive status` before scheduling. Check that the routine survives restarts and review failures. The workbench does not create or monitor provider-managed routines.
+
+An assistant on the same machine can connect to the stdio MCP server if its environment supports local MCP clients. Remote access requires a separately secured connection; this project does not currently provide an authenticated remote connector.
+
 ### Connect a local assistant
 
 The installer connects one client. To connect another later without resyncing or changing the schedule, run:
@@ -159,7 +171,7 @@ For other local MCP clients, configure the server over stdio. For clients accept
 {
   "mcpServers": {
     "garmin-workbench": {
-      "command": "/Users/you/.local/bin/garmin-archive-mcp",
+      "command": "/absolute/path/to/garmin-archive-mcp",
       "args": []
     }
   }
@@ -196,8 +208,10 @@ Claude Duet and Meta Muse also run in their own environments, so a Claude Code o
 ## Development
 
 ```sh
-uv sync
+uv sync --locked
 uv run python -m unittest discover -s tests -v
 ```
 
 The tests use generated FIT data and fake API responses. You don't need Garmin credentials or network access to run them.
+
+See [AGENTS.md](AGENTS.md) for agent instructions, [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, and [docs/TESTING.md](docs/TESTING.md) for focused checks and live validation. Dependency installation may require network access; the tests themselves run offline.
