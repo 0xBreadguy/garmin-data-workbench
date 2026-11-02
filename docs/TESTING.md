@@ -49,4 +49,4 @@ Record each stage separately:
 
 Registration doesn't prove discovery; discovery doesn't prove a real query. Matching payload shapes don't prove metric meaning. Current field mappings were checked against one account's seven-day archive; values still need comparison with Connect.
 
-`save-key` tests mock authentication and use disposable files. They don't verify a provider's secret-entry facility. See [Muse notes](MUSE.md) for that host's remaining checks. Report compatibility through the [setup template](../.github/ISSUE_TEMPLATE/setup-report.md), without private data.
+`save-key` tests mock authentication and use disposable files. They don't verify a provider's secret-entry facility. Report compatibility through the [setup template](../.github/ISSUE_TEMPLATE/setup-report.md), without private data.

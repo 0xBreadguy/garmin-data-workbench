@@ -39,4 +39,4 @@ uv run python scripts/benchmark_archive.py
 
 These measure local database work. A live seven-day sync made 35 health calls plus activity pagination/downloads; requests and pacing dominated initial collection.
 
-Profile representative workloads before adding typed tables, DuckDB, another language or API batching. Any batching must preserve per-day checkpoints, empty responses, partial failures and rate-limit behavior. Validate metric meaning against Connect before expanding analysis. [Data plan](GARMIN_DATA_PLAN.md) covers remaining gaps.
+Profile representative workloads before adding typed tables, DuckDB, another language or API batching. Any batching must preserve per-day checkpoints, empty responses, partial failures and rate-limit behavior. Validate metric meaning against Connect before expanding analysis. Preserve overlapping recordings and source timestamps; don't silently merge them or assume the current profile time zone applies to historical activities.

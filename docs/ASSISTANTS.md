@@ -57,7 +57,7 @@ garmin-archive assistant-guide --client dot
 
 Give it to your dot and confirm the computer name. It directs the dot to a local Codex task using Garmin MCP; the computer must be online, connected and already configured for Codex. See [OpenAI's connected-computer guide](https://learn.chatgpt.com/docs/dots/computers-and-apps). This Garmin handoff still needs an end-to-end test.
 
-`--client codex`, `claude` and `other` print shorter handoffs. `--client muse` prints a same-host shell handoff with absolute paths; see [Muse compatibility](MUSE.md). A local Codex/Claude registration doesn't connect Dot, Duet or Muse automatically. Direct Duet and Muse MCP integrations aren't implemented.
+`--client codex`, `claude` and `other` print shorter handoffs. `--client muse` prints a same-host shell handoff with absolute paths. A local Codex/Claude registration doesn't connect Dot, Duet or Muse automatically. Direct Duet and Muse MCP integrations aren't implemented.
 
 ### Direct ChatGPT MCP
 
@@ -67,4 +67,4 @@ The shipped server uses stdio and provides no authenticated remote HTTP connecto
 
 ## Verification status
 
-A local Codex conversation has used the MCP successfully. Claude Code registration has been checked in isolation. Other handoffs need end-to-end tests; [Muse](MUSE.md) has a reported offline VM check. Test installation, discovery, live sync, a real query and recurring execution separately using [the setup checks](SETUP.md#4-connect-and-test-the-assistant).
+A local Codex conversation has used the MCP successfully. Claude Code registration has been checked in isolation. Muse has a reported offline VM check, but its live setup and provider routine remain unverified. Other handoffs need end-to-end tests. Test installation, discovery, live sync, a real query and recurring execution separately using [the setup checks](SETUP.md#4-connect-and-test-the-assistant).
