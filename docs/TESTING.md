@@ -27,6 +27,7 @@ Use unittest discovery so tests don't require a `tests` Python package:
 | Catch-up checkpoints and sync recovery | `uv run python -m unittest discover -s tests -p 'test_catchup.py' -v` |
 | Archive writes, FIT decode and sync behavior | `uv run python -m unittest discover -s tests -p 'test_archive.py' -v` |
 | Metric definitions and missingness | `uv run python -m unittest discover -s tests -p 'test_queries.py' -v` |
+| Headless day/trend CLI, read-only access and query defaults | `uv run python -m unittest discover -s tests -p 'test_cli_queries.py' -v` |
 | Units and time zones | `uv run python -m unittest discover -s tests -p 'test_preferences.py' -v` |
 | Real stdio MCP handshake and tool responses | `uv run python -m unittest discover -s tests -p 'test_workbench_mcp.py' -v` |
 
@@ -47,5 +48,7 @@ Track these stages separately in a setup report:
 5. An opted-in scheduled job actually executed and advanced the archive as expected.
 
 A handoff printed by `assistant-guide` is guidance, not evidence that an assistant can reach the host. A registered client isn't necessarily connected to the intended archive. An empty archive can pass a handshake without verifying real metric mappings. A matched payload shape isn't enough to confirm a metric's meaning.
+
+`save-key` makes live authentication/profile requests. Its offline tests mock both clients and use disposable synthetic secret files. They verify headless import, private file modes, refusal to overwrite, malformed input and redacted errors; they do not verify a provider's private entry facility. [Muse notes](MUSE.md) track the reported VM limitations and the remaining live test.
 
 For a new assistant, start with the same generic setup. Record a client-specific exception only after observing it, with a reproducible command or description and a privacy-safe outcome. Report failures without key values, token caches, raw Garmin bodies, health records or routes. See the [setup report template](../.github/ISSUE_TEMPLATE/setup-report.md).
