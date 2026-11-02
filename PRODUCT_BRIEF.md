@@ -1,89 +1,42 @@
-# Garmin Data Workbench: product direction
+# Product direction
 
-Status: November 1, 2026. The local SQLite archive, FIT decoding, catch-up sync, MCP adapter, and guided macOS setup are implemented. A seven-day Garmin sync and a local Codex conversation have worked on one machine. Claude Code registration has been checked in isolation; Dot handoff and other personal-assistant integrations still need end-to-end tests. The broader features below remain planned. The goal is an independent public product; [existing community projects](EXISTING_PROJECTS.md) inform our choices, but overlap with them does not rule out building our own.
+**Give people and their agents a useful Garmin archive they control.**
 
-## The idea
+Run on a personal computer or persistent remote workstation. Use the official Personal API to collect data; retain source JSON and original activity files. Make the archive useful through MCP, CLI, SQL, scripts, notebooks and exports.
 
-Build an open-source, local-first workbench that lets people ask their own AI assistant about their Garmin data. Each user creates a Garmin Personal API key and operates the software on their own machine or server. The tool maintains a useful local archive and gives an MCP-compatible assistant clear, bounded access to it. SQL, scripts and notebooks remain available for direct inspection.
+## Who we're building for
 
-The primary outcome is **a trustworthy agent experience grounded in a local dataset the user controls**. The assistant is the primary interface: it can answer questions and produce visualizations using the user’s chosen tools. We are not prioritizing a first-party dashboard; users who want one may use an independent project such as [Garmin Grafana](https://github.com/arpanghosh8453/garmin-grafana), subject to its own data source and setup. This is a personal tool, not a hosted service or a business-growth exercise.
+| User | What they need |
+| --- | --- |
+| Agents with remote workstations | Persistent storage, private key delivery, unattended sync and bounded queries through shell or MCP |
+| Power users | Inspectable source data, reliable backfills, detailed activity samples, SQL and exports for their own tools |
 
-## The problem
+Both use the same archive and query definitions. Agents are a primary interface; direct access is a first-class workflow.
 
-Garmin Connect already provides dashboards, activity details, reports and data exports. It can export an individual activity in its original format, activity summaries and reports as CSV, a full account archive, and a single day's wellness FIT files. These are useful, but a person who wants a continuously updated, queryable local dataset has to manage collection, FIT decoding, history and consistency themselves. [Garmin's export instructions](https://support.garmin.com/zh-HK/?faq=W1TvTPW8JZ6LfJSfK512Q8).
+## Available today
 
-Garmin's official [Personal API client](https://github.com/garmin/connect-personal-api-python) makes individual calls and downloads activity files, but is not itself a continuously maintained local analytics archive. [Garmin Personal MCP](https://github.com/Mason-Levyy/garmin-personal-mcp) already provides an MCP interface to the official API. [garmin-health-data](https://github.com/diegoscarabelli/garmin-health-data) already builds a local SQLite dataset using its own Garmin Connect client. Neither a local database nor an MCP server alone is a unique idea; we should evaluate those projects before duplicating work.
+As of November 1, 2026:
 
-The opportunity is a dependable, inspectable workflow: the official Personal API, a durable local history, granular original activity files, a transparent data-quality report, and query interfaces for multiple tools. Existing community projects already provide some of these pieces; this is a product direction, not a claim that the combination is unique.
+- SQLite archive with five health datasets, activity metadata, original ZIPs and decoded FIT messages.
+- Resumable sync, catch-up checkpoints, coverage/errors and optional macOS scheduling.
+- Five daily/trend metrics, paginated activity samples, CLI exports and local stdio MCP.
+- Guided Codex/Claude Code registration, generic workstation setup and assistant handoffs.
 
-## Who it serves
+A seven-day live sync and a local Codex conversation worked on one machine. Claude Code registration was checked in isolation. Other assistant handoffs and broader platform support need end-to-end tests. [Verification](docs/TESTING.md) separates those claims.
 
-- Garmin users who are comfortable creating an API key and following a command-line setup.
-- People who want to keep their own history on a computer or server and analyze training and recovery with SQL, scripts, notebooks, spreadsheets or an AI assistant.
-- Builders who want documented source data and a stable model for their own tools.
+## Product rules
 
-Prioritize clear documentation, good defaults, useful errors and reproducibility for power users. A local CLI is an appropriate first interface. A graphical installer, hosted account system and optimized mass-market onboarding are not goals for the first release.
+- **Trust the evidence.** Return dates, units, freshness and coverage. Missing isn't zero; failed refreshes aren't current data. Associations don't prove causes.
+- **Keep the source.** Preserve original files, unknown fields and timestamp meaning. Use profile units/time zone by default; honor overrides.
+- **Let users choose the host.** Explain shared-user access before remote authentication or sync. Keep secrets out of chat and logs. AI providers may receive query results.
+- **Keep collection independent.** Queries use the archive without Garmin credentials or live requests. Scheduling is opt-in.
+- **Build on measured gaps.** Don't promise complete history, every sensor stream or novelty over existing projects.
 
-## Access and onboarding strategy
+## Next priorities
 
-Each person creates their own Personal API key and chooses where to run their installation, including a persistent cloud machine when they accept its access model. Document the one-time key display, expiration, secure storage and a connection check. Explain before a cloud sync that agents sharing an operating-system user can access the key, token cache and archive despite owner-only permissions; the user decides whether that host is acceptable. Keep secret values out of conversations and logs. The generic [setup guide](docs/SETUP.md) covers this choice. [Garmin's personal FAQ](https://developer.garmin.com/gc-developer-program/personal/personal-faq/) · [personal-key terms](https://connect.garmin.com/web-translations/partner_portal/partner_portal.properties).
+1. Verify metric values and representative watch/Edge recordings against Connect and originals.
+2. Improve coverage reporting, sync diagnostics, activity comparisons and sample-gap analysis.
+3. Test remote-workstation setup, private secret delivery, real assistant queries and recurring execution.
+4. Add historical import or reconciliation only where it fills demonstrated gaps.
 
-Use the Garmin profile's measurement system and time zone as defaults rather than asking during setup. Preserve source units and timestamps, honor explicit user requests for other units, and use the host date only if the profile time zone is unavailable.
-
-Provide a handoff for each client context. Local coding agents need their own MCP registration; a cloud-coordinated personal assistant also needs to know which connected computer holds the archive and how to reach it. Treat registration, tool discovery, and a successful conversation as separate checks.
-
-Start with the Personal API; a Garmin account export or direct device files may later provide an optional historical import. Garmin business-program access, a hosted multi-user service and monetization are outside the current direction.
-
-## What the user gets
-
-1. **A personal archive that stays current.** Fetch health data and activity summaries, retain original FIT files, and resume safely after a missed sync. Users can inspect and back up their own files.
-2. **Useful data, not just downloads.** Decode activity recordings and normalize daily health data into documented, queryable tables. Preserve original files, source, units and timestamps so an analysis can be traced back to Garmin.
-3. **A clear picture of coverage.** Show last successful sync, available dates by data type, missing or unrecorded days, failed requests, sampling intervals, and unknown fields. Distinguish 'not recorded', 'not returned', 'not yet checked' and 'request failed' where evidence supports the distinction.
-4. **Open ways to work with it.** Provide a documented SQLite schema or views, useful queries and CSV exports. Let scripts, notebooks and local tools use the data without an AI assistant.
-5. **An agent-first interface.** MCP tools answer common questions with bounded, dated results, units, provenance and coverage. Document which assistants and platforms actually work and what data each receives.
-6. **User control.** Run locally or on a user-managed machine, use a personal key, keep raw data outside the repo, and require explicit user action for any external sharing. The MCP transport and AI client determine where returned data goes; a local server does not make a remote model local.
-
-Potential questions include: 'How did my sleep and resting heart rate change during weeks when I rode more?' or 'Compare heart rate, power, and cadence across similar rides.' Return dates, coverage, units and missingness alongside results. Associations aren't proof of cause, and unavailable metrics cannot be reconstructed just by processing the files.
-
-## Proposed first release
-
-Build one end-to-end path before expanding scope:
-
-1. **Setup:** a documented local install, user-created Personal API key, and connection check. Avoid copying secrets into command history or the repository.
-2. **Sync:** fetch a user-selected date range of daily summaries, sleep and HRV plus activity metadata and original files. Respect endpoint-specific request windows and unknown rate limits; use resumable, idempotent checkpoints.
-3. **Decode and store:** persist original JSON/FIT; decode available activity records, events and laps; store curated daily health, sleep, activities and time series in SQLite. Record source and observed sampling, not invented precision.
-4. **Check:** show coverage, recent sync, errors and missing data by category. Show which fields are present for each activity, including unrecognized fields where practical.
-5. **Query and export:** support exporting an activity's samples and a daily-health table as CSV, plus documented example SQL queries.
-6. **Connect an assistant:** provide a minimal local MCP adapter for listing activities, inspecting a selected activity, querying daily metrics and viewing sync/coverage status; offer bounded time-series ranges and pagination. Document one verified end-to-end assistant setup. The data archive remains useful without MCP.
-
-Start with the official Personal API and test actual coverage. Account-export import, direct device access, optional dashboard integrations and unofficial endpoints are follow-on options only where they fill demonstrated gaps. A first-party dashboard is not a current goal. Do not require recording strength sets or weights to make the core product useful.
-
-## Architecture and data contract
-
-```text
-Garmin Personal API ──> sync + original files ──> local data model
-                                                   ├── CLI and CSV
-                                                   ├── SQLite / notebooks
-                                                   └── local MCP adapter ──> user-chosen AI client
-```
-
-Keep retrieval, storage, analysis and adapters separate. Shared query functions should serve the CLI and MCP; neither should contain its own data definitions. Initially model daily metrics, sleep sessions, activities and activity samples, plus source/import/sync metadata. Preserve UTC instants and relevant local dates, units, activity IDs and source files. Keep unknown FIT fields in the retained original file even if a parser cannot yet interpret them.
-
-The agent experience is the main product surface. Favor small, composable question-shaped tools over dumping raw payloads; keep raw access available for inspection. The MCP layer should return bounded results and metadata: source, date range, units, freshness, sampling and coverage. Don't include location by default in a generic summary. Make exact location and other sensitive fields available when the user asks for them. A query must distinguish absent data from a real zero. The tool should remain useful if MCP is never enabled.
-
-## Validation and launch bar
-
-- Successfully complete a clean first-run setup using only the documentation and a user-created key.
-- Backfill a chosen range, run the sync twice without duplication, and recover after an interrupted or rate-limited request.
-- Compare representative daily health results and at least one watch and one Edge activity with Garmin Connect and the original FIT files. Report actual date coverage and gaps; don't promise full history or specific sensors until tested.
-- Show that CSV and MCP queries agree with the local database and include data provenance and completeness.
-- Run tests using synthetic data in public CI; keep credentials, health records, routes, logs and downloaded files out of the public repo and its entire history.
-- Document supported platforms based on actual clean-install tests. Review license and dependencies and audit public artifacts before publication.
-
-The Personal API is for an individual accessing their own data, and its key is for tools the user develops or operates for personal use. [Garmin FAQ](https://developer.garmin.com/gc-developer-program/personal/personal-faq/) · [Personal-key terms](https://connect.garmin.com/web-translations/partner_portal/partner_portal.properties).
-
-## Decisions to make after the first usable slice
-
-- Which activity fields, health metrics and analysis questions are most valuable to expose first?
-- Which existing libraries can we reuse after evaluating coverage, licenses and maintenance?
-- Which additional data sources or export formats fill real gaps in the Personal API?
+Each user operates their own installation with their own key. A hosted multi-user service and first-party dashboard are outside the current direction. See the [data plan](GARMIN_DATA_PLAN.md), [architecture](ARCHITECTURE.md) and [related-project review](EXISTING_PROJECTS.md).
