@@ -113,4 +113,4 @@ Check for existing jobs, preserve unrelated schedules and verify an actual execu
 
 ## Hand off
 
-Report the host, archive path, installed source revision, query path, schedule or manual sync, checks passed and remaining gaps. Keep private data out of reports. Use the [setup report](../.github/ISSUE_TEMPLATE/setup-report.md) for compatibility findings; [Muse notes](MUSE.md) track its reported VM checks.
+Report the host, archive path, installed source revision, query path, schedule or manual sync, checks passed and remaining gaps. Keep private data out of reports. Use the [setup report](../.github/ISSUE_TEMPLATE/setup-report.md) for compatibility findings.

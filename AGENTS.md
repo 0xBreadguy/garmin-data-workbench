@@ -6,7 +6,7 @@ This file is the shared entry point for coding agents and assistants helping a u
 
 - Read [README.md](README.md) for the product and [docs/USAGE.md](docs/USAGE.md) for commands.
 - For a user's installation, follow [docs/SETUP.md](docs/SETUP.md). A request to inspect or test the code does not imply permission to use credentials, sync health data, or create a recurring job.
-- For code changes, read [CONTRIBUTING.md](CONTRIBUTING.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [docs/TESTING.md](docs/TESTING.md). [PRODUCT_BRIEF.md](PRODUCT_BRIEF.md) explains the direction; planned features are not implemented guarantees.
+- For code changes, read [CONTRIBUTING.md](CONTRIBUTING.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [docs/TESTING.md](docs/TESTING.md).
 - Check `git status --short --branch` before editing. Preserve existing work and use the checkout assigned to your task. Do not discard changes or switch another worker's branch.
 
 ## Offline development quick start

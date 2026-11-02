@@ -52,7 +52,6 @@ Queries use stored data. Available history and fields depend on Garmin, your dev
 - [Commands, SQL, exports and scheduling](docs/USAGE.md)
 - [Assistant connections and handoffs](docs/ASSISTANTS.md)
 - [Contribute](CONTRIBUTING.md) · [Agent instructions](AGENTS.md) · [Testing](docs/TESTING.md)
-- [Product direction](PRODUCT_BRIEF.md) · [Architecture](ARCHITECTURE.md) · [Data plan](GARMIN_DATA_PLAN.md)
-- [Related projects](EXISTING_PROJECTS.md) · [Security](SECURITY.md)
+- [Architecture](ARCHITECTURE.md) · [Security](SECURITY.md)
 
 Independent open-source project. Not affiliated with, endorsed by, or supported by Garmin.
