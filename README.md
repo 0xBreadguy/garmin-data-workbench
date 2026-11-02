@@ -82,6 +82,10 @@ garmin-archive status
 garmin-archive activities
 garmin-archive path
 
+# Read the same bounded summaries used by MCP, without a live request.
+garmin-archive day 2026-01-01
+garmin-archive trend sleep_duration --from 2026-01-01 --to 2026-01-07
+
 # Look at an activity's samples. Replace the example ID with one from your list.
 garmin-archive records 123456789 --limit 100
 garmin-archive records 123456789 --format csv --limit 1000 > activity.csv
@@ -194,7 +198,7 @@ Copy the result into your dot's conversation and ask it to remember the handoff.
 
 Direct MCP access from a regular ChatGPT conversation is separate from Codex configuration. One documented route is OpenAI's [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels): create a tunnel associated with your ChatGPT workspace, run OpenAI's `tunnel-client` on the archive machine pointing at `garmin-archive-mcp`, then add it as a custom MCP server in ChatGPT. The tunnel client must remain running. This project does not configure or verify that connection yet; account and workspace permissions apply. MCP responses pass through the selected AI provider.
 
-Claude Duet and Meta Muse also run in their own environments, so a Claude Code or Codex registration on your computer doesn't by itself prove those assistants can reach your archive. Use a supported connection for the specific product and verify a real query; direct Duet and Muse integrations are not implemented here.
+Claude Duet and Meta Muse also run in their own environments, so a Claude Code or Codex registration on your computer doesn't by itself prove those assistants can reach your archive. Assistants with shell access on the archive host can use the read-only `day` and `trend` CLI commands without MCP. `garmin-archive assistant-guide --client muse` prints that same-host handoff; [Muse compatibility notes](docs/MUSE.md) cover the reported headless Linux environment and remaining checks. Direct Duet and Muse MCP integrations are not implemented here.
 
 ### Current limits
 
