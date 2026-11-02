@@ -4,13 +4,17 @@ version = "0.1.0"
 description = "A local-first, open-source workbench for your Garmin health and activity data"
 requires-python = ">=3.12"
 dependencies = [
+    "filelock>=3.16,<4",
     "garmin-connect-personal-api-python>=1.0.0,<2",
     "garmin-fit-sdk>=21.0.0",
+    "mcp>=1.30,<2",
     "requests>=2.31,<3",
+    "tzdata>=2025.2",
 ]
 
 [project.scripts]
 garmin-archive = "garmin_archive.cli:main"
+garmin-archive-mcp = "garmin_archive.mcp_server:main"
 
 [build-system]
 requires = ["hatchling"]
