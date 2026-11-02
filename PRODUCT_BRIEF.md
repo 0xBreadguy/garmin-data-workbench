@@ -26,7 +26,7 @@ Prioritize clear documentation, good defaults, useful errors and reproducibility
 
 ## Access and onboarding strategy
 
-Each person creates their own Personal API key and runs their own installation. Document the one-time key display, expiration, secure storage and a connection check. The key must not be shared with a hosted service. [Garmin's personal FAQ](https://developer.garmin.com/gc-developer-program/personal/personal-faq/) · [personal-key terms](https://connect.garmin.com/web-translations/partner_portal/partner_portal.properties).
+Each person creates their own Personal API key and chooses where to run their installation, including a persistent cloud machine when they accept its access model. Document the one-time key display, expiration, secure storage and a connection check. Explain before a cloud sync that agents sharing an operating-system user can access the key, token cache and archive despite owner-only permissions; the user decides whether that host is acceptable. Keep secret values out of conversations and logs. The generic [setup guide](docs/SETUP.md) covers this choice. [Garmin's personal FAQ](https://developer.garmin.com/gc-developer-program/personal/personal-faq/) · [personal-key terms](https://connect.garmin.com/web-translations/partner_portal/partner_portal.properties).
 
 Use the Garmin profile's measurement system and time zone as defaults rather than asking during setup. Preserve source units and timestamps, honor explicit user requests for other units, and use the host date only if the profile time zone is unavailable.
 
