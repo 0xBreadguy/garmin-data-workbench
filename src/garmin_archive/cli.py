@@ -9,6 +9,7 @@ import logging
 import math
 import os
 import shlex
+import sqlite3
 import subprocess
 import sys
 import time
@@ -25,6 +26,7 @@ from garmin_personal_api import (
 
 from .archive import Archive, default_data_dir, now
 from .preferences import clean_profile, local_today, profile_preferences
+from .queries import METRICS, get_day, get_trend, open_archive
 from .sync import DATASETS, SyncStopped, _call, sync
 from garmin_personal_api.errors import HttpError
 
@@ -88,7 +90,22 @@ def parser() -> argparse.ArgumentParser:
     connect.add_argument("--client", choices=("codex", "claude", "chatgpt", "other"), default="codex")
 
     guide = commands.add_parser("assistant-guide", help="Print a handoff for your assistant")
-    guide.add_argument("--client", choices=("dot", "codex", "claude", "other"), default="dot")
+    guide.add_argument("--client", choices=("dot", "codex", "claude", "muse", "other"), default="dot")
+
+    key = commands.add_parser(
+        "save-key", help="Validate and save a key from a private secret file; makes live Garmin requests",
+        description="Read a privately delivered secret file, validate it through live Garmin authentication "
+                    "and a profile request, then save an owner-only key file without overwriting. "
+                    "Does not sync, connect a client or schedule anything.",
+    )
+    key.add_argument("--from-file", type=Path, required=True, help="Private file supplied through the host's secure secret facility (never a key value)")
+
+    day = commands.add_parser("day", help="Read a day overview as JSON without syncing (default: Garmin profile's today)")
+    day.add_argument("day", nargs="?", type=_date)
+    trend = commands.add_parser("trend", help="Read 1–90 days of a metric as JSON without syncing")
+    trend.add_argument("metric", choices=sorted(METRICS))
+    trend.add_argument("--from", dest="start", type=_date, help="Start date (default: six days before end)")
+    trend.add_argument("--to", dest="end", type=_date, help="End date (default: Garmin profile's today)")
 
     commands.add_parser("status", help="Show archive coverage and sync errors")
     commands.add_parser("path", help="Print the SQLite database path")
@@ -392,8 +409,37 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.command == "assistant-guide":
         from .install import assistant_guide
-        print(assistant_guide(args.client))
+        print(assistant_guide(args.client, data_dir=args.data_dir))
         return 0
+    if args.command == "save-key":
+        from .install import save_key_from_file
+        try:
+            save_key_from_file(args.from_file)
+        except (OSError, RuntimeError, KeyboardInterrupt) as error:
+            # Never print file contents, paths from OS errors, or response bodies.
+            detail = str(error) if isinstance(error, RuntimeError) else type(error).__name__
+            print(f"Could not save Garmin key: {detail}", file=sys.stderr)
+            return 1
+        print("Validated key saved to ~/.config/garmin/connect-personal-api-key with owner-only permissions.")
+        if "GARMIN_PERSONAL_API_KEY" in os.environ:
+            print("GARMIN_PERSONAL_API_KEY is set and takes precedence over the saved file during sync.")
+        return 0
+    if args.command in {"day", "trend"}:
+        try:
+            with open_archive(args.data_dir) as db:
+                if args.command == "day":
+                    result = get_day(db, args.day.isoformat() if args.day else "")
+                else:
+                    result = get_trend(db, args.metric, args.start.isoformat() if args.start else "",
+                                       args.end.isoformat() if args.end else "")
+            _print_json(result)
+            return 0
+        except ValueError as error:
+            print(str(error), file=sys.stderr)
+            return 2
+        except (OSError, sqlite3.Error) as error:
+            print(f"Cannot read existing archive ({type(error).__name__}); check --data-dir and sync first.", file=sys.stderr)
+            return 1
     if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
         print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)
         return 1

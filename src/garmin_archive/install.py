@@ -7,12 +7,15 @@ import json
 import logging
 import os
 import queue
+import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import threading
 import time
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -37,14 +40,53 @@ def ensure_key() -> str:
     if "GARMIN_PERSONAL_API_KEY" in os.environ:
         raise RuntimeError("GARMIN_PERSONAL_API_KEY is empty or unusable; fix or unset it and retry.")
     if not sys.stdin.isatty():
-        raise RuntimeError("No Garmin key found. Create one and save it in ~/.config/garmin/connect-personal-api-key, then retry.")
+        raise RuntimeError("No Garmin key found. Use a supported private secret facility, then run "
+                           "`garmin-archive save-key --from-file /private/secret-file`, or provide "
+                           "GARMIN_PERSONAL_API_KEY through that facility. Never put the key in chat or a command.")
     path = Path(DEFAULT_API_KEY_FILE).expanduser()
-    if path.exists():
+    if os.path.lexists(path):
         raise RuntimeError("The Garmin key file exists but is not usable; it was not overwritten.")
     print("Create a Personal API key at https://connect.garmin.com/app/settings/personalApiToken")
-    key = getpass.getpass("Paste your Garmin Personal API key (hidden): ").strip()
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", getpass.GetPassWarning)
+            key = getpass.getpass("Paste your Garmin Personal API key (hidden): ").strip()
+    except (EOFError, getpass.GetPassWarning) as error:
+        raise RuntimeError("Hidden key entry is unavailable; use a supported private secret facility.") from error
+    _validate_and_save_key(key)
+    return "created"
+
+
+def save_key_from_file(source: Path) -> None:
+    """Import a host-provided secret file without a TTY, sync or client changes."""
+    # Open without following a final symlink or blocking on a FIFO. Check the
+    # opened descriptor rather than a path which could change between checks.
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    fd = os.open(source.expanduser(), flags)
+    with os.fdopen(fd, "rb") as input_file:
+        info = os.fstat(input_file.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise RuntimeError("The secret source must be a regular private file.")
+        if os.name == "posix" and (info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) & 0o077):
+            raise RuntimeError("The secret file must be owned by the current user with no group or other permissions.")
+        raw = input_file.read(16_385)
+    if len(raw) > 16_384:
+        raise RuntimeError("The secret file is too large; expected a single API key.")
+    try:
+        key = raw.decode("utf-8").strip()
+    except UnicodeError as error:
+        raise RuntimeError("The secret file must contain a UTF-8 API key.") from error
+    if "\n" in key or "\r" in key or "\x00" in key:
+        raise RuntimeError("The secret file must contain a single API key.")
+    _validate_and_save_key(key)
+
+
+def _validate_and_save_key(key: str) -> None:
+    path = Path(DEFAULT_API_KEY_FILE).expanduser()
+    if os.path.lexists(path):
+        raise RuntimeError("The Garmin key file already exists; it was not overwritten.")
     if not key:
-        raise RuntimeError("No key entered; setup stopped.")
+        raise RuntimeError("No key supplied; setup stopped.")
     previous_log_level = logging.root.manager.disable
     logging.disable(logging.CRITICAL)
     try:
@@ -60,7 +102,6 @@ def ensure_key() -> str:
     fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     with os.fdopen(fd, "w") as output:
         output.write(key + "\n")
-    return "created"
 
 
 def scheduled_key_available() -> bool:
@@ -122,7 +163,7 @@ def register_claude(data_dir: Path, *, executable: Path | None = None) -> str:
     return "added"
 
 
-def assistant_guide(client: str) -> str:
+def assistant_guide(client: str, *, data_dir: Path | None = None) -> str:
     """Build a copyable handoff; it contains no health data or credentials."""
     computer = socket.gethostname()
     common = ("Use the archive's status and freshness when answering, include missing-data caveats, "
@@ -134,6 +175,19 @@ def assistant_guide(client: str) -> str:
     if client in {"codex", "claude"}:
         return ("My Garmin data is in the local Garmin Data Workbench. Use its garmin-workbench MCP tools "
                 "for questions about my health and activities. " + common)
+    if client == "muse":
+        from .archive import default_data_dir
+        suffix = ".exe" if os.name == "nt" else ""
+        executable = Path(sys.executable).parent / f"garmin-archive{suffix}"
+        command = shlex.join([str(executable), "--data-dir", str((data_dir or default_data_dir()).expanduser().resolve())])
+        return (f"My Garmin Data Workbench is on {computer}. If you can run commands on that same host, "
+                f"use its local CLI: `{command} day YYYY-MM-DD` for an overview, or "
+                f"`{command} trend sleep_duration --from YYYY-MM-DD --to YYYY-MM-DD` for up to 90 days. "
+                "Replace the dates with the requested range; omitting them uses Garmin profile dates "
+                "(host date as fallback) and a seven-day trend. Commands return JSON with source units, "
+                "preferences, freshness and coverage. Queries need an existing synced archive but no key or MCP client. "
+                "Use `status` to inspect sync errors. Do not sync, register another client or create a routine "
+                "unless I ask. This handoff does not establish a connection to another host. " + common)
     return (f"My Garmin Data Workbench is on {computer}. To answer Garmin questions, use its "
             "garmin-workbench MCP server through a supported connection to that computer. " + common)
 
