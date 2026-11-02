@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import sqlite3
-from contextlib import contextmanager
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
-from typing import Annotated, Iterator
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -16,7 +14,7 @@ from pydantic import Field
 
 from .archive import default_data_dir
 from .preferences import display_distance, local_today, profile_preferences
-from .queries import day_overview, metric_trend, parse_day
+from .queries import get_day as query_day, get_trend as query_trend, open_archive
 from .schedule import configure_schedule, schedule_status
 
 DATASETS = {"daily_summary", "sleep", "hrv", "heart_rate", "body_battery"}
@@ -38,7 +36,6 @@ def create_server(data_dir: Path) -> FastMCP:
                       "Missing or empty data is not zero; report coverage and stale or failed syncs. "
                       "Responses may be sent to your AI provider."),
     )
-    database = (data_dir.expanduser() / "archive.sqlite3").resolve()
 
     @server.tool(annotations=READ_ONLY)
     def setup_status() -> dict:
@@ -58,16 +55,6 @@ def create_server(data_dir: Path) -> FastMCP:
         """
         return configure_schedule(data_dir, every_hours, lookback_days)
 
-    @contextmanager
-    def open_archive() -> Iterator[sqlite3.Connection]:
-        # mode=ro neither creates nor migrates a database and lets a sync run separately.
-        connection = sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)
-        connection.row_factory = sqlite3.Row
-        try:
-            yield connection
-        finally:
-            connection.close()
-
     @server.tool(annotations=READ_ONLY)
     def get_day(day: str = "") -> dict:
         """Get one day at a glance: supported metrics, activities, and dataset coverage.
@@ -77,16 +64,8 @@ def create_server(data_dir: Path) -> FastMCP:
         Missing values are null. Raw responses can be requested separately
         with daily_health.
         """
-        with open_archive() as db:
-            prefs = profile_preferences(db)
-            today, today_source = local_today(prefs)
-            result = day_overview(db, day or today.isoformat())
-            distance = result["metrics"]["distance"]
-            distance["display_value"], distance["display_unit"] = display_distance(distance["value"], prefs)
-            for activity in result["activities"]:
-                activity["display_distance"], activity["display_distance_unit"] = display_distance(activity["distance_m"], prefs)
-            result.update({"preferences": prefs, "today_source": today_source})
-            return result
+        with open_archive(data_dir) as db:
+            return query_day(db, day)
 
     @server.tool(annotations=READ_ONLY)
     def get_trend(metric: str, start: str = "", end: str = "") -> dict:
@@ -98,24 +77,13 @@ def create_server(data_dir: Path) -> FastMCP:
         defaults to six days before end.
         Means use only days with values, never missing days.
         """
-        with open_archive() as db:
-            prefs = profile_preferences(db)
-            today, today_source = local_today(prefs)
-            end_day = parse_day(end) if end else today
-            result = metric_trend(db, metric, start or (end_day - timedelta(days=6)).isoformat(), end_day.isoformat())
-            if metric == "distance":
-                _, unit = display_distance(None, prefs)
-                result["display"] = {"unit": unit,
-                    "points": [{"day": point["day"], "value": display_distance(point["value"], prefs)[0]}
-                               for point in result["points"]],
-                    "mean_of_available_days": display_distance(result["mean_of_available_days"], prefs)[0]}
-            result.update({"preferences": prefs, "today_source": today_source})
-            return result
+        with open_archive(data_dir) as db:
+            return query_trend(db, metric, start, end)
 
     @server.tool(annotations=READ_ONLY)
     def archive_status() -> dict:
         """Summarize sync coverage and failures, including the last catch-up run."""
-        with open_archive() as db:
+        with open_archive(data_dir) as db:
             coverage = [dict(row) for row in db.execute(
                 "SELECT dataset, status, COUNT(*) AS days, MIN(day) AS first_day, "
                 "MAX(day) AS last_day, MAX(updated_at) AS last_attempt "
@@ -141,7 +109,7 @@ def create_server(data_dir: Path) -> FastMCP:
         offset: Annotated[int, Field(ge=0)] = 0,
     ) -> dict:
         """List activity summaries, newest first. Page with offset and limit."""
-        with open_archive() as db:
+        with open_archive(data_dir) as db:
             prefs = profile_preferences(db)
             rows = [dict(row) for row in db.execute(
                 "SELECT activity_id, day, json_extract(summary_json, '$.activityType.typeKey') AS type, "
@@ -170,7 +138,7 @@ def create_server(data_dir: Path) -> FastMCP:
                 raise ValueError
         except ValueError as error:
             raise ValueError("day must be YYYY-MM-DD") from error
-        with open_archive() as db:
+        with open_archive(data_dir) as db:
             row = db.execute(
                 "SELECT d.data_json, d.fetched_at, s.status, s.error, s.updated_at AS last_attempt "
                 "FROM (SELECT 1) LEFT JOIN daily_data d ON d.dataset=? AND d.day=? "
@@ -191,7 +159,7 @@ def create_server(data_dir: Path) -> FastMCP:
         offset: Annotated[int, Field(ge=0)] = 0,
     ) -> dict:
         """Return a page of recorded FIT samples; excludes precise location and raw fields."""
-        with open_archive() as db:
+        with open_archive(data_dir) as db:
             prefs = profile_preferences(db)
             activity = db.execute("SELECT day, fit_status, updated_at FROM activities WHERE activity_id=?",
                                   (activity_id,)).fetchone()

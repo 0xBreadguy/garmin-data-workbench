@@ -8,8 +8,12 @@ from __future__ import annotations
 import json
 import math
 import sqlite3
+from contextlib import contextmanager
 from datetime import date, timedelta
-from typing import Any
+from pathlib import Path
+from typing import Any, Iterator
+
+from .preferences import display_distance, local_today, profile_preferences
 
 # Output name -> (dataset, path within the dated response, unit).
 METRICS = {
@@ -21,6 +25,47 @@ METRICS = {
 }
 DATASETS = ("daily_summary", "sleep", "hrv", "heart_rate", "body_battery", "activities")
 MAX_TREND_DAYS = 90
+
+
+@contextmanager
+def open_archive(data_dir: Path) -> Iterator[sqlite3.Connection]:
+    """Read an existing archive without creating or migrating it."""
+    database = (data_dir.expanduser() / "archive.sqlite3").resolve()
+    connection = sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)
+    connection.row_factory = sqlite3.Row
+    try:
+        yield connection
+    finally:
+        connection.close()
+
+
+def get_day(db: sqlite3.Connection, day: str = "") -> dict:
+    """Shared CLI/MCP overview with Garmin date and presentation defaults."""
+    prefs = profile_preferences(db)
+    today, today_source = local_today(prefs)
+    result = day_overview(db, day or today.isoformat())
+    distance = result["metrics"]["distance"]
+    distance["display_value"], distance["display_unit"] = display_distance(distance["value"], prefs)
+    for activity in result["activities"]:
+        activity["display_distance"], activity["display_distance_unit"] = display_distance(activity["distance_m"], prefs)
+    result.update({"preferences": prefs, "today_source": today_source})
+    return result
+
+
+def get_trend(db: sqlite3.Connection, metric: str, start: str = "", end: str = "") -> dict:
+    """Shared CLI/MCP trend, bounded to 90 days by metric_trend."""
+    prefs = profile_preferences(db)
+    today, today_source = local_today(prefs)
+    end_day = parse_day(end) if end else today
+    result = metric_trend(db, metric, start or (end_day - timedelta(days=6)).isoformat(), end_day.isoformat())
+    if metric == "distance":
+        _, unit = display_distance(None, prefs)
+        result["display"] = {"unit": unit,
+            "points": [{"day": point["day"], "value": display_distance(point["value"], prefs)[0]}
+                       for point in result["points"]],
+            "mean_of_available_days": display_distance(result["mean_of_available_days"], prefs)[0]}
+    result.update({"preferences": prefs, "today_source": today_source})
+    return result
 
 
 def parse_day(value: str) -> date:
