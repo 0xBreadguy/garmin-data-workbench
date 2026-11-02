@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import contextlib
 import io
+import logging
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -209,6 +211,121 @@ for line in sys.stdin:
             executable.chmod(0o700)
             with patch("garmin_archive.install.shutil.which", return_value=str(executable)):
                 self.assertEqual(set(install.verify_codex_discovery()), install.REQUIRED_TOOLS)
+
+
+class SecretFileTest(unittest.TestCase):
+    def setUp(self):
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        self.source = self.root / "provider-secret"
+        self.source.write_text("synthetic-private-key\n")
+        self.source.chmod(0o600)
+        self.destination = self.root / "config" / "key"
+        self.archive = self.root / "archive"
+        self.stack.enter_context(patch("garmin_archive.install.DEFAULT_API_KEY_FILE", self.destination))
+        self.stack.enter_context(patch.dict(os.environ, {}, clear=True))
+        self.stack.enter_context(patch("sys.stdin.isatty", return_value=False))
+        self.auth = self.stack.enter_context(patch("garmin_archive.install.PersonalApiAuthenticator"))
+        self.auth.return_value.__enter__.return_value.obtain_token.return_value.access_token = "fake-token"
+        self.client = self.stack.enter_context(patch("garmin_archive.install.GarminPersonalApiClient"))
+        self.sync = self.stack.enter_context(patch("garmin_archive.cli._sync"))
+        self.register = self.stack.enter_context(patch("garmin_archive.install.register_codex"))
+        self.schedule = self.stack.enter_context(patch("garmin_archive.schedule.configure_schedule"))
+        self.output = self.stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+        self.errors = self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+
+    def run_save(self):
+        return cli.main(["--data-dir", str(self.archive), "save-key", "--from-file", str(self.source)])
+
+    def test_headless_import_validates_without_sync_archive_client_or_schedule(self):
+        log_level = logging.root.manager.disable
+        self.assertEqual(self.run_save(), 0)
+        self.assertEqual(logging.root.manager.disable, log_level)
+        self.auth.return_value.__enter__.return_value.obtain_token.assert_called_once_with("synthetic-private-key")
+        self.client.return_value.__enter__.return_value.get_user_profile_settings.assert_called_once()
+        self.assertEqual(self.destination.read_text(), "synthetic-private-key\n")
+        if os.name == "posix":
+            self.assertEqual(self.destination.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(self.destination.parent.stat().st_mode & 0o777, 0o700)
+        self.assertTrue(self.source.exists())
+        self.assertFalse(self.archive.exists())
+        self.sync.assert_not_called()
+        self.register.assert_not_called()
+        self.schedule.assert_not_called()
+        self.assertNotIn("synthetic-private-key", self.output.getvalue() + self.errors.getvalue())
+
+    def test_rejected_key_does_not_leak_response_or_save_and_restores_logging(self):
+        self.auth.return_value.__enter__.return_value.obtain_token.side_effect = ValueError("synthetic-private-key PRIVATE_BODY")
+        log_level = logging.root.manager.disable
+        self.assertEqual(self.run_save(), 1)
+        self.assertEqual(logging.root.manager.disable, log_level)
+        self.assertFalse(self.destination.exists())
+        output = self.output.getvalue() + self.errors.getvalue()
+        self.assertNotIn("synthetic-private-key", output)
+        self.assertNotIn("PRIVATE_BODY", output)
+        self.assertIn("not saved", output)
+
+    def test_existing_file_is_preserved_without_authentication(self):
+        self.destination.parent.mkdir()
+        self.destination.write_text("existing-key")
+        self.assertEqual(self.run_save(), 1)
+        self.assertEqual(self.destination.read_text(), "existing-key")
+        self.auth.assert_not_called()
+
+    def test_malformed_and_missing_secret_sources_fail_before_authentication(self):
+        for content in (b"", b"\xff", b"one\ntwo", b"x\x00y", b"x" * 16_385):
+            with self.subTest(content_length=len(content)):
+                self.source.write_bytes(content)
+                self.assertEqual(self.run_save(), 1)
+                self.assertFalse(self.destination.exists())
+        self.source.unlink()
+        self.assertEqual(self.run_save(), 1)
+        self.auth.assert_not_called()
+
+    @unittest.skipUnless(os.name == "posix", "POSIX file privacy checks")
+    def test_shared_symlink_directory_and_fifo_sources_are_rejected(self):
+        self.source.chmod(0o644)
+        self.assertEqual(self.run_save(), 1)
+        self.source.unlink()
+        self.source.symlink_to(self.root / "missing")
+        self.assertEqual(self.run_save(), 1)
+        self.source.unlink()
+        self.source.mkdir()
+        self.assertEqual(self.run_save(), 1)
+        self.source.rmdir()
+        os.mkfifo(self.source, 0o600)
+        self.assertEqual(self.run_save(), 1)
+        self.auth.assert_not_called()
+
+    def test_non_tty_installer_points_to_secret_facility_without_prompting(self):
+        with patch("garmin_archive.install.resolve_api_key", side_effect=GarminPersonalApiError("missing")), \
+                patch("garmin_archive.install.getpass.getpass") as prompt:
+            with self.assertRaisesRegex(RuntimeError, "save-key --from-file"):
+                install.ensure_key()
+        prompt.assert_not_called()
+
+    def test_hidden_prompt_never_falls_back_to_echoed_input(self):
+        def unsafe_prompt(*args):
+            warnings.warn("cannot hide input", install.getpass.GetPassWarning)
+            self.fail("Prompt continued after losing hidden entry")
+        with patch("garmin_archive.install.resolve_api_key", side_effect=GarminPersonalApiError("missing")), \
+                patch("sys.stdin.isatty", return_value=True), \
+                patch("garmin_archive.install.getpass.getpass", side_effect=unsafe_prompt):
+            with self.assertRaisesRegex(RuntimeError, "Hidden key entry is unavailable"):
+                install.ensure_key()
+        self.auth.assert_not_called()
+
+    def test_muse_handoff_uses_same_host_cli_and_selected_archive(self):
+        self.assertEqual(cli.main(["--data-dir", str(self.archive), "assistant-guide", "--client", "muse"]), 0)
+        output = self.output.getvalue()
+        self.assertIn(str(self.archive), output)
+        self.assertIn("day YYYY-MM-DD", output)
+        self.assertIn("trend sleep_duration", output)
+        self.assertIn("no key or MCP client", output)
+        self.assertIn("does not establish a connection", output)
+        self.assertFalse(self.archive.exists())
+        self.auth.assert_not_called()
 
 
 if __name__ == "__main__":
