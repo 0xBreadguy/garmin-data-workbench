@@ -1,15 +1,15 @@
 # Security and privacy
 
-Garmin Data Workbench handles credentials, health data and activity files that can contain precise locations. Keep those materials out of issues, pull requests, logs and public test fixtures. Use synthetic data to reproduce a problem whenever possible.
+Keep keys, tokens, health records, original activity files and GPS routes out of Git, public reports and logs. Use synthetic reproductions.
 
 ## Report a vulnerability
 
-Use GitHub's private vulnerability reporting option in this repository's Security tab if it is available. If no private reporting option is offered, open an issue asking for a private reporting channel without including exploit details or sensitive data. Do not attach a personal archive, API key, token cache, raw Garmin response or original activity file.
+Use private vulnerability reporting in the repository's GitHub Security tab, if available. Otherwise, open an issue requesting a private channel, without exploit details or sensitive data.
 
-Describe the affected source revision, the component, impact and a synthetic reproduction through the private channel. This is an early project; there is no promised response time or maintained older-release support policy. Fixes target the current code unless a maintainer says otherwise.
+Privately provide the source revision, affected component, impact and a synthetic reproduction. Don't attach an archive or credentials. Fixes target current code unless a maintainer says otherwise; no response time or older-release support is promised.
 
-If a credential has been exposed, revoke or replace it through Garmin and remove it from the affected environment. Removing a file or message alone doesn't revoke a key. Do not post the exposed value in a report.
+Revoke or replace exposed credentials through Garmin. Removing a file or message doesn't revoke a key.
 
-## Deployment choices
+## Choose the host
 
-The [setup guide](docs/SETUP.md) explains local and cloud host choices. Owner-only permissions do not isolate data from other agents running as the same operating-system user. Users choose whether that access model is acceptable before syncing. Tool results may pass to the chosen AI provider. The shipped stdio server is not a configured authenticated remote connector.
+Processes sharing your OS user can read owner-only files. Accept that access model before remote authentication or sync. Query results may reach the selected AI provider. The stdio server provides no authenticated remote connector. See [setup](docs/SETUP.md#1-choose-where-the-data-lives).
