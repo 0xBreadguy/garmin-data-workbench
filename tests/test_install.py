@@ -131,7 +131,8 @@ class KeyAndCodexTest(unittest.TestCase):
                     patch("garmin_archive.install.GarminPersonalApiClient", return_value=client):
                 self.assertEqual(install.ensure_key(), "created")
             self.assertEqual(path.read_text(), "test-private-key\n")
-            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            if os.name == "posix":
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             client.__enter__.return_value.get_user_profile_settings.assert_called_once()
 
     def test_bad_key_is_not_saved_or_printed(self):
@@ -197,8 +198,8 @@ class KeyAndCodexTest(unittest.TestCase):
 
     def test_discovery_checks_real_protocol_without_a_model_turn(self):
         with tempfile.TemporaryDirectory() as temp:
-            executable = Path(temp) / "codex"
-            executable.write_text(f'''#!{sys.executable}
+            executable = Path(temp) / "fake_codex.py"
+            executable.write_text(f'''
 import json, sys
 for line in sys.stdin:
     message = json.loads(line)
@@ -208,8 +209,15 @@ for line in sys.stdin:
         names = {sorted(install.REQUIRED_TOOLS)!r}
         print(json.dumps({{"id": message["id"], "result": {{"data": [{{"name": "garmin-workbench", "tools": {{n: {{}} for n in names}}}}]}}}}), flush=True)
 ''')
-            executable.chmod(0o700)
-            with patch("garmin_archive.install.shutil.which", return_value=str(executable)):
+            # Exercise a real child process without requiring POSIX shebangs.
+            popen = subprocess.Popen
+
+            def launch(command, **kwargs):
+                self.assertEqual(command, [str(executable), "app-server"])
+                return popen([sys.executable, *command], **kwargs)
+
+            with patch("garmin_archive.install.shutil.which", return_value=str(executable)), \
+                    patch("garmin_archive.install.subprocess.Popen", side_effect=launch):
                 self.assertEqual(set(install.verify_codex_discovery()), install.REQUIRED_TOOLS)
 
 

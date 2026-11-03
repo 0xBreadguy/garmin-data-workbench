@@ -14,7 +14,7 @@ uv run garmin-archive-mcp --help
 git diff --check
 ```
 
-[CI](../.github/workflows/tests.yml) runs the locked offline suite on Ubuntu for PRs and pushes to `main`. There is no separate lint, format or type-check gate.
+[CI](../.github/workflows/tests.yml) runs the locked offline suite on macOS, Windows and Ubuntu with Python 3.12 for PRs and pushes to `main`. Each job also builds and smoke-tests an installed wheel. There is no separate lint, format or type-check gate. See [compatibility boundaries](COMPATIBILITY.md) before treating offline results as live-host support.
 
 ## Focused checks
 
@@ -29,11 +29,22 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | Metrics and missingness | `test_queries.py` |
 | Read-only CLI queries | `test_cli_queries.py` |
 | Units and time zones | `test_preferences.py` |
+| Entry points and POSIX/PowerShell command examples | `test_platforms.py` |
 | Stdio MCP handshake and responses | `test_workbench_mcp.py` |
 
 Run affected checks while iterating. Broaden for shared behavior, schema, dependencies, configuration or uncertain regression scope. Documentation edits usually need command/link checks and diff review. Before pushing or merging to the default branch, require the full suite and release checks for that revision; exact-revision CI counts.
 
-For packaging, run `uv build` and inspect artifacts. `uv run python scripts/benchmark_archive.py` measures a temporary synthetic database, not sync or assistant latency.
+For packaging, run `uv build` and inspect artifacts, then:
+
+```sh
+uv run --locked python scripts/smoke_installed.py
+```
+
+The smoke check expects exactly one wheel in `dist/`. It installs that wheel and locked runtime dependencies into a temporary environment, runs both installed help commands, seeds a synthetic archive using the installed package and queries it through CLI and stdio MCP from outside the checkout. It checks that queries leave the database unchanged. Installation may need network access. No credentials, live sync, client registration or scheduler are used.
+
+On Windows, POSIX mode-bit assertions do not apply; shared behavior still runs. macOS schedule tests use fake `launchctl` and user IDs on every OS. The command-example test executes the native shell (PowerShell on Windows, `sh` elsewhere).
+
+`uv run python scripts/benchmark_archive.py` measures a temporary synthetic database, not sync or assistant latency.
 
 ## Live checks are separate
 

@@ -8,7 +8,6 @@ import json
 import logging
 import math
 import os
-import shlex
 import sqlite3
 import subprocess
 import sys
@@ -26,6 +25,7 @@ from garmin_personal_api import (
 
 from .archive import Archive, default_data_dir, now
 from .preferences import clean_profile, local_today, profile_preferences
+from .platforms import shell_command
 from .queries import METRICS, get_day, get_trend, open_archive
 from .sync import DATASETS, SyncStopped, _call, sync
 from garmin_personal_api.errors import HttpError
@@ -395,7 +395,9 @@ def _connect(archive: Archive, client: str) -> int:
             return 2
         else:
             from .install import executable_path
-            command = shlex.join([str(executable_path()), "--data-dir", str(archive.data_dir.resolve())])
+            command = shell_command([str(executable_path()), "--data-dir", str(archive.data_dir.resolve())])
+            if sys.platform == "win32":
+                print("The following launch command uses PowerShell syntax.")
             print(f"Configure your MCP client to launch: {command}")
             print("Start a fresh client session and test an archive question.")
             return 2
