@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import queue
-import shlex
 import shutil
 import socket
 import stat
@@ -25,6 +24,8 @@ from garmin_personal_api import (
     DEFAULT_API_KEY_FILE, GarminPersonalApiClient, PersonalApiAuthenticator, resolve_api_key,
 )
 from garmin_personal_api.errors import GarminPersonalApiError
+
+from .platforms import installed_executable, shell_command
 
 SERVER_NAME = "garmin-workbench"
 REQUIRED_TOOLS = {"archive_status", "get_day", "get_trend", "setup_status", "configure_sync"}
@@ -115,8 +116,7 @@ def scheduled_key_available() -> bool:
 
 
 def executable_path() -> Path:
-    suffix = ".exe" if os.name == "nt" else ""
-    return Path(sys.executable).parent / f"garmin-archive-mcp{suffix}"
+    return installed_executable("garmin-archive-mcp")
 
 
 def register_codex(data_dir: Path, *, executable: Path | None = None) -> str:
@@ -177,11 +177,11 @@ def assistant_guide(client: str, *, data_dir: Path | None = None) -> str:
                 "for questions about my health and activities. " + common)
     if client == "muse":
         from .archive import default_data_dir
-        suffix = ".exe" if os.name == "nt" else ""
-        executable = Path(sys.executable).parent / f"garmin-archive{suffix}"
-        command = shlex.join([str(executable), "--data-dir", str((data_dir or default_data_dir()).expanduser().resolve())])
+        executable = installed_executable("garmin-archive")
+        command = shell_command([str(executable), "--data-dir", str((data_dir or default_data_dir()).expanduser().resolve())])
+        shell = "PowerShell" if sys.platform == "win32" else "POSIX shell"
         return (f"My Garmin Data Workbench is on {computer}. If you can run commands on that same host, "
-                f"use its local CLI: `{command} day YYYY-MM-DD` for an overview, or "
+                f"use its local CLI with {shell} syntax: `{command} day YYYY-MM-DD` for an overview, or "
                 f"`{command} trend sleep_duration --from YYYY-MM-DD --to YYYY-MM-DD` for up to 90 days. "
                 "Replace the dates with the requested range; omitting them uses Garmin profile dates "
                 "(host date as fallback) and a seven-day trend. Commands return JSON with source units, "
@@ -291,5 +291,6 @@ def verify_codex_discovery() -> list[str]:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
+        thread.join(timeout=5)
         if process.stdout:
             process.stdout.close()

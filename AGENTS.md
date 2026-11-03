@@ -33,6 +33,7 @@ These checks need no Garmin account, key, live archive, client registration, or 
 | `src/garmin_archive/fit.py` | Original activity ZIP handling and FIT decoding |
 | `src/garmin_archive/queries.py` | Shared metric definitions, daily summaries and trends |
 | `src/garmin_archive/preferences.py` | Profile units, time zone and presentation helpers |
+| `src/garmin_archive/platforms.py` | Native entry points and copyable shell commands |
 | `src/garmin_archive/mcp_server.py` | Bounded stdio tools over the local archive |
 | `src/garmin_archive/schedule.py` | Opt-in macOS scheduling and status |
 | `tests/` | Offline unittest tests using synthetic data and fake API responses |
@@ -47,6 +48,7 @@ These checks need no Garmin account, key, live archive, client registration, or 
 - Bound tool output and paginate large results. Do not add coordinates to default summary responses.
 - Keep sync resumable and serialized per archive. Handle authentication failures, rate limits and repeated server/network errors without tight retry loops or exposing response bodies.
 - Use the existing Python, unittest and uv conventions. Change `uv.lock` deliberately when dependencies change. There is currently no separate formatter, linter or type-check gate.
+- Keep shared behavior portable across macOS, native Windows and Linux. CI runs the offline suite and installed-wheel smoke checks on all three. Keep OS differences at small boundaries, use argument lists for subprocesses and follow [host compatibility](docs/COMPATIBILITY.md) before claiming live platform support.
 
 ## User setup and privacy
 

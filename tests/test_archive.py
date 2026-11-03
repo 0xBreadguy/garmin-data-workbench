@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import stat
 import struct
 import tempfile
@@ -44,7 +45,9 @@ def synthetic_fit() -> bytes:
 def activity_zip(content: bytes | None = None, *, name: str = "activity.fit") -> bytes:
     result = io.BytesIO()
     with zipfile.ZipFile(result, "w") as archive:
-        archive.writestr(name, synthetic_fit() if content is None else content)
+        # Original-byte assertions must not depend on the wall clock.
+        entry = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+        archive.writestr(entry, synthetic_fit() if content is None else content)
     return result.getvalue()
 
 
@@ -106,7 +109,8 @@ class ArchiveTest(unittest.TestCase):
         self.assertEqual(self.archive.connection.execute(
             "SELECT original_zip FROM activities WHERE activity_id=42"
         ).fetchone()[0], activity_zip())
-        self.assertEqual(stat.S_IMODE(self.archive.path.stat().st_mode), 0o600)
+        if os.name == "posix":
+            self.assertEqual(stat.S_IMODE(self.archive.path.stat().st_mode), 0o600)
 
         second = self.run_sync()
         self.assertEqual(second.skipped, 6)
