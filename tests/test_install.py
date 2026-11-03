@@ -232,7 +232,11 @@ class SecretFileTest(unittest.TestCase):
         self.destination = self.root / "config" / "key"
         self.archive = self.root / "archive"
         self.stack.enter_context(patch("garmin_archive.install.DEFAULT_API_KEY_FILE", self.destination))
-        self.stack.enter_context(patch.dict(os.environ, {}, clear=True))
+        # Windows needs USERPROFILE to resolve Path.home(); isolate both native
+        # home conventions while still clearing credentials and other settings.
+        self.stack.enter_context(patch.dict(os.environ, {
+            "HOME": str(self.root), "USERPROFILE": str(self.root),
+        }, clear=True))
         self.stack.enter_context(patch("sys.stdin.isatty", return_value=False))
         self.auth = self.stack.enter_context(patch("garmin_archive.install.PersonalApiAuthenticator"))
         self.auth.return_value.__enter__.return_value.obtain_token.return_value.access_token = "fake-token"
