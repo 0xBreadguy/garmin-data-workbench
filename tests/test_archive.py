@@ -45,7 +45,9 @@ def synthetic_fit() -> bytes:
 def activity_zip(content: bytes | None = None, *, name: str = "activity.fit") -> bytes:
     result = io.BytesIO()
     with zipfile.ZipFile(result, "w") as archive:
-        archive.writestr(name, synthetic_fit() if content is None else content)
+        # Original-byte assertions must not depend on the wall clock.
+        entry = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+        archive.writestr(entry, synthetic_fit() if content is None else content)
     return result.getvalue()
 
 
