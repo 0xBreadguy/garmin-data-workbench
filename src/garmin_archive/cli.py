@@ -107,6 +107,12 @@ def parser() -> argparse.ArgumentParser:
     trend.add_argument("--from", dest="start", type=_date, help="Start date (default: six days before end)")
     trend.add_argument("--to", dest="end", type=_date, help="End date (default: Garmin profile's today)")
 
+    chart = commands.add_parser("chart", help="Render an archive trend as a PNG (requires charts extra)")
+    chart.add_argument("metric", choices=sorted(METRICS))
+    chart.add_argument("--from", dest="start", type=_date)
+    chart.add_argument("--to", dest="end", type=_date)
+    chart.add_argument("--output", required=True, type=Path, help="New PNG file; existing files are not overwritten")
+
     commands.add_parser("status", help="Show archive coverage and sync errors")
     commands.add_parser("path", help="Print the SQLite database path")
     activities = commands.add_parser("activities", help="List stored activity summaries")
@@ -426,7 +432,7 @@ def main(argv: list[str] | None = None) -> int:
         if "GARMIN_PERSONAL_API_KEY" in os.environ:
             print("GARMIN_PERSONAL_API_KEY is set and takes precedence over the saved file during sync.")
         return 0
-    if args.command in {"day", "trend"}:
+    if args.command in {"day", "trend", "chart"}:
         try:
             with open_archive(args.data_dir) as db:
                 if args.command == "day":
@@ -434,9 +440,18 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     result = get_trend(db, args.metric, args.start.isoformat() if args.start else "",
                                        args.end.isoformat() if args.end else "")
-            _print_json(result)
+            if args.command == "chart":
+                from .charts import render_trend
+                try:
+                    render_trend(result, args.output)
+                except OSError as error:
+                    print(f"Cannot write chart output ({type(error).__name__}); choose a new writable path.", file=sys.stderr)
+                    return 1
+                print(f"Chart saved to {args.output}")
+            else:
+                _print_json(result)
             return 0
-        except ValueError as error:
+        except (ValueError, ImportError) as error:
             print(str(error), file=sys.stderr)
             return 2
         except (OSError, sqlite3.Error) as error:

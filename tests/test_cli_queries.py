@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import importlib.util
 import json
 import sqlite3
 import tempfile
@@ -95,6 +96,18 @@ class CLIQueryTest(unittest.TestCase):
             self.assertEqual((code, output), (1, ""))
             self.assertIn("Cannot read existing archive", errors)
             self.assertFalse(target.exists())
+
+    @unittest.skipUnless(importlib.util.find_spec("matplotlib"), "charts extra not installed")
+    def test_chart_writes_png_without_overwriting_and_keeps_archive_unchanged(self):
+        target = self.root / "sleep.png"
+        args = ("chart", "sleep_duration", "--from", "2026-01-01", "--to", "2026-01-03", "--output", str(target))
+        code, output, errors = self.run_query(*args)
+        self.assertEqual((code, errors), (0, ""))
+        self.assertTrue(target.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"))
+        original = target.read_bytes()
+        code, _, _ = self.run_query(*args)
+        self.assertEqual(code, 1)
+        self.assertEqual(target.read_bytes(), original)
 
     def test_shared_query_connection_rejects_writes(self):
         with open_archive(self.data_dir) as db:
