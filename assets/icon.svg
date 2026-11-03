@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" role="img" aria-labelledby="title">
+  <title id="title">Garmin Data Workbench: two conversation bubbles joined by a data line</title>
+  <rect width="500" height="500" fill="#fff"/>
+  <g transform="translate(50 98) scale(0.8)">
+  <path fill="#0863e8" d="M205 75h185c50 0 80 31 80 79v65c0 40-22 67-58 75l5 21c2 8-6 10-12 6l-42-29H205c-50 0-80-30-80-76v-65c0-47 30-76 80-76Z"/>
+  <path fill="#0b2855" d="M105 25h185c50 0 80 31 80 79v65c0 47-30 76-80 76H142l-45 31c-6 4-14 2-12-6l6-25c-41-5-66-33-66-76v-65c0-48 30-79 80-79Z"/>
+  <path d="M75 158c52 0 66-53 121-53s70 65 126 65 65-42 108-42" fill="none" stroke="#fff" stroke-width="17" stroke-linecap="round"/>
+  </g>
+</svg>
