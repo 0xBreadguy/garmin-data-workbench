@@ -331,7 +331,8 @@ class SecretFileTest(unittest.TestCase):
     def test_muse_handoff_uses_same_host_cli_and_selected_archive(self):
         self.assertEqual(cli.main(["--data-dir", str(self.archive), "assistant-guide", "--client", "muse"]), 0)
         output = self.output.getvalue()
-        self.assertIn(str(self.archive), output)
+        # Windows temp paths may use an 8.3 alias; handoffs use canonical paths.
+        self.assertIn(str(self.archive.resolve()), output)
         self.assertIn("day YYYY-MM-DD", output)
         self.assertIn("trend sleep_duration", output)
         self.assertIn("no key or MCP client", output)
