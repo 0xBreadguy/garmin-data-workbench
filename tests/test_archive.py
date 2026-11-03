@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import stat
 import struct
 import tempfile
@@ -106,7 +107,8 @@ class ArchiveTest(unittest.TestCase):
         self.assertEqual(self.archive.connection.execute(
             "SELECT original_zip FROM activities WHERE activity_id=42"
         ).fetchone()[0], activity_zip())
-        self.assertEqual(stat.S_IMODE(self.archive.path.stat().st_mode), 0o600)
+        if os.name == "posix":
+            self.assertEqual(stat.S_IMODE(self.archive.path.stat().st_mode), 0o600)
 
         second = self.run_sync()
         self.assertEqual(second.skipped, 6)

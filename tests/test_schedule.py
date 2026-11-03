@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from filelock import FileLock
 from garmin_archive.schedule import LABEL, configure_schedule, schedule_status
@@ -34,6 +35,10 @@ class FakeLaunchctl:
 
 class ScheduleTest(unittest.TestCase):
     def setUp(self):
+        # All launchctl calls are fake; use a fake macOS user ID on every OS too.
+        uid = patch("garmin_archive.schedule.os.getuid", return_value=1000, create=True)
+        uid.start()
+        self.addCleanup(uid.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.home = Path(self.temp.name)
@@ -92,4 +97,10 @@ class ScheduleTest(unittest.TestCase):
         for hours, days in [(0, 2), (169, 2), (6, 0), (6, 32)]:
             with self.assertRaises(ValueError):
                 configure_schedule(self.archive, hours, days, **self.args)
-        self.assertEqual(schedule_status(home=self.home, platform='linux')['status'], 'unsupported')
+        for platform in ('linux', 'win32'):
+            with self.subTest(platform=platform):
+                self.assertEqual(schedule_status(home=self.home, platform=platform)['status'], 'unsupported')
+                with self.assertRaisesRegex(RuntimeError, 'macOS only'):
+                    configure_schedule(self.archive, 6, platform=platform)
+        self.assertFalse(self.archive.exists())
+        self.assertFalse(self.launchctl.calls)

@@ -2,6 +2,8 @@
 
 For agents with workstations and people installing directly. The archive and commands run on the chosen host. For code changes, use the [offline contributor setup](../CONTRIBUTING.md#develop-locally).
 
+Check [host compatibility and verification limits](COMPATIBILITY.md) first. The offline test targets include macOS, Windows and Linux; live Windows credential/privacy validation remains incomplete.
+
 ## 1. Choose where the data lives
 
 Use your computer or a persistent remote workstation. Confirm:
