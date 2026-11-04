@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from .preferences import display_distance, local_today, profile_preferences
+from .sources import DAILY_SOURCES
 
 # Output name -> (dataset, path within the dated response, unit).
 METRICS = {
@@ -48,7 +49,60 @@ METRIC_TITLES = {"steps": "Daily steps", "distance": "Daily distance",
     "body_battery_charged": "Body Battery charged", "body_battery_drained": "Body Battery drained",
     "body_battery_min": "Body Battery minimum", "body_battery_max": "Body Battery maximum",
     "body_battery_first": "Body Battery first reading", "body_battery_last": "Body Battery last reading"}
-DATASETS = ("daily_summary", "sleep", "hrv", "heart_rate", "body_battery", "activities")
+
+# Daily scalar conveniences over the legacy summary, whose documented fields
+# have explicit units. Other native fields (including signed values, enums and
+# arrays) remain available through source-data/source-series without guessing
+# an interpretation or an aggregation.
+DAILY_METRICS = {
+    "calories_total": ("totalKilocalories", "kcal", "Total calories burned"),
+    "calories_active": ("activeKilocalories", "kcal", "Active calories burned"),
+    "calories_bmr": ("bmrKilocalories", "kcal", "Basal calories burned"),
+    "calories_consumed": ("consumedKilocalories", "kcal", "Calories consumed"),
+    "calorie_goal": ("netCalorieGoal", "kcal", "Net calorie goal"),
+    "steps_goal": ("dailyStepGoal", "steps", "Daily step goal"),
+    "distance_total": ("totalDistanceMeters", "m", "Total distance"),
+    "wheelchair_pushes": ("totalPushes", "pushes", "Wheelchair pushes"),
+    "wheelchair_push_goal": ("dailyPushesGoal", "pushes", "Daily push goal"),
+    "wheelchair_distance": ("totalPushDistance", "m", "Wheelchair push distance"),
+    "highly_active_duration": ("highlyActiveSeconds", "s", "Highly active time"),
+    "active_duration": ("activeSeconds", "s", "Active time"),
+    "sedentary_duration": ("sedentarySeconds", "s", "Sedentary time"),
+    "intensity_moderate": ("moderateIntensityMinutes", "min", "Moderate intensity minutes"),
+    "intensity_vigorous": ("vigorousIntensityMinutes", "min", "Vigorous intensity minutes"),
+    "intensity_weekly_goal": ("intensityMinutesGoal", "min", "Weekly intensity minutes goal"),
+    "floors_ascended": ("floorsAscended", "floors", "Floors ascended"),
+    "floors_descended": ("floorsDescended", "floors", "Floors descended"),
+    "floors_goal": ("userFloorsAscendedGoal", "floors", "Daily floors goal"),
+    "ascent": ("floorsAscendedInMeters", "m", "Daily ascent"),
+    "descent": ("floorsDescendedInMeters", "m", "Daily descent"),
+    "stress_average": ("averageStressLevel", "Garmin stress", "Average stress"),
+    "stress_max": ("maxStressLevel", "Garmin stress", "Maximum stress"),
+    "stress_duration": ("stressDuration", "s", "Stress time"),
+    "stress_rest_duration": ("restStressDuration", "s", "Rest time"),
+    "stress_activity_duration": ("activityStressDuration", "s", "Activity stress time"),
+    "stress_uncategorized_duration": ("uncategorizedStressDuration", "s", "Uncategorized stress time"),
+    "stress_low_duration": ("lowStressDuration", "s", "Low stress time"),
+    "stress_medium_duration": ("mediumStressDuration", "s", "Medium stress time"),
+    "stress_high_duration": ("highStressDuration", "s", "High stress time"),
+    "hydration": ("hydrationValueInML", "mL", "Hydration consumed"),
+    "hydration_goal": ("hydrationGoalInML", "mL", "Hydration goal"),
+    "spo2_average": ("averageSpo2", "%", "Average Pulse Ox"),
+    "spo2_lowest": ("lowestSpo2", "%", "Lowest Pulse Ox"),
+    "respiration_waking": ("avgWakingRespirationValue", "breaths/min", "Average waking respiration"),
+    "respiration_highest": ("highestRespirationValue", "breaths/min", "Highest respiration"),
+    "respiration_lowest": ("lowestRespirationValue", "breaths/min", "Lowest respiration"),
+}
+for _name, (_field, _unit, _title) in DAILY_METRICS.items():
+    METRICS[_name] = ("daily_summary_legacy", (_field,), _unit)
+    METRIC_TITLES[_name] = _title
+for _name, _field, _unit, _title in (
+    ("heart_rate_min", "minHeartRate", "bpm", "Minimum heart rate"),
+    ("heart_rate_max", "maxHeartRate", "bpm", "Maximum heart rate"),
+):
+    METRICS[_name] = ("heart_rate", (_field,), _unit)
+    METRIC_TITLES[_name] = _title
+DATASETS = (*DAILY_SOURCES, "activities")
 MAX_TREND_DAYS = 90
 
 
@@ -208,7 +262,8 @@ def _point(db: sqlite3.Connection, dataset: str, path: tuple[str, ...], day: str
             obj = None
         if path[0] == "sleepNeed" and row["need_day"] not in (None, day):
             obj = None
-    bounded_score = path in (("sleepScores", "overall", "value"), ("avgSleepStress",))
+    bounded_score = path in (("sleepScores", "overall", "value"), ("avgSleepStress",),
+                            ("averageStressLevel",), ("maxStressLevel",), ("averageSpo2",), ("lowestSpo2",))
     if (isinstance(obj, bool) or not isinstance(obj, (int, float)) or not math.isfinite(obj) or obj < 0
             or (bounded_score and obj > 100)
             or (path[0] == "sleepNeed" and (obj > 1440 or obj != int(obj)))):

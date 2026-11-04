@@ -27,6 +27,8 @@ from .archive import Archive, default_data_dir, now
 from .preferences import clean_profile, local_today, profile_preferences
 from .platforms import shell_command
 from .queries import METRICS, get_day, get_trend, health_response, open_archive
+from .api_data import api_catalog, source_data, source_series, snapshot_coverage
+from .sources import SOURCES
 from .sleep import get_sleep
 from .body_battery import get_body_battery
 from .sync import DATASETS, SyncStopped, _call, sync
@@ -156,6 +158,25 @@ def parser() -> argparse.ArgumentParser:
     health.add_argument("day", type=_date)
     health.add_argument("--metadata", action="store_true", help="Include refresh status/fetch times and mask retained data after a failed refresh")
 
+    catalog = commands.add_parser("api-catalog", help="Discover all Personal API sources and native response fields; no archive needed")
+    catalog.add_argument("dataset", nargs="?", default="", choices=["", *SOURCES])
+    catalog.add_argument("--pointer", default="", help="JSON Pointer; use * for an array item schema")
+    catalog.add_argument("--limit", type=_positive, default=100)
+    catalog.add_argument("--offset", type=_nonnegative, default=0)
+    source = commands.add_parser("source-data", help="Page any archived Personal API response field, including nested arrays")
+    source.add_argument("dataset", choices=list(SOURCES))
+    source.add_argument("--day", type=_date)
+    source.add_argument("--activity-id", type=_positive, default=0)
+    source.add_argument("--pointer", default="", help="JSON Pointer; empty for root, numeric indices for array items")
+    source.add_argument("--limit", type=_positive, default=100)
+    source.add_argument("--offset", type=_nonnegative, default=0)
+    source.add_argument("--include-location", action="store_true")
+    series = commands.add_parser("source-series", help="Read a native scalar field over 1–90 request dates without inferring an aggregation")
+    series.add_argument("dataset", choices=list(DATASETS))
+    series.add_argument("pointer", help="JSON Pointer to a scalar field")
+    series.add_argument("--from", dest="start", type=_date)
+    series.add_argument("--to", dest="end", type=_date)
+
     records = commands.add_parser("records", help="Show decoded time-series records as JSON (or CSV with --format csv)",
                                  description="Read decoded time-series records as JSON, or CSV with --format csv, without modifying the archive.")
     records.add_argument("activity_id", type=_positive)
@@ -233,12 +254,19 @@ def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: d
             warning = None
             try:
                 profile = _call(client.get_user_profile_settings, args.pause, time.sleep)
-                archive.save_preferences(*clean_profile(profile))
-            except SyncStopped:
+            except SyncStopped as error:
+                archive.mark_snapshot_error("profile", "current", str(error))
                 raise
             except (HttpError, ValueError, TypeError) as error:
+                archive.mark_snapshot_error("profile", "current", f"HTTP {error.status_code}" if isinstance(error, HttpError) else type(error).__name__)
                 # Keep the last successful preferences if a nonfatal request fails.
                 warning = f"Profile settings unavailable ({type(error).__name__}); using cached settings or host date."
+            else:
+                archive.save_snapshot("profile", "current", profile)
+                try:
+                    archive.save_preferences(*clean_profile(profile))
+                except ValueError:
+                    warning = "Profile response has no usable defaults; using cached settings or host date."
             garmin_today, _ = local_today(profile_preferences(archive.connection))
             if use_profile_default:
                 end = garmin_today
@@ -258,7 +286,8 @@ def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: d
                             archive.connection.execute("UPDATE catchup_state SET start_day=? WHERE id=1", (start.isoformat(),))
                 if start > end:
                     raise ValueError("Start date is after Garmin's current date")
-            report = sync(archive, client, start, end, refresh=args.refresh, pause=args.pause, today=garmin_today)
+            report = sync(archive, client, start, end, refresh=args.refresh, pause=args.pause, today=garmin_today,
+                          profile_checked=True)
     except Exception as error:  # noqa: BLE001 -- keep private API response bodies out of the terminal
         if args.catch_up:
             with archive.connection:
@@ -279,6 +308,7 @@ def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: d
         "completed_days_skipped": report.skipped,
         "activities_seen": report.activities,
         "activity_files_decoded": report.decoded,
+        "source_snapshots_succeeded": report.snapshots,
         "non_fit_originals": report.unsupported,
         "stopped": report.stopped,
         "errors": report.errors,
@@ -303,7 +333,8 @@ def _status(db: sqlite3.Connection, path: Path) -> int:
         "SELECT activity_id, fit_error AS error FROM activities WHERE fit_status='error' ORDER BY activity_id"
     )]
     catchup = db.execute("SELECT * FROM catchup_state WHERE id=1").fetchone()
-    _print_json({"database": str(path), "catch_up": dict(catchup) if catchup else None, "coverage": states, "activity_files": fit, "errors": errors, "fit_errors": fit_errors})
+    _print_json({"database": str(path), "catch_up": dict(catchup) if catchup else None, "coverage": states,
+                 "source_snapshots": snapshot_coverage(db), "activity_files": fit, "errors": errors, "fit_errors": fit_errors})
     return 0
 
 
@@ -366,7 +397,13 @@ def _read(args: argparse.Namespace) -> int:
     """Query an existing archive without creating, migrating or syncing it."""
     try:
         with open_archive(args.data_dir) as db:
-            if args.command == "day":
+            if args.command == "source-data":
+                _print_json(source_data(db, args.dataset, args.day.isoformat() if args.day else "", args.activity_id,
+                    args.pointer, limit=args.limit, offset=args.offset, include_location=args.include_location))
+            elif args.command == "source-series":
+                _print_json(source_series(db, args.dataset, args.pointer,
+                    args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else ""))
+            elif args.command == "day":
                 _print_json(get_day(db, args.day.isoformat() if args.day else ""))
             elif args.command in {"trend", "chart", "sleep", "body-battery"}:
                 start, end = args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else ""
@@ -528,6 +565,12 @@ def _connect(archive: Archive, client: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "api-catalog":
+        try:
+            _print_json(api_catalog(args.dataset, args.pointer, limit=args.limit, offset=args.offset))
+        except ValueError as error:
+            return _error("invalid_argument", str(error), 2)
+        return 0
     if args.command == "agent-guide":
         from .guidance import agent_guide
         print(agent_guide())
@@ -567,7 +610,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "path":
         print(args.data_dir.expanduser() / "archive.sqlite3")
         return 0
-    if args.command in {"day", "trend", "sleep", "body-battery", "chart", "status", "activities", "records", "health", "export-original"}:
+    if args.command in {"day", "trend", "sleep", "body-battery", "chart", "status", "activities", "records", "health", "export-original", "source-data", "source-series"}:
         return _read(args)
     if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
         print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)

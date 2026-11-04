@@ -13,6 +13,9 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from .archive import default_data_dir
+from .api_data import (api_catalog as query_catalog, source_data as query_source, source_series as query_series,
+                       snapshot_coverage, without_coordinates)
+from .sources import DAILY_SOURCES
 from .preferences import display_distance, local_today, profile_preferences
 from .queries import get_day as query_day, get_trend as query_trend, health_response, open_archive
 from .sleep import get_sleep as query_sleep
@@ -20,7 +23,7 @@ from .body_battery import get_body_battery as query_body_battery
 from .guidance import agent_guide as read_agent_guide
 from .schedule import configure_schedule, schedule_status
 
-DATASETS = {"daily_summary", "sleep", "hrv", "heart_rate", "body_battery"}
+DATASETS = DAILY_SOURCES
 MAX_HEALTH_BYTES = 64_000
 READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
 
@@ -45,6 +48,47 @@ def create_server(data_dir: Path) -> FastMCP:
     def agent_guide() -> dict:
         """Read installed query, branded visualization and interpretation guidance."""
         return {"guide": read_agent_guide()}
+
+    @server.tool(annotations=READ_ONLY)
+    def api_catalog(dataset: str = "", pointer: str = "",
+                    limit: Annotated[int, Field(ge=1, le=100)] = 100,
+                    offset: Annotated[int, Field(ge=0)] = 0) -> dict:
+        """Discover all 26 Personal API sources and their native field definitions, without an archive.
+
+        Start with no arguments. Set dataset to browse its response schema.
+        pointer is a JSON Pointer; use * for array items in this schema tool.
+        Descriptions preserve Garmin's units, formats, enums and caveats.
+        """
+        return query_catalog(dataset, pointer, limit=limit, offset=offset)
+
+    @server.tool(annotations=READ_ONLY)
+    def source_data(dataset: str, day: str = "", activity_id: int = 0, pointer: str = "",
+                    limit: Annotated[int, Field(ge=1, le=100)] = 100,
+                    offset: Annotated[int, Field(ge=0)] = 0, include_location: bool = False) -> dict:
+        """Page any native Personal API response, including samples, episodes and nested fields.
+
+        Daily sources require day (YYYY-MM-DD). Current sources omit day;
+        activity sources require activity_id. Use api_catalog to discover sources.
+        pointer is a JSON Pointer with concrete array indices. Large children
+        return pointers to expand. Strings page by characters, arrays by items,
+        objects by keys. next_offset continues the same node. Coordinates require
+        explicit include_location. Failed refreshes mask retained data.
+        """
+        with open_archive(data_dir) as db:
+            return query_source(db, dataset, day, activity_id, pointer,
+                                limit=limit, offset=offset, include_location=include_location)
+
+    @server.tool(annotations=READ_ONLY)
+    def source_series(dataset: str, pointer: str, start: str = "", end: str = "") -> dict:
+        """Read any native scalar field across 1–90 inclusive request dates.
+
+        Discover fields/units with api_catalog. pointer is a JSON Pointer.
+        Defaults to seven dates ending today. Values preserve source types and
+        sentinels; no unit conversion or daily aggregation is inferred. Use
+        get_trend for interpreted metrics. Array indices reflect source order.
+        """
+        with open_archive(data_dir) as db:
+            return query_series(db, dataset, pointer, start, end)
 
     @server.tool(annotations=READ_ONLY)
     def setup_receipt() -> dict:
@@ -106,11 +150,9 @@ def create_server(data_dir: Path) -> FastMCP:
     def get_trend(metric: str, start: str = "", end: str = "") -> dict:
         """Get daily values and coverage over 1–90 days inclusive.
 
-        metric is steps, distance, resting_heart_rate, sleep_duration, overnight_hrv,
-        sleep_score, sleep_deep, sleep_light, sleep_rem, sleep_awake,
-        sleep_unmeasurable, sleep_stress, nap_duration, sleep_need, sleep_need_baseline,
-        body_battery_charged, body_battery_drained, body_battery_min, body_battery_max,
-        body_battery_first, or body_battery_last. start and end are YYYY-MM-DD. End defaults to today in
+        metric is a named metric from get_day: steps, sleep_duration, sleep_score,
+        sleep_need, body_battery_last, calories_total, hydration, stress_average,
+        spo2_average, intensity_moderate and others. start and end are YYYY-MM-DD. End defaults to today in
         Garmin's profile timezone (or host timezone if unavailable); start
         defaults to six days before end.
         Means use only days with values, never missing days.
@@ -138,6 +180,7 @@ def create_server(data_dir: Path) -> FastMCP:
             today, today_source = local_today(prefs)
             return {"source": "local archive", "local_today": today.isoformat(), "today_source": today_source,
                     "preferences": prefs,
+                    "source_snapshots": snapshot_coverage(db),
                     "coverage": coverage, "activity_files": fit,
                     "catch_up": dict(catchup) if catchup else None}
 
@@ -165,9 +208,10 @@ def create_server(data_dir: Path) -> FastMCP:
 
     @server.tool(annotations=READ_ONLY)
     def daily_health(dataset: str, day: str) -> dict:
-        """Read one stored daily response: daily_summary, sleep, hrv, heart_rate, or body_battery.
+        """Read one stored daily response; discover datasets with api_catalog.
 
-        day is YYYY-MM-DD. Large responses are rejected rather than silently truncated.
+        day is YYYY-MM-DD. Large responses are rejected; use source_data to page
+        them by field or array. Coordinates can occur in native responses.
         """
         if dataset not in DATASETS:
             raise ValueError("Unknown dataset")
@@ -177,7 +221,10 @@ def create_server(data_dir: Path) -> FastMCP:
         except ValueError as error:
             raise ValueError("day must be YYYY-MM-DD") from error
         with open_archive(data_dir) as db:
-            return health_response(db, dataset, day, max_bytes=MAX_HEALTH_BYTES)
+            result = health_response(db, dataset, day, max_bytes=MAX_HEALTH_BYTES)
+            result["data"] = without_coordinates(result["data"])
+            result["location_policy"] = "Coordinates omitted; use source_data with include_location for native fields."
+            return result
 
     @server.tool(annotations=READ_ONLY)
     def activity_records(

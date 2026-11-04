@@ -7,6 +7,7 @@ This file is the shared entry point for coding agents and assistants helping a u
 - For charts and agent visualization guidance, read [docs/VISUALIZATION.md](docs/VISUALIZATION.md) and the optional [skill](skills/garmin-visualization/SKILL.md).
 - For detailed sleep questions, use the shared `sleep`/`get_sleep` query and `chart sleep`; read [docs/SLEEP.md](docs/SLEEP.md). After installation, run `garmin-archive agent-guide` for query, visualization and interpretation guidance.
 - For Body Battery use `body-battery`/`get_body_battery`; read [docs/BODY_BATTERY.md](docs/BODY_BATTERY.md). Sleep need uses minutes; next-night need retains its own source date.
+- For complete Personal API source coverage, native fields and pagination, read [docs/API_COVERAGE.md](docs/API_COVERAGE.md). Use `api-catalog`/`api_catalog` to discover fields and `source-data`/`source_data` for bounded access.
 - Read [README.md](README.md) for the product and [docs/USAGE.md](docs/USAGE.md) for commands.
 - For a user's installation, follow [docs/SETUP.md](docs/SETUP.md). A request to inspect or test the code does not imply permission to use credentials, sync health data, or create a recurring job.
 - For code changes, read [CONTRIBUTING.md](CONTRIBUTING.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [docs/TESTING.md](docs/TESTING.md).
@@ -35,6 +36,8 @@ These checks need no Garmin account, key, live archive, client registration, or 
 | `src/garmin_archive/archive.py` | SQLite schema, stored source data and archive writes |
 | `src/garmin_archive/fit.py` | Original activity ZIP handling and FIT decoding |
 | `src/garmin_archive/queries.py` | Shared metric definitions, daily summaries and trends |
+| `src/garmin_archive/sources.py` | Documented Personal API endpoints and collection scopes |
+| `src/garmin_archive/api_data.py` | Native field catalog, bounded response browsing and scalar series |
 | `src/garmin_archive/sleep.py` | Bounded sleep fields, source window times and stage completeness |
 | `src/garmin_archive/body_battery.py` | Descriptor-aware daily charge/drain and observed level summaries |
 | `src/garmin_archive/onboarding.py` | Read-only setup receipts and printable routine templates |
@@ -48,6 +51,7 @@ These checks need no Garmin account, key, live archive, client registration, or 
 ## Implementation rules
 
 - Keep collection separate from queries. MCP data tools read the existing archive without Garmin credentials or live requests. `configure_sync` is an explicit schedule-changing tool, not a data query.
+- Keep the MVP collection scope on the official Personal API. Do not add unofficial Connect/Grafana collectors or unsupported metrics to fill gaps. Preserve all returned fields, including unknown ones; use the contract catalog for documented meaning and keep undocumented units explicit.
 - Keep SQLite as the archive and retain original activity files and source JSON. Preserve existing archives and test schema changes with an older synthetic archive. Do not enable WAL or change durability settings without addressing the constraints in `ARCHITECTURE.md`.
 - Separate observations, Garmin assessments and hypotheses. State exact inclusive dates, coverage and freshness; short histories do not prove causes or personal baselines. Use source timestamps without assigning historical local times today's profile zone.
 - Keep metric definitions in shared query code. Return units, dates, freshness and coverage; distinguish zero, missing, empty and failed data. Never present stale values after a failed refresh as current.

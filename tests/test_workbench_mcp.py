@@ -41,13 +41,21 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                     self.assertIn("using Garmin profile preferences", initialized.instructions)
                     tools = await client.list_tools()
                     self.assertEqual({t.name for t in tools.tools},
-                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync", "get_sleep", "agent_guide", "setup_receipt", "get_body_battery"})
+                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync", "get_sleep", "agent_guide", "setup_receipt", "get_body_battery", "api_catalog", "source_data", "source_series"})
                     self.assertTrue(all(t.annotations.readOnlyHint for t in tools.tools if t.name != 'configure_sync'))
                     self.assertFalse(next(t for t in tools.tools if t.name == 'configure_sync').annotations.readOnlyHint)
                     async def call(name, args):
                         result = await client.call_tool(name, args)
                         self.assertFalse(result.isError, result.content)
                         return result.structuredContent or json.loads(result.content[0].text)
+                    catalog = await call("api_catalog", {})
+                    self.assertEqual(len(catalog["sources"]), 26)
+                    fields = await call("api_catalog", {"dataset": "sleep", "pointer": "/dailyNapDTOS/*"})
+                    self.assertIn("/dailyNapDTOS/*/napTimeSec", {field["pointer"] for field in fields["fields"]})
+                    native = await call("source_data", {"dataset": "sleep", "day": "2026-01-01", "pointer": "/sleepTimeSeconds"})
+                    self.assertEqual(native["value"], 27000)
+                    native_series = await call("source_series", {"dataset": "sleep", "pointer": "/sleepTimeSeconds", "start": "2026-01-01", "end": "2026-01-02"})
+                    self.assertEqual([p["value"] for p in native_series["points"]], [27000, None])
                     first = await call("activity_records", {"activity_id": 42, "limit": 1})
                     self.assertEqual(first["records"][0]["heart_rate_bpm"], 123)
                     self.assertEqual(first["next_offset"], 1)
@@ -114,6 +122,8 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as client:
                     await client.initialize()
+                    catalog = await client.call_tool("api_catalog", {})
+                    self.assertFalse(catalog.isError)
                     result = await client.call_tool("archive_status", {})
                     self.assertTrue(result.isError)
             self.assertFalse(target.exists())

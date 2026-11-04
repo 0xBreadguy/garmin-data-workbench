@@ -12,6 +12,7 @@ from pathlib import Path
 
 from garmin_archive.archive import Archive
 from garmin_archive.platforms import shell_command
+from garmin_archive.queries import DAILY_METRICS
 
 
 def create_demo_archive(destination: Path) -> None:
@@ -31,6 +32,11 @@ def create_demo_archive(destination: Path) -> None:
             deep, rem = round(duration * .2), round(duration * .23)
             wake = datetime(2026, 1, 1, 7, tzinfo=UTC) + timedelta(days=i)
             data = {
+                "daily_summary_legacy": {"calendarDate": day, **{
+                    field: {"kcal": 1500, "steps": 10000, "pushes": 100,
+                            "m": 1000, "s": 600, "min": 20, "floors": 5,
+                            "mL": 2000, "%": 95, "breaths/min": 15, "Garmin stress": 25}[unit]
+                    for field, unit, title in DAILY_METRICS.values()}},
                 "daily_summary": {"data": [{"calendarDate": day, "movement": {"steps": {
                     "value": steps, "distanceInMeters": round(steps * .72, 2)}}}]},
                 "sleep": {"calendarDate": day, "sleepTimeSeconds": duration,
@@ -46,7 +52,8 @@ def create_demo_archive(destination: Path) -> None:
                     "sleepEndTimestampGMT": wake.isoformat(),
                     "sleepStartTimestampLocal": (wake - timedelta(seconds=duration + 600)).isoformat(),
                     "sleepEndTimestampLocal": wake.isoformat()},
-                "heart_rate": {"restingHeartRate": round(58 + 3 * math.cos(i * .8))},
+                "heart_rate": {"restingHeartRate": round(58 + 3 * math.cos(i * .8)),
+                               "minHeartRate": 45, "maxHeartRate": 150},
                 "hrv": {"hrvSummary": {"lastNightAvg": round(48 + 8 * math.sin(i * .7))}},
                 "body_battery": [{"date": day, "charged": 60, "drained": 50,
                     "startTimestampGMT": wake.replace(hour=0).isoformat(),

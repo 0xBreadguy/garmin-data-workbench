@@ -40,6 +40,14 @@ async def check_mcp(executable: Path, archive: Path, workdir: Path, env: dict[st
             assert not battery.isError, battery.content
             data = battery.structuredContent or json.loads(battery.content[0].text)
             assert data["days"][0]["values"]["body_battery_last"] == 20, data
+            catalog = await client.call_tool("api_catalog", {"dataset": "sleep", "pointer": "/dailyNapDTOS/*"})
+            assert not catalog.isError, catalog.content
+            data = catalog.structuredContent or json.loads(catalog.content[0].text)
+            assert any(field["pointer"].endswith("/napTimeSec") for field in data["fields"]), data
+            native = await client.call_tool("source_data", {"dataset": "hydration", "day": "2026-01-01", "pointer": "/0/valueInML"})
+            assert not native.isError, native.content
+            data = native.structuredContent or json.loads(native.content[0].text)
+            assert data["value"] == 0, data
 
 
 def main() -> None:
@@ -82,6 +90,7 @@ def main() -> None:
         mcp = binary_dir / f"garmin-archive-mcp{suffix}"
         assert "usage:" in run([str(cli), "--help"])
         assert "usage:" in run([str(mcp), "--help"])
+        assert len(json.loads(run([str(cli), "api-catalog"]))["sources"]) == 26
         assert "chart sleep" in run([str(cli), "agent-guide"])
         assert "same host" in run([str(cli), "assistant-guide", "--client", "other"])
         receipt = json.loads(run([str(cli), "--data-dir", str(workdir / "missing"), "setup-receipt"]))
@@ -107,6 +116,7 @@ from garmin_archive.archive import Archive
 assert Path(garmin_archive.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 archive = Archive(Path(sys.argv[1]))
 try:
+    archive.save_daily('hydration', '2026-01-01', [{'calendarDate': '2026-01-01', 'valueInML': 0}])
     archive.save_daily('daily_summary', '2026-01-01', {'data': [
         {'calendarDate': '2026-01-01', 'movement': {'steps': {'value': 1234}}}
     ]})
@@ -128,6 +138,10 @@ finally:
         original = database.read_bytes()
         day = json.loads(run([str(cli), "--data-dir", str(archive), "day", "2026-01-01"]))
         assert day["metrics"]["steps"]["value"] == 1234, day
+        native = json.loads(run([str(cli), "--data-dir", str(archive), "source-data", "hydration", "--day", "2026-01-01", "--pointer", "/0/valueInML"]))
+        assert native["value"] == 0, native
+        native = json.loads(run([str(cli), "--data-dir", str(archive), "source-series", "hydration", "/0/valueInML", "--from", "2026-01-01", "--to", "2026-01-01"]))
+        assert native["points"][0]["value"] == 0, native
         sleep = json.loads(run([str(cli), "--data-dir", str(archive), "sleep", "--from", "2026-01-01", "--to", "2026-01-01"]))
         assert sleep["nights"][0]["stages_complete"], sleep
         assert sleep["nights"][0]["next_sleep_need"]["day"] == "2026-01-02", sleep

@@ -53,6 +53,7 @@ Queries use stored data. Available history and fields depend on Garmin, your dev
 ## Go deeper
 
 - [Commands, SQL, exports and scheduling](docs/USAGE.md)
+- [Personal API source and field coverage](docs/API_COVERAGE.md)
 - [Assistant connections and handoffs](docs/ASSISTANTS.md)
 - [Contribute](CONTRIBUTING.md) · [Agent instructions](AGENTS.md) · [Testing](docs/TESTING.md)
 - [Architecture](ARCHITECTURE.md) · [Security](SECURITY.md)

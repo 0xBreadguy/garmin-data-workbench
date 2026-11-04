@@ -19,6 +19,8 @@ garmin-archive day 2026-01-01
 garmin-archive trend sleep_duration --from 2026-01-01 --to 2026-01-07
 garmin-archive sleep --from 2026-01-01 --to 2026-01-07
 garmin-archive body-battery --from 2026-01-01 --to 2026-01-07
+garmin-archive api-catalog
+garmin-archive source-data sleep --day 2026-01-01 --pointer /dailyNapDTOS
 garmin-archive chart sleep --from 2026-01-01 --to 2026-01-07 --output sleep.png
 
 # Replace the example ID with one from your activity list.
@@ -35,7 +37,7 @@ Put `--data-dir /absolute/private/archive` before the command to choose an archi
 
 ## Output and automation
 
-`day`, `trend`, `sleep`, `body-battery`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
+`day`, `trend`, `sleep`, `body-battery`, `source-data`, `source-series`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
 
 `chart` uses the same read-only trend query and writes a new PNG. It follows the error contract below; a missing chart dependency exits `2` with `dependency_unavailable`. An unwritable or existing PNG destination exits `1` with `output_error`.
 
@@ -66,7 +68,7 @@ Branch on `error.code`, not the human-readable message. Exit codes for read and 
 
 `archive_unavailable` covers missing, unreadable, corrupt or incompatible archives; queries don't initialize or repair them. `records_unavailable` means the activity exists but has no successfully decoded FIT records; inspect `status`. `invalid_data` means a stored response couldn't be parsed as JSON. `output_error` means the export destination couldn't be written, including when it already exists. CSV requests use the same JSON errors on stderr.
 
-An existing empty archive is valid: `day` returns null metrics with `not_checked`, `trend` reports zero days with values, and `activities` returns `[]`, all with exit `0`. A stored empty health response such as `{}` is also a successful read. A records page beyond the available rows returns an empty list (or just the CSV header). `status` exits `0` when it can read coverage, even if that coverage reports failed syncs; check its `errors`, `fit_errors` and `catch_up` fields. Read success does not establish data completeness or sync success.
+An existing empty archive is valid: `day` returns null metrics with `not_checked`, `trend` reports zero days with values, and `activities` returns `[]`, all with exit `0`. A stored empty health response such as `{}` is also a successful read. A records page beyond the available rows returns an empty list (or just the CSV header). `status` exits `0` when it can read coverage, even if that coverage reports failed syncs; check its `errors`, `fit_errors`, `source_snapshots` and `catch_up` fields. Read success does not establish data completeness or sync success.
 
 Argument-parsing errors use JSON on stderr and exit `2` for every command. Runtime diagnostics from sync, installation and scheduling retain their existing formats; the read/export error contract doesn't change those workflows. In particular, sync may return a JSON report containing partial failures on stdout with a nonzero exit.
 
@@ -80,7 +82,9 @@ Argument-parsing errors use JSON on stderr and exit `2` for every command. Runti
 
 `day`, `trend` and `sleep` share MCP's query definitions. `sleep` returns all supported sleep fields and source window times together; `chart sleep` renders a branded overview with separate duration/stages and score panels.
 
-Supported metrics: `steps`, `distance`, `resting_heart_rate`, `sleep_duration`, `overnight_hrv`, `sleep_score`, `sleep_deep`, `sleep_light`, `sleep_rem`, `sleep_awake`, `sleep_unmeasurable`, `sleep_stress`, `nap_duration`, `sleep_need`, `sleep_need_baseline`, `body_battery_charged`, `body_battery_drained`, `body_battery_min`, `body_battery_max`, `body_battery_first`, `body_battery_last`. See [sleep source definitions and time semantics](SLEEP.md) and [Body Battery aggregation semantics](BODY_BATTERY.md). Sleep-need values use source minutes; stage/nap durations use seconds. Body Battery last/first refer to observed samples, not a live current or bedtime/wake-up level. Trends cover 1–90 inclusive days; omitted dates select seven days ending today. Results include dated values, units, freshness and missing/failed days. Means use available values only; failed refreshes mask stale values.
+The [Personal API coverage guide](API_COVERAGE.md) lists all 26 collected sources and native field access. `api-catalog` needs no archive. `source-data` pages complete native responses, including large arrays; `source-series` preserves native scalar values across dates without inferring an aggregation. These queries share MCP definitions.
+
+The named daily metrics also include calorie totals/active/BMR/consumed, goals, hydration, stress durations, intensity, floors, wheelchair movement, respiration, Pulse Ox and heart-rate extrema. Run `day DATE` to discover their names, fields and units. Existing metrics: `steps`, `distance`, `resting_heart_rate`, `sleep_duration`, `overnight_hrv`, `sleep_score`, `sleep_deep`, `sleep_light`, `sleep_rem`, `sleep_awake`, `sleep_unmeasurable`, `sleep_stress`, `nap_duration`, `sleep_need`, `sleep_need_baseline`, `body_battery_charged`, `body_battery_drained`, `body_battery_min`, `body_battery_max`, `body_battery_first`, `body_battery_last`. See [sleep source definitions and time semantics](SLEEP.md) and [Body Battery aggregation semantics](BODY_BATTERY.md). Sleep-need values use source minutes; stage/nap durations use seconds. Body Battery last/first refer to observed samples, not a live current or bedtime/wake-up level. Trends cover 1–90 inclusive days; omitted dates select seven days ending today. Results include dated values, units, freshness and missing/failed days. Means use available values only; failed refreshes mask stale values.
 
 Sync saves the Garmin profile's measurement system and time zone. Queries use those defaults; today falls back to the host date if needed. Distance includes a preferred miles/kilometers value alongside source meters. Honor explicit unit requests. Cached preferences may be stale, and the current profile zone doesn't establish an older activity's location or time zone.
 
@@ -90,8 +94,9 @@ For branded PNG trend charts, synthetic demos and the `brand` JSON command, see 
 
 | Table or view | Contents |
 | --- | --- |
-| `daily_data` | Latest per-date JSON: daily summary, sleep, HRV, heart rate, Body Battery |
-| `activities` | Activity metadata and original ZIP bytes |
+| `daily_data` | Complete per-date JSON for all 20 daily Personal API sources |
+| `source_snapshots` | Current profile/zones and activity detail/workout JSON, with independent refresh state |
+| `activities` | Complete activity search result JSON and original ZIP bytes |
 | `activity_messages` | Decoded FIT messages, including unknown fields |
 | `activity_records` | Common time-series fields and full decoded JSON |
 
@@ -112,7 +117,7 @@ Completed older days are skipped; recent days and failed requests are retried. `
 
 Authentication failures, HTTP 429 and repeated network/server errors stop sync. Failed runs exit nonzero without printing Garmin response bodies. Check `status`, resolve the cause and resume. Concurrent syncs to one archive are rejected.
 
-Each selected day requires five health calls plus activity pagination and original downloads. Backfills can be slow. Garmin controls history and field availability; success or an empty response doesn't establish completeness. The archive retains each day's latest response and each activity's first successfully decoded original, without full edit/deletion history.
+Each selected day requires 20 health calls plus activity pagination. Each run refreshes two current sources; new/recent/refreshed activities also fetch details/workouts, plus original downloads as needed. Backfills can be slow. Garmin controls history and field availability; success or an empty response doesn't establish completeness. The archive retains each day's latest response and each activity's first successfully decoded original, without full edit/deletion history.
 
 ## Catch-up and scheduling
 

@@ -10,6 +10,9 @@ Do not sync, register a client, change a schedule, or create a routine unless th
 - `sleep --from YYYY-MM-DD --to YYYY-MM-DD` / `get_sleep`: sleep duration, score, stages, stress, naps, adjusted/baseline sleep need and source sleep-window times together. Prefer this over extracting raw sleep JSON.
 - `body-battery --from YYYY-MM-DD --to YYYY-MM-DD` / `get_body_battery`: reported daily charge/drain and observed min/max/first/last levels, counts and source observation times. No raw readings or events.
 - `status` / `archive_status`: stored coverage and sync failures. Successful status reads do not prove successful syncs.
+- `api-catalog` / `api_catalog`: all documented Personal API sources and response field definitions. No archive needed. Set a dataset and JSON Pointer to explore nested schemas; use `*` for array items in the catalog.
+- `source-data` / `source_data`: bounded native response fields, including nap episodes, weight measurements, nutrition, samples, activity details/workouts and current profile/zones. Daily sources require a day; activity sources require an ID; current settings have no historical date. Expand child pointers and follow `next_offset`. Compare fetch times across pages and restart if the response changes. Coordinates require an explicit opt-in.
+- `source-series` / `source_series`: any native scalar field across 1–90 request dates. Native signed values, flags and sentinels are preserved. Consult the catalog's units and payload dates. Array indices reflect source order; do not infer an average, stable measurement identity or clinical meaning. Prefer interpreted `get_trend` metrics where available.
 - `setup-receipt` / `setup_receipt`: installation provenance, coverage, native schedule state and outstanding verification.
 
 Omitted trend/sleep/body-battery dates select exactly seven inclusive dates ending today in Garmin's saved profile timezone, with the host date as fallback. For seven completed dates, explicitly end yesterday and start six days before that. The current date can be incomplete. State the actual range and available-day denominator.
@@ -34,7 +37,11 @@ Keep measurements, Garmin's assessments, and your hypotheses distinct. Stages an
 
 ## Raw-data fallback
 
-Use raw `health` / `daily_health` only for fields the summaries do not expose. First check dataset refresh status and fetched_at; retained raw responses may survive failed refreshes. CLI `health DATASET DATE --metadata` returns an envelope with refresh status and timestamps. Never present retained values as current after failure. Keep user notes, identifiers, coordinates, routes and large sample arrays out of default answers. Tool results can reach the selected AI provider.
+Prefer `api_catalog` plus `source_data` for fields the summaries do not expose. These retain native values and provide pagination for large arrays. Nap summaries include up to 20 episodes per date and 100 per report with source offsets; page `/dailyNapDTOS` for remaining episodes or additional fields. Missing episode data does not mean zero naps.
+
+Use raw `health` / `daily_health` only when a whole response is necessary. First check dataset refresh status and fetched_at; retained raw responses may survive failed refreshes. CLI `health DATASET DATE --metadata` returns an envelope with refresh status and timestamps. MCP `daily_health` rejects responses over 64 KB; use `source_data` to page them. Never present retained values as current after failure. Keep user notes, identifiers, coordinates, routes and large sample arrays out of default answers. Tool results can reach the selected AI provider.
+
+The supported collection source is Garmin's Personal API. Do not add unofficial Connect authentication, Grafana collection, or an invented readiness score to fill unavailable fields. Report a missing source field explicitly.
 
 ## Finish setup honestly
 

@@ -6,7 +6,8 @@ are returned. Historical wall times are never assigned today's profile zone.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
+import json
+from datetime import datetime, timedelta, timezone
 
 from .queries import METRICS, METRIC_TITLES, get_trend, parse_day
 from .timestamps import source_timestamp as _timestamp
@@ -17,6 +18,50 @@ TIME_FIELDS = {"start_utc": "sleepStartTimestampGMT", "end_utc": "sleepEndTimest
 STAGES = ("sleep_deep", "sleep_rem", "sleep_light", "sleep_unmeasurable")
 NEXT_NEED_FIELDS = {"next_day": "nextSleepNeed.calendarDate", "next_actual": "nextSleepNeed.actual",
                     "next_baseline": "nextSleepNeed.baseline"}
+
+
+def _naps(raw, *, day, available, limit=20):
+    result = {"status": "unavailable", "episodes": [], "total": None, "next_offset": None,
+              "source_pointer": "/dailyNapDTOS", "duration_unit": "s", "offset_unit": "min"}
+    if not available:
+        return result
+    if raw is None:
+        result["status"] = "not_returned"
+        return result
+    try:
+        items = json.loads(raw)
+    except (TypeError, ValueError):
+        items = None
+    if not isinstance(items, list):
+        result["status"] = "invalid"
+        return result
+    result.update(status="ok" if items else "empty", total=len(items), next_offset=limit if len(items) > limit else None)
+    for i, item in enumerate(items[:limit]):
+        episode = {"index": i, "status": "ok", "duration": None, "start_utc": None, "end_utc": None,
+                   "start_local": None, "end_local": None, "source_code": None, "feedback": None}
+        if not isinstance(item, dict):
+            episode["status"] = "invalid"
+        elif item.get("calendarDate") not in (None, day):
+            episode["status"] = "date_mismatch"
+        else:
+            seconds = item.get("napTimeSec")
+            if isinstance(seconds, int) and not isinstance(seconds, bool) and 0 <= seconds <= 86400:
+                episode["duration"] = seconds
+            episode["source_code"] = item.get("napSource") if type(item.get("napSource")) is int else None
+            feedback = item.get("napFeedback")
+            # Long/unknown source fields stay accessible through source-data.
+            episode["feedback"] = feedback if isinstance(feedback, str) and len(feedback) <= 256 else None
+            for name, field in (("start", "Start"), ("end", "End")):
+                stamp = _timestamp(item.get(f"nap{field}TimestampGMT"), utc=True)
+                episode[f"{name}_utc"] = stamp
+                offset = item.get(f"nap{field}TimeOffset")
+                if stamp and type(offset) is int and -840 <= offset <= 840:
+                    episode[f"{name}_local"] = datetime.fromisoformat(stamp).astimezone(timezone(timedelta(minutes=offset))).isoformat()
+            if (episode["start_utc"] and episode["end_utc"]
+                    and datetime.fromisoformat(episode["end_utc"]) < datetime.fromisoformat(episode["start_utc"])):
+                episode.update(status="invalid_window", start_utc=None, end_utc=None, start_local=None, end_local=None)
+        result["episodes"].append(episode)
+    return result
 
 
 def _next_need(row, *, available: bool) -> dict:
@@ -64,6 +109,7 @@ def _get_sleep(db: sqlite3.Connection, start: str, end: str) -> dict:
     trends = {name: duration if name == "sleep_duration" else get_trend(db, name, duration["from"], duration["to"])
               for name in SLEEP_METRICS}
     nights = []
+    nap_budget = 100
     for i, point in enumerate(duration["points"]):
         day = point["day"]
         # Only extract the four timestamp scalars after a successful refresh.
@@ -71,7 +117,7 @@ def _get_sleep(db: sqlite3.Connection, start: str, end: str) -> dict:
         row = db.execute(
             "SELECT s.status, d.data_json IS NOT NULL AS has_data, " + ", ".join(
                 "CASE WHEN s.status='ok' THEN json_extract(d.data_json, '$." + field + "') END AS " + name
-                for name, field in {**TIME_FIELDS, **NEXT_NEED_FIELDS}.items()) + ", " + ", ".join(
+                for name, field in {**TIME_FIELDS, **NEXT_NEED_FIELDS, "naps": "dailyNapDTOS"}.items()) + ", " + ", ".join(
                 "CASE WHEN s.status='ok' THEN json_type(d.data_json, '$." + field + "') END AS " + name + "_type"
                 for name, field in NEXT_NEED_FIELDS.items() if name != "next_day") +
             " FROM (SELECT 1) LEFT JOIN daily_data d ON d.dataset='sleep' AND d.day=?"
@@ -94,11 +140,16 @@ def _get_sleep(db: sqlite3.Connection, start: str, end: str) -> dict:
             timing = dict.fromkeys(TIME_FIELDS)
             timing_status = "invalid_window"
         values = {name: trend["points"][i]["value"] for name, trend in trends.items()}
+        naps = _naps(row["naps"], day=day,
+                     available=status == "ok" and bool(valid_day) and valid_day["day"] in (None, day),
+                     limit=min(20, nap_budget))
+        nap_budget -= len(naps["episodes"])
         nights.append({"day": day, "status": status, "values": values,
             "missing_fields": [name for name, value in values.items() if value is None],
             "fetched_at": point["fetched_at"], "last_attempt": point["last_attempt"],
             "timing": timing, "timing_status": timing_status,
             "next_sleep_need": _next_need(row, available=status == "ok" and bool(valid_day) and valid_day["day"] in (None, day)),
+            "naps": naps,
             "stages_complete": complete_stages(values)})
     statuses = {}
     for night in nights:
@@ -119,6 +170,9 @@ def _get_sleep(db: sqlite3.Connection, start: str, end: str) -> dict:
                   "A local value without an offset has an unspecified historical timezone; never apply the current profile zone.",
                   "Total sleep excludes naps and awake time. Missing stages are not zero. "
                   "stages_complete requires all four stages and totals within 60 seconds of total sleep.",
+                  "Nap episodes use dailyNapDTOS, napTimeSec and source UTC times. Local nap times use only the episode's explicit minute offsets. "
+                  "Up to 20 episodes per day and 100 per report are summarized; use source_data at /dailyNapDTOS with next_offset for the remainder and full fields. "
+                  "Daily nap duration is not reconstructed from missing or incomplete episodes.",
                   "Non-ok refreshes mask retained values and timings. On ok responses, missing_fields are unreturned or invalid metrics.",
                   "sleep_need is Garmin's dynamic actual recommendation in minutes; sleep_need_baseline is its baseline, not the adjusted recommendation. "
                   "next_sleep_need retains its own source date and is never shifted onto the associated night's trend. No deficit is inferred.",
