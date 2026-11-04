@@ -30,6 +30,31 @@ the exact revision being installed. macOS has prior local/live usage; Windows
 and Linux live setup need separate reports. See [testing](TESTING.md) and the
 [setup report](../.github/ISSUE_TEMPLATE/setup-report.md).
 
+## Assistant acceptance snapshot
+
+November 4, 2026 synthetic checks at source revision `28e2aa9`; report-only
+commits: Muse `b143cd0`, Grok `433b492`, Dot `edc6ccb`. These results cover the
+tested surface and path, not every integration or later revision. App access,
+visible answers and opened images were directly observed; command execution,
+installation state and VM details below were assistant-reported.
+
+| Surface | Command host | Result and limits |
+| --- | --- | --- |
+| Muse Mac app | Reported Ubuntu 24.04.5 VM | Synthetic CLI answers and visible sleep/steps images passed. Reported fresh clone/tool install; new side chat retained assistant context. Controlled persistence not run. |
+| Grok Bot Mac app | Reported shared Debian 13 VM | Synthetic CLI answers and four visible chart attachments passed. Fresh conversation reused/updated an existing clone; prior environment state unknown. Isolated fresh install not run; prior setup preservation unverified; interpretation needed correction. Controlled persistence not run. |
+| Dot, intended ChatGPT assistant | Unknown | Blocked before first prompt; all workbench stages not run. Inventory listed ChatGPT (`com.openai.codex`); app selection was denied for safety before UI inspection. Dot mode unverified. |
+
+Neither CLI run exercised MCP discovery, queries or image transport. Live
+Garmin/key entry and recurring execution were excluded from these checks.
+The UI's Mac OS does not establish Mac-local installation or storage.
+
+Dot's result is an external test-tool access blocker, not a product failure.
+No alternate surface or bypass was attempted. Retest through a supported,
+authorized Dot surface once access is resolved; do not infer support from
+inventory, existing controller binaries or offline tests. Use the
+[stage-by-stage reporting guidance](TESTING.md#assistant-acceptance-reports)
+to keep blocked, not run, failed and passed results distinct.
+
 ## Current boundaries
 
 | Area | Behavior |
