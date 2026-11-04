@@ -29,9 +29,38 @@ Use `--offset` to page through activities or records. `records --full` includes 
 
 Put `--data-dir /absolute/private/archive` before the command to choose an archive. The database is `archive.sqlite3`; the default directory is `~/.local/share/garmin-extraction` or an absolute `$XDG_DATA_HOME/garmin-extraction`. Command and directory names are unchanged from the project's original name.
 
+## Output and automation
+
+`day`, `trend`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
+
+Successful reads write JSON to stdout by default; no `--json` flag is needed. `records --format csv` writes CSV instead. `path` prints a plain path, and `export-original` prints a confirmation. Help remains plain text.
+
+Read and export failures leave stdout empty and write one JSON object to stderr:
+
+```json
+{"error":{"code":"not_found","message":"Activity not found in this archive."}}
+```
+
+Branch on `error.code`, not the human-readable message. Exit codes for read and export commands are:
+
+| Exit | Meaning | Error codes |
+| --- | --- | --- |
+| `0` | Query or export succeeded, including an empty result | None |
+| `1` | Operational failure | `archive_unavailable`, `records_unavailable`, `invalid_data`, `output_error` |
+| `2` | Invalid arguments, including a reversed or overlong trend range | `invalid_argument` |
+| `3` | Requested health response, activity or original file isn't stored | `not_found` |
+
+`archive_unavailable` covers missing, unreadable, corrupt or incompatible archives; queries don't initialize or repair them. `records_unavailable` means the activity exists but has no successfully decoded FIT records; inspect `status`. `invalid_data` means a stored response couldn't be parsed as JSON. `output_error` means the export destination couldn't be written, including when it already exists. CSV requests use the same JSON errors on stderr.
+
+An existing empty archive is valid: `day` returns null metrics with `not_checked`, `trend` reports zero days with values, and `activities` returns `[]`, all with exit `0`. A stored empty health response such as `{}` is also a successful read. A records page beyond the available rows returns an empty list (or just the CSV header). `status` exits `0` when it can read coverage, even if that coverage reports failed syncs; check its `errors`, `fit_errors` and `catch_up` fields. Read success does not establish data completeness or sync success.
+
+Argument-parsing errors use JSON on stderr and exit `2` for every command. Runtime diagnostics from sync, installation and scheduling retain their existing formats; the read/export error contract doesn't change those workflows. In particular, sync may return a JSON report containing partial failures on stdout with a nonzero exit.
+
+**Compatibility:** missing health responses, activities and original files now exit `3` instead of `1`; read/export diagnostics are JSON rather than plain text. Update callers that matched old messages or treated every failure as exit `1`.
+
 ## Summaries, units and dates
 
-`day` and `trend` share MCP's query definitions. They read an existing archive without creating, migrating or syncing it and need no Garmin key.
+`day` and `trend` share MCP's query definitions.
 
 Supported metrics: `steps`, `distance`, `resting_heart_rate`, `sleep_duration`, `overnight_hrv`. Trends cover 1–90 inclusive days; omitted dates select seven days ending today. Results include dated values, units, freshness and missing/failed days. Means use available values only; failed refreshes mask stale values.
 
