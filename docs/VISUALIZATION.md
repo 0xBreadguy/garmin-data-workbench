@@ -1,6 +1,6 @@
 # Visualizing your archive
 
-Use a chart to show change over time; use a table or prose when it answers the question better. Charts read the existing archive without syncing or requiring Garmin credentials.
+Normally include a focused chart for a multi-day trend or sleep overview when rendering and image delivery are available, without waiting to be asked. Use a chart for comparisons when it helps answer the question. Respect text-only requests; use a table or prose for a single value or data too sparse for a useful chart. Sparse observations do not establish a trend. Charts read the existing archive without syncing or requiring Garmin credentials.
 
 ## Render a chart
 
