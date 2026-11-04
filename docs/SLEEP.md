@@ -52,4 +52,14 @@ Use the [demo archive](VISUALIZATION.md#try-generated-demo-data) and `--syntheti
 
 Installed `agent-guide` guidance distinguishes measurements, Garmin assessments and hypotheses. A short history does not establish a baseline or causality. Show coverage, dates and freshness, and avoid turning an association into a precise prescription. The workbench supplies measurements, not a new readiness/recovery score.
 
+Check the actual dated values before describing a trend. For example, synthetic REM of **1h 47m on 2026-11-02 → 1h 54m on 2026-11-03 → 1h 52m on 2026-11-04** rose 7 minutes, then fell 2 minutes. It ended 5 minutes above the first night; “rose every night” is false, and three nights do not establish a sustained trend. Keep missing dates as gaps rather than joining them into an apparently uninterrupted sequence. Include the exact inclusive range, available-night denominator, synthetic/source provenance and fetch context.
+
+For a synthetic night, separate the claims in a score explanation:
+
+- **Garmin assessment:** “Garmin reports an overall sleep score of 68 on 2026-11-01.” Attribute any explicit source feedback to Garmin.
+- **Observed association:** “The low score coincided with low estimated deep sleep.” Co-occurrence on one night is not an established correlation; quantify correlations only over matched available nights, with their count.
+- **Hypothesis:** “Low deep sleep caused most of the score reduction.” The overall score and stage durations alone do not establish that explanation or each component's contribution. Report the cause as unknown; if Garmin supplies an explanation, attribute it to Garmin rather than treating it as independently proven.
+
+The demo generates scores separately from stage durations. It supports checking query and presentation behavior, not physiological relationships or score attribution. These examples strengthen the guidance; whether an assistant follows it still requires separate acceptance testing.
+
 Sleep need, [Body Battery summaries](BODY_BATTERY.md), and individual nap episodes are implemented. `naps` summarizes up to 20 `dailyNapDTOS` entries per date and 100 per report, preserving duration in seconds, UTC endpoints, source/feedback and local times calculated only from each episode's explicit UTC offset in minutes. Missing episodes do not imply zero or reconstruct the daily nap total. Page `source-data sleep --day DATE --pointer /dailyNapDTOS` for remaining episodes and all native fields. Clock-time statistics and derived recovery scores remain outside these summaries. Actual provider secret entry, representative Connect comparisons and the first recurring execution need separate live validation.

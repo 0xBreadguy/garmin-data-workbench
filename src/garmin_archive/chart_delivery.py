@@ -26,11 +26,18 @@ def chart_metadata(result: dict, *, synthetic: bool = False, layout: str = 'chat
     caption = f"{title}. {result['from']} to {result['to']} inclusive. {denominator}."
     caption += ' Synthetic data.' if synthetic else ''
     caption += ' Wearable estimate.' if estimate else ''
+    body_levels = metric in {'body_battery_min', 'body_battery_max', 'body_battery_first', 'body_battery_last'}
+    if body_levels:
+        caption += ' Observed samples only; not proven full-day extrema or current levels.'
     stamps = sorted(p['fetched_at'] for p in points if p.get('fetched_at') and p['status'] == 'ok' and p['value'] is not None)
     explanations = []
     if sleep:
         explanations.extend(['Dotted need line: Garmin adjusted sleep-need estimate, not a prescribed target.',
                              'Sleep score has an independent 0–100 panel and its own coverage.'])
+    if body_levels:
+        explanations.extend(["Levels use Garmin's 0–100 Body Battery scale, not percentages.",
+                             'Minimum/maximum summarize valid descriptor-identified samples only. Available-day coverage does not establish continuous full-day coverage.',
+                             'First/last follow source observation times, not fetch times, wake-up/bedtime or a live current level.'])
     primary = coverage['sleep_duration'] if sleep else coverage[metric]
     statuses = {status for status, count in primary['statuses'].items() if count and status != 'ok'}
     symbols = {'error': '× failed refresh', 'empty': '□ empty response', 'not_checked': '| not checked',

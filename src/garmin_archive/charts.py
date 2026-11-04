@@ -239,9 +239,17 @@ def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "
             marker = STATUSES.get(point["status"], ("+", "Unavailable"))[0]
             strip.plot(i, 0, marker=marker, markersize=5, color=colors["ink"],
                        markerfacecolor="none", markeredgewidth=1)
-    ticks = sorted({round(i * (len(points) - 1) / 4) for i in range(5)})
-    strip.set_xticks(ticks, [_day_label(points[i]["day"]) for i in ticks])
     strip.tick_params(axis="x", labelsize=10 if wide else 12, colors=colors["secondary"], length=0, pad=8)
+    # Rounded quarter positions can bunch adjacent dates in short ranges. Try
+    # fewer ticks until the rendered labels have a 12-point gutter, retaining
+    # both inclusive endpoints and every coverage mark regardless of tick count.
+    renderer = fig.canvas.get_renderer()
+    for count in range(min(5, len(points)), 0, -1):
+        ticks = [round(i * (len(points) - 1) / max(count - 1, 1)) for i in range(count)]
+        strip.set_xticks(ticks, [_day_label(points[i]["day"]) for i in ticks])
+        bounds = [label.get_window_extent(renderer) for label in strip.get_xticklabels()]
+        if count <= 2 or all(b.x0 - a.x1 >= 12 * fig.dpi / 72 for a, b in zip(bounds, bounds[1:])):
+            break
     footer_top = strip_top + .76
     for i, line in enumerate(notes):
         text(left, footer_top + i * note_leading, line, 9 if wide else 11, colors["secondary"])

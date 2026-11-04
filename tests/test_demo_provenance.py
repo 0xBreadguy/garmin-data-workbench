@@ -1,8 +1,14 @@
 """Scenario answers and provenance across read-only adapters, with no account data."""
+import contextlib
+import importlib.util
+import io
 import json
 import hashlib
+import os
 import runpy
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,7 +20,84 @@ from garmin_archive.provenance import archive_provenance
 from garmin_archive.queries import get_day, get_trend, open_archive
 from garmin_archive.sleep import get_sleep
 
-CREATE = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/create_demo_archive.py'))['create_demo_archive']
+DEMO = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/create_demo_archive.py'))
+CREATE = DEMO['create_demo_archive']
+
+
+class DemoHandoffTest(unittest.TestCase):
+    def create(self, destination, *options):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(DEMO['main']([str(destination), *options]), 0)
+        return output.getvalue()
+
+    def examples(self, output):
+        # Execute the displayed native-shell commands, including quoting and absolute paths.
+        return [line for line in output.splitlines()
+                if line.startswith(('garmin-archive ', "& 'garmin-archive' "))]
+
+    def run_example(self, command, cwd):
+        shell = shutil.which('powershell.exe' if sys.platform == 'win32' else 'sh')
+        if not shell:
+            self.skipTest('Native shell is unavailable')
+        options = ['-NoProfile', '-NonInteractive', '-Command'] if sys.platform == 'win32' else ['-c']
+        env = {**os.environ, 'PATH': str(Path(sys.executable).parent) + os.pathsep + os.environ.get('PATH', '')}
+        result = subprocess.run([shell, *options, command], cwd=cwd, env=env, capture_output=True,
+                                text=True, encoding='utf-8', timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
+
+    def test_default_handoff_examples_query_and_render_the_latest_demo_week(self):
+        with tempfile.TemporaryDirectory() as root:
+            destination = Path(root) / "demo with spaces"
+            output = self.create(destination)
+            for detail in ('v2, seed 42', 'Manual/offline', '2026-01-01 through 2026-04-30',
+                           '2026-04-24 through 2026-04-30', 'First question:',
+                           '2026-05-01T12:00:00+00:00', 'not live freshness',
+                           'no observations', 'independent formulas', 'Body Battery values are intentionally fixed'):
+                self.assertIn(detail, output)
+            commands = self.examples(output)
+            self.assertEqual(len(commands), 2)
+            before = (destination / 'archive.sqlite3').read_bytes()
+            summary = json.loads(self.run_example(commands[0], root))
+            self.assertEqual((summary['from'], summary['to']), ('2026-04-24', '2026-04-30'))
+            self.assertEqual(summary['coverage']['requested_days'], 7)
+            self.assertTrue(summary['archive_provenance']['synthetic'])
+            for name in ('sleep_duration', 'sleep_deep', 'sleep_rem', 'sleep_score', 'sleep_need'):
+                self.assertEqual(summary['coverage']['fields'][name]['days_with_value'], 7)
+            if importlib.util.find_spec('matplotlib'):
+                self.run_example(commands[1], root)
+                self.assertTrue((destination / 'synthetic-sleep-overview.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n'))
+            self.assertEqual((destination / 'archive.sqlite3').read_bytes(), before)
+
+    def test_custom_windows_stay_in_the_corpus_and_longer_demo_preserves_the_first(self):
+        with tempfile.TemporaryDirectory() as root:
+            shorter = Path(root) / 'shorter'
+            for days, start, end in ((3, '2026-01-01', '2026-01-03'),
+                                     (30, '2026-01-24', '2026-01-30'),
+                                     (320, '2026-11-10', '2026-11-16')):
+                with self.subTest(days=days):
+                    destination = shorter if days == 3 else Path(root) / str(days)
+                    output = self.create(destination, '--days', str(days))
+                    if days == 3:
+                        original = (shorter / 'archive.sqlite3').read_bytes()
+                        answers = (shorter / 'known-answers.json').read_bytes()
+                    self.assertIn(f'2026-01-01 through {end} ({days} dates;', output)
+                    self.assertIn(f'{start} through {end}', output)
+                    summary = json.loads(self.run_example(self.examples(output)[0], root))
+                    self.assertEqual((summary['from'], summary['to']), (start, end))
+                    self.assertEqual(summary['coverage']['requested_days'], min(days, 7))
+                    self.assertEqual(summary['nights'][-1]['fetched_at'], '2026-05-01T12:00:00+00:00')
+            self.assertEqual((shorter / 'archive.sqlite3').read_bytes(), original)
+            self.assertEqual((shorter / 'known-answers.json').read_bytes(), answers)
+
+    def test_empty_handoff_does_not_offer_a_week_of_observations(self):
+        with tempfile.TemporaryDirectory() as root:
+            output = self.create(Path(root) / 'empty', '--empty')
+            self.assertIn('Available dates: none', output)
+            self.assertIn('no observations', output)
+            self.assertNotIn('First question:', output)
+            self.assertEqual(self.examples(output), [])
 
 
 class DemoProvenanceTest(unittest.TestCase):
