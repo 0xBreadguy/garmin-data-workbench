@@ -13,7 +13,7 @@ from mcp.client.stdio import stdio_client
 from garmin_archive.archive import Archive
 from test_archive import FakeClient
 from garmin_archive.sync import sync
-from datetime import date
+from datetime import date, timedelta
 
 
 class MCPTest(unittest.IsolatedAsyncioTestCase):
@@ -36,7 +36,7 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
             params = StdioServerParameters(command=sys.executable,
                 args=["-m", "garmin_archive.mcp_server", "--data-dir", temp])
             async with stdio_client(params) as (read, write):
-                async with ClientSession(read, write) as client:
+                async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as client:
                     initialized = await client.initialize()
                     self.assertIn("using Garmin profile preferences", initialized.instructions)
                     tools = await client.list_tools()
@@ -120,7 +120,7 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
             params = StdioServerParameters(command=sys.executable,
                 args=["-m", "garmin_archive.mcp_server", "--data-dir", str(target)])
             async with stdio_client(params) as (read, write):
-                async with ClientSession(read, write) as client:
+                async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as client:
                     await client.initialize()
                     catalog = await client.call_tool("api_catalog", {})
                     self.assertFalse(catalog.isError)

@@ -12,6 +12,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
@@ -23,7 +24,7 @@ async def check_mcp(executable: Path, archive: Path, workdir: Path, env: dict[st
     params = StdioServerParameters(command=str(executable), args=["--data-dir", str(archive)],
                                   cwd=str(workdir), env=env)
     async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as client:
+        async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as client:
             await client.initialize()
             tools = await client.list_tools()
             assert {"archive_status", "get_day"}.issubset({tool.name for tool in tools.tools})

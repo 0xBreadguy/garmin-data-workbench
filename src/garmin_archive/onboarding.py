@@ -24,11 +24,14 @@ def installation_info() -> dict:
     root = Path(__file__).resolve().parents[2]
     if (root / ".git").exists():
         try:
+            # Git must not inherit the MCP transport's input pipe. On Windows,
+            # probing an inherited pipe can block behind the stdio reader.
             provenance = {"revision": subprocess.check_output(
-                ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL, timeout=5).strip(),
+                ["git", "-C", str(root), "rev-parse", "HEAD"], text=True,
+                stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).strip(),
                 "dirty": bool(subprocess.check_output(
                     ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=normal"],
-                    text=True, stderr=subprocess.DEVNULL, timeout=5).strip())}
+                    text=True, stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).strip())}
         except (OSError, subprocess.SubprocessError):
             pass
     elif stamp.is_file():
