@@ -118,6 +118,12 @@ def parser() -> argparse.ArgumentParser:
     trend.add_argument("--from", dest="start", type=_date, help="Start date (default: six days before end)")
     trend.add_argument("--to", dest="end", type=_date, help="End date (default: Garmin profile's today)")
 
+    chart = commands.add_parser("chart", help="Render an archive trend as a PNG (requires charts extra)")
+    chart.add_argument("metric", choices=sorted(METRICS))
+    chart.add_argument("--from", dest="start", type=_date)
+    chart.add_argument("--to", dest="end", type=_date)
+    chart.add_argument("--output", required=True, type=Path, help="New PNG file; existing files are not overwritten")
+
     commands.add_parser("status", help="Show archive coverage and sync errors as JSON",
                         description="Read existing archive coverage and sync errors as JSON without syncing or modifying it.")
     commands.add_parser("path", help="Print the SQLite database path without opening or creating it")
@@ -342,9 +348,20 @@ def _read(args: argparse.Namespace) -> int:
         with open_archive(args.data_dir) as db:
             if args.command == "day":
                 _print_json(get_day(db, args.day.isoformat() if args.day else ""))
-            elif args.command == "trend":
-                _print_json(get_trend(db, args.metric, args.start.isoformat() if args.start else "",
-                                      args.end.isoformat() if args.end else ""))
+            elif args.command in {"trend", "chart"}:
+                result = get_trend(db, args.metric, args.start.isoformat() if args.start else "",
+                                   args.end.isoformat() if args.end else "")
+                if args.command == "chart":
+                    from .charts import render_trend
+                    try:
+                        render_trend(result, args.output)
+                    except ImportError:
+                        return _error("dependency_unavailable", "Charts require the optional charts extra; see docs/VISUALIZATION.md.", 2)
+                    except OSError:
+                        return _error("output_error", "Could not write chart; choose a new writable PNG path. Existing files are not overwritten.")
+                    print(f"Chart saved to {args.output}")
+                else:
+                    _print_json(result)
             elif args.command == "status":
                 return _status(db, args.data_dir.expanduser() / "archive.sqlite3")
             elif args.command == "activities":
@@ -494,7 +511,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "path":
         print(args.data_dir.expanduser() / "archive.sqlite3")
         return 0
-    if args.command in {"day", "trend", "status", "activities", "records", "health", "export-original"}:
+    if args.command in {"day", "trend", "chart", "status", "activities", "records", "health", "export-original"}:
         return _read(args)
     if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
         print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)

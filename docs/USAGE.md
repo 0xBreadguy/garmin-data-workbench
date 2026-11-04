@@ -66,6 +66,8 @@ Supported metrics: `steps`, `distance`, `resting_heart_rate`, `sleep_duration`, 
 
 Sync saves the Garmin profile's measurement system and time zone. Queries use those defaults; today falls back to the host date if needed. Distance includes a preferred miles/kilometers value alongside source meters. Honor explicit unit requests. Cached preferences may be stale, and the current profile zone doesn't establish an older activity's location or time zone.
 
+For PNG trend charts and agent guidance, see [Visualizing your archive](VISUALIZATION.md).
+
 ## SQL and source data
 
 | Table or view | Contents |

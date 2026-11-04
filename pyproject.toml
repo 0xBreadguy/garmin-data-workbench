@@ -16,6 +16,11 @@ dependencies = [
 garmin-archive = "garmin_archive.cli:main"
 garmin-archive-mcp = "garmin_archive.mcp_server:main"
 
+[project.optional-dependencies]
+charts = [
+    "matplotlib>=3.9,<4",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

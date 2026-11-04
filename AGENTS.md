@@ -4,6 +4,7 @@ This file is the shared entry point for coding agents and assistants helping a u
 
 ## Start here
 
+- For charts and agent visualization guidance, read [docs/VISUALIZATION.md](docs/VISUALIZATION.md) and the optional [skill](skills/garmin-visualization/SKILL.md).
 - Read [README.md](README.md) for the product and [docs/USAGE.md](docs/USAGE.md) for commands.
 - For a user's installation, follow [docs/SETUP.md](docs/SETUP.md). A request to inspect or test the code does not imply permission to use credentials, sync health data, or create a recurring job.
 - For code changes, read [CONTRIBUTING.md](CONTRIBUTING.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [docs/TESTING.md](docs/TESTING.md).
