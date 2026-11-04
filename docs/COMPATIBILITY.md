@@ -15,6 +15,11 @@ non-ASCII characters, apostrophes and a `#`, and checks that queries leave the
 archive unchanged. It needs no Garmin account or assistant account.
 
 Ubuntu also verifies installation without the optional chart dependencies.
+
+When charts are installed, the Windows MCP entry point initializes NumPy before
+starting the stdio reader, avoiding an [upstream native-import deadlock](https://github.com/numpy/numpy/issues/24290).
+The basic installation still requires no plotting dependencies.
+
 After merging, only the Ubuntu build and installed-wheel smoke checks run;
 the full three-OS validation is required before merging. See [testing](TESTING.md)
 for the GitHub merge requirements and cancellation behavior.

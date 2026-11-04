@@ -5,7 +5,10 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import sys
 from datetime import date
+from importlib import import_module
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Annotated
 
@@ -311,10 +314,24 @@ def create_server(data_dir: Path) -> FastMCP:
     return server
 
 
+def _prepare_windows_charts() -> None:
+    # NumPy's Windows native loader can deadlock behind an active piped-stdin
+    # reader. Load it before stdio starts, only when optional charts are installed.
+    # https://github.com/numpy/numpy/issues/24290
+    if sys.platform == 'win32' and find_spec('matplotlib') is not None:
+        try:
+            import_module('numpy')
+        except ImportError:
+            # Preserve ordinary archive queries; chart reports missing/broken
+            # optional dependencies through its existing error contract.
+            pass
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Serve the local Garmin archive over MCP stdio.")
     parser.add_argument("--data-dir", type=Path, default=default_data_dir())
     args = parser.parse_args()
+    _prepare_windows_charts()
     create_server(args.data_dir).run(transport="stdio")
 
 
