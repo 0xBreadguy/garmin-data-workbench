@@ -39,9 +39,17 @@ Put `--data-dir /absolute/private/archive` before the command to choose an archi
 
 `day`, `trend`, `sleep`, `body-battery`, `source-data`, `source-series`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
 
-`chart` uses the same read-only trend query and writes a new PNG. It follows the error contract below; a missing chart dependency exits `2` with `dependency_unavailable`. An unwritable or existing PNG destination exits `1` with `output_error`.
+`chart` uses the same read-only trend query and writes a new PNG. By default it prints `Chart saved to PATH`. Add `--json` to receive one JSON object on stdout after saving, with `output_path` (the supplied destination) and the shared chart metadata: `caption`, `alt_text`, `coverage`, `units`, `freshness`, `archive_provenance`, `synthetic` and `explanations`. The `delivery` field describes a saved CLI file; attaching and displaying it in the host remains a separate step.
 
-Successful reads write JSON to stdout by default; no `--json` flag is needed. `records --format csv` writes CSV instead. `path` prints a plain path; `chart` and `export-original` print a confirmation. Help remains plain text.
+```sh
+garmin-archive --data-dir /absolute/private/archive chart body_battery_max --from 2026-01-01 --to 2026-01-07 --output body-battery.png --json
+```
+
+Keep the caption, freshness meaning and relevant explanations alongside the delivered image. Body Battery extrema describe observed samples; available-date coverage does not establish continuous full-day coverage. Explicit synthetic provenance labels charts and metadata automatically; synthetic fetch timestamps are simulated, not evidence of a live refresh. `--synthetic` can also explicitly label demo data. Use a new `.png` destination each time: existing files are never overwritten. The charts extra remains optional; see [chart installation and layouts](VISUALIZATION.md).
+
+Both output modes follow the error contract below; a missing chart dependency exits `2` with `dependency_unavailable`. An unwritable or existing PNG destination exits `1` with `output_error`. Failures leave stdout empty and report JSON on stderr.
+
+Successful reads write JSON to stdout by default; no `--json` flag is needed. `records --format csv` writes CSV instead. `path` prints a plain path; `chart` (without `--json`) and `export-original` print a confirmation. Help remains plain text.
 
 For automation, call the installed `garmin-archive` executable directly. When running from a source checkout, use `uv run --quiet --locked` so uv's environment creation, build and installation messages don't precede the CLI's JSON errors on stderr:
 

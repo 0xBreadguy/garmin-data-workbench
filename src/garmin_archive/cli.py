@@ -146,6 +146,7 @@ def parser() -> argparse.ArgumentParser:
     chart.add_argument("--from", dest="start", type=_date)
     chart.add_argument("--to", dest="end", type=_date)
     chart.add_argument("--output", required=True, type=Path, help="New PNG file; existing files are not overwritten")
+    chart.add_argument("--json", action="store_true", help="Print the saved PNG path and shared caption, coverage and freshness metadata as JSON")
     chart.add_argument("--synthetic", action="store_true", help="Label generated/demo data visibly and identify its source as synthetic")
     chart.add_argument("--layout", choices=("chat", "wide"), default="chat", help="Readable chat/phone layout or wide report layout (default: chat)")
     commands.add_parser("brand", help="Print shared brand colors, rules and local logo paths as JSON; no archive needed")
@@ -424,7 +425,14 @@ def _read(args: argparse.Namespace) -> int:
                         return _error("dependency_unavailable", "Charts require the optional charts extra; see docs/VISUALIZATION.md.", 2)
                     except OSError:
                         return _error("output_error", "Could not write chart; choose a new writable PNG path. Existing files are not overwritten.")
-                    print(f"Chart saved to {args.output}")
+                    if args.json:
+                        from .chart_delivery import chart_metadata
+                        metadata = chart_metadata(result, synthetic=args.synthetic, layout=args.layout)
+                        metadata["output_path"] = str(args.output)
+                        metadata["delivery"] = "PNG file saved; host attachment and display must be verified separately."
+                        _print_json(metadata)
+                    else:
+                        print(f"Chart saved to {args.output}")
                 else:
                     _print_json(result)
             elif args.command == "status":
