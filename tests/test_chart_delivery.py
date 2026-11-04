@@ -52,7 +52,12 @@ class ChartDeliveryTest(unittest.IsolatedAsyncioTestCase):
             before = (path / 'archive.sqlite3').read_bytes()
             files = sorted(p.name for p in path.iterdir())
             params = StdioServerParameters(command=sys.executable,
-                args=['-m', 'garmin_archive.mcp_server', '--data-dir', root])
+                # If a native render stalls, capture its actual child stack
+                # before the unchanged client deadline terminates the process.
+                args=['-c', 'import faulthandler, runpy; '
+                      'faulthandler.dump_traceback_later(15); '
+                      'runpy.run_module("garmin_archive.mcp_server", run_name="__main__")',
+                      '--data-dir', root])
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as client:
                     await client.initialize()

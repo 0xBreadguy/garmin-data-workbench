@@ -164,7 +164,8 @@ def create_demo_archive(destination: Path, *, days: int = 120, seed: int = DEFAU
                 cases.append({'from': first, 'to': last, 'metrics': metrics})
         manifest = {'corpus_version': CORPUS_VERSION, 'seed': seed, 'profile': profile, 'days': 0 if empty else days,
                     'simulated_fetched_at': FETCHED_AT, 'cases': cases}
-        (destination / 'known-answers.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+        # Corpus fingerprints cover canonical UTF-8/LF bytes on every host.
+        (destination / 'known-answers.json').write_bytes((json.dumps(manifest, indent=2) + '\n').encode('utf-8'))
     finally:
         archive.close()
 
