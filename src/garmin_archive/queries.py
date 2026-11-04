@@ -22,9 +22,44 @@ METRICS = {
     "resting_heart_rate": ("heart_rate", ("restingHeartRate",), "bpm"),
     "sleep_duration": ("sleep", ("sleepTimeSeconds",), "s"),
     "overnight_hrv": ("hrv", ("hrvSummary", "lastNightAvg"), "ms"),
+    "sleep_score": ("sleep", ("sleepScores", "overall", "value"), "score"),
+    "sleep_deep": ("sleep", ("deepSleepSeconds",), "s"),
+    "sleep_light": ("sleep", ("lightSleepSeconds",), "s"),
+    "sleep_rem": ("sleep", ("remSleepSeconds",), "s"),
+    "sleep_awake": ("sleep", ("awakeSleepSeconds",), "s"),
+    "sleep_unmeasurable": ("sleep", ("unmeasurableSleepSeconds",), "s"),
+    "sleep_stress": ("sleep", ("avgSleepStress",), "Garmin stress"),
+    "nap_duration": ("sleep", ("napTimeSeconds",), "s"),
 }
+METRIC_TITLES = {"steps": "Daily steps", "distance": "Daily distance",
+    "sleep_duration": "Sleep duration", "resting_heart_rate": "Resting heart rate",
+    "overnight_hrv": "Overnight HRV", "sleep_score": "Sleep score", "sleep_deep": "Deep sleep",
+    "sleep_light": "Light sleep", "sleep_rem": "REM sleep", "sleep_awake": "Awake during sleep",
+    "sleep_unmeasurable": "Unclassified sleep", "sleep_stress": "Overnight stress",
+    "nap_duration": "Nap duration"}
 DATASETS = ("daily_summary", "sleep", "hrv", "heart_rate", "body_battery", "activities")
 MAX_TREND_DAYS = 90
+
+
+def health_response(db: sqlite3.Connection, dataset: str, day: str, *, max_bytes: int | None = None) -> dict:
+    """Metadata-aware fallback, masking retained responses after failed refreshes."""
+    if dataset not in DATASETS or dataset == "activities":
+        raise ValueError("Unknown daily health dataset")
+    parse_day(day)
+    row = db.execute(
+        "SELECT d.data_json, d.fetched_at, s.status, s.error, s.updated_at AS last_attempt "
+        "FROM (SELECT 1) LEFT JOIN daily_data d ON d.dataset=? AND d.day=? "
+        "LEFT JOIN sync_state s ON s.dataset=? AND s.day=?", (dataset, day, dataset, day)).fetchone()
+    raw, status = row["data_json"], row["status"] or "not_checked"
+    if status == "ok" and raw is None:
+        status = "response_missing"
+    if status in {"ok", "empty"} and raw is not None and max_bytes is not None and len(raw.encode("utf-8")) > max_bytes:
+        raise ValueError("Stored response is too large for MCP; inspect it locally with health --metadata")
+    return {"source": "local archive", "dataset": dataset, "day": day, "status": status,
+            "error": row["error"],
+            "fetched_at": row["fetched_at"], "last_attempt": row["last_attempt"],
+            "retained_data_available": raw is not None,
+            "data": json.loads(raw) if raw is not None and status in {"ok", "empty"} else None}
 
 
 @contextmanager
@@ -114,6 +149,7 @@ def _point(db: sqlite3.Connection, dataset: str, path: tuple[str, ...], day: str
             "s.updated_at AS last_attempt, "
             "CASE WHEN s.status='ok' THEN json_extract(d.data_json, ?) END AS metric_value, "
             "CASE WHEN s.status='ok' THEN json_type(d.data_json, ?) END AS metric_type, "
+            "CASE WHEN s.status='ok' THEN json_extract(d.data_json, '$.sleepScores.overall.qualifierKey') END AS score_qualifier, "
             "CASE WHEN s.status='ok' THEN json_extract(d.data_json, '$.calendarDate') END AS root_day, "
             "CASE WHEN s.status='ok' THEN json_extract(d.data_json, '$.hrvSummary.calendarDate') END AS hrv_day "
             "FROM (SELECT 1) LEFT JOIN daily_data d ON d.dataset=? AND d.day=? "
@@ -137,7 +173,11 @@ def _point(db: sqlite3.Connection, dataset: str, path: tuple[str, ...], day: str
     else:
         matches_day = row["root_day"] in (None, day) and (dataset != "hrv" or row["hrv_day"] in (None, day))
         obj = row["metric_value"] if matches_day and row["metric_type"] in ("integer", "real") else None
-    if isinstance(obj, bool) or not isinstance(obj, (int, float)) or not math.isfinite(obj) or obj < 0:
+        if path == ("sleepScores", "overall", "value") and row["score_qualifier"] == "INVALID":
+            obj = None
+    bounded_score = path in (("sleepScores", "overall", "value"), ("avgSleepStress",))
+    if (isinstance(obj, bool) or not isinstance(obj, (int, float)) or not math.isfinite(obj) or obj < 0
+            or (bounded_score and obj > 100)):
         point["status"] = "metric_not_returned"
     else:
         point["value"] = obj

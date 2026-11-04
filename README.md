@@ -44,6 +44,7 @@ Ask your agent: “How did my sleep and resting heart rate change over the last 
 ```sh
 garmin-archive status
 garmin-archive day 2026-01-01
+garmin-archive sleep --from 2026-01-01 --to 2026-01-07
 garmin-archive trend sleep_duration --from 2026-01-01 --to 2026-01-07
 ```
 

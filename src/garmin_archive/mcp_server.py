@@ -14,7 +14,9 @@ from pydantic import Field
 
 from .archive import default_data_dir
 from .preferences import display_distance, local_today, profile_preferences
-from .queries import get_day as query_day, get_trend as query_trend, open_archive
+from .queries import get_day as query_day, get_trend as query_trend, health_response, open_archive
+from .sleep import get_sleep as query_sleep
+from .guidance import agent_guide as read_agent_guide
 from .schedule import configure_schedule, schedule_status
 
 DATASETS = {"daily_summary", "sleep", "hrv", "heart_rate", "body_battery"}
@@ -34,8 +36,30 @@ def create_server(data_dir: Path) -> FastMCP:
                       "respect an explicit user request for other units. Numerical tool values use their labeled "
                       "source units and must be converted before presentation. "
                       "Missing or empty data is not zero; report coverage and stale or failed syncs. "
-                      "Responses may be sent to your AI provider."),
+                      "Responses may be sent to your AI provider. Read agent_guide for detailed sleep, chart and interpretation guidance. "
+                      "A configured schedule is not verified recurring execution. " + read_agent_guide()),
     )
+
+    @server.tool(annotations=READ_ONLY)
+    def agent_guide() -> dict:
+        """Read installed query, branded visualization and interpretation guidance."""
+        return {"guide": read_agent_guide()}
+
+    @server.tool(annotations=READ_ONLY)
+    def setup_receipt() -> dict:
+        """Read installation/coverage/schedule evidence; does not inspect keys or provider routines."""
+        from .onboarding import setup_receipt as receipt
+        return receipt(data_dir)
+
+    @server.tool(annotations=READ_ONLY)
+    def get_sleep(start: str = "", end: str = "") -> dict:
+        """Get 1–90 inclusive dates of sleep stages, score, stress, naps and source times.
+
+        YYYY-MM-DD dates default to seven dates ending today (which may be incomplete).
+        Missing/failed values remain null; local times never use the current profile zone.
+        """
+        with open_archive(data_dir) as db:
+            return query_sleep(db, start, end)
 
     @server.tool(annotations=READ_ONLY)
     def setup_status() -> dict:
@@ -71,8 +95,9 @@ def create_server(data_dir: Path) -> FastMCP:
     def get_trend(metric: str, start: str = "", end: str = "") -> dict:
         """Get daily values and coverage over 1–90 days inclusive.
 
-        metric is steps, distance, resting_heart_rate, sleep_duration, or
-        overnight_hrv. start and end are YYYY-MM-DD. End defaults to today in
+        metric is steps, distance, resting_heart_rate, sleep_duration, overnight_hrv,
+        sleep_score, sleep_deep, sleep_light, sleep_rem, sleep_awake,
+        sleep_unmeasurable, sleep_stress, or nap_duration. start and end are YYYY-MM-DD. End defaults to today in
         Garmin's profile timezone (or host timezone if unavailable); start
         defaults to six days before end.
         Means use only days with values, never missing days.
@@ -139,18 +164,7 @@ def create_server(data_dir: Path) -> FastMCP:
         except ValueError as error:
             raise ValueError("day must be YYYY-MM-DD") from error
         with open_archive(data_dir) as db:
-            row = db.execute(
-                "SELECT d.data_json, d.fetched_at, s.status, s.error, s.updated_at AS last_attempt "
-                "FROM (SELECT 1) LEFT JOIN daily_data d ON d.dataset=? AND d.day=? "
-                "LEFT JOIN sync_state s ON s.dataset=? AND s.day=?", (dataset, day, dataset, day)
-            ).fetchone()
-        raw = row["data_json"]
-        if raw is not None and len(raw.encode("utf-8")) > MAX_HEALTH_BYTES:
-            raise ValueError("Stored response is too large for MCP; inspect it locally with the health command")
-        return {"source": "local archive", "dataset": dataset, "day": day,
-                "status": row["status"] or "not_checked", "last_attempt": row["last_attempt"],
-                "error": row["error"], "fetched_at": row["fetched_at"],
-                "data": json.loads(raw) if raw is not None else None}
+            return health_response(db, dataset, day, max_bytes=MAX_HEALTH_BYTES)
 
     @server.tool(annotations=READ_ONLY)
     def activity_records(

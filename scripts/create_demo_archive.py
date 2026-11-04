@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import argparse
 import math
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from garmin_archive.archive import Archive
@@ -27,10 +27,22 @@ def create_demo_archive(destination: Path) -> None:
             if i == 3:  # Never checked, distinct from a successful empty response.
                 continue
             steps = 0 if i == 15 else round(7500 + 2500 * math.sin(i * .9))
+            duration = round((7.4 + .7 * math.sin(i * 1.3)) * 3600)
+            deep, rem = round(duration * .2), round(duration * .23)
+            wake = datetime(2026, 1, 1, 7, tzinfo=UTC) + timedelta(days=i)
             data = {
                 "daily_summary": {"data": [{"calendarDate": day, "movement": {"steps": {
                     "value": steps, "distanceInMeters": round(steps * .72, 2)}}}]},
-                "sleep": {"sleepTimeSeconds": round((7.4 + .7 * math.sin(i * 1.3)) * 3600)},
+                "sleep": {"calendarDate": day, "sleepTimeSeconds": duration,
+                    "deepSleepSeconds": deep, "remSleepSeconds": rem,
+                    "lightSleepSeconds": duration - deep - rem, "unmeasurableSleepSeconds": 0,
+                    "awakeSleepSeconds": 600, "napTimeSeconds": 1200 if i % 5 == 0 else 0,
+                    "avgSleepStress": round(20 + 10 * math.sin(i)),
+                    "sleepScores": {"overall": {"value": round(80 + 12 * math.sin(i * .8))}},
+                    "sleepStartTimestampGMT": (wake - timedelta(seconds=duration + 600)).isoformat(),
+                    "sleepEndTimestampGMT": wake.isoformat(),
+                    "sleepStartTimestampLocal": (wake - timedelta(seconds=duration + 600)).isoformat(),
+                    "sleepEndTimestampLocal": wake.isoformat()},
                 "heart_rate": {"restingHeartRate": round(58 + 3 * math.cos(i * .8))},
                 "hrv": {"hrvSummary": {"lastNightAvg": round(48 + 8 * math.sin(i * .7))}},
             }

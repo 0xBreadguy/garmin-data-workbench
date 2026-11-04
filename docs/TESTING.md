@@ -28,6 +28,8 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | Scheduling and rollback | `test_schedule.py` |
 | Catch-up and recovery | `test_catchup.py` |
 | Archive, FIT decoding, sync | `test_archive.py` |
+| Sleep summaries, source timestamps and missing stages | `test_sleep.py` |
+| Setup receipts, installed guidance and routine templates | `test_onboarding.py` |
 | Metrics and missingness | `test_queries.py` |
 | Read-only CLI queries | `test_cli_queries.py` |
 | Chart semantics, branding and demo archive | `test_charts.py` |
@@ -69,3 +71,5 @@ Record each stage separately:
 Registration doesn't prove discovery; discovery doesn't prove a real query. Matching payload shapes don't prove metric meaning. Current field mappings were checked against one account's seven-day archive; values still need comparison with Connect.
 
 `save-key` tests mock authentication and use disposable files. They don't verify a provider's secret-entry facility. Report compatibility through the [setup template](../.github/ISSUE_TEMPLATE/setup-report.md), without private data.
+
+For sleep acceptance, use the generated demo and render `chart sleep` in both chat and wide layouts. Verify stage stacks only for complete/reconciled breakdowns, independent score coverage/axis, masked failed refreshes, source/date notes and actual image delivery. Test empty, single-day and sparse periods. Before claiming live field validation, compare a representative night (including source timestamps and scores) with Garmin Connect. Provider routine creation is separate from observing its first execution.

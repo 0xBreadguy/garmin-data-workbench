@@ -18,6 +18,7 @@ from garmin_archive import cli
 from garmin_archive.archive import Archive
 from garmin_archive.brand import get_brand
 from garmin_archive.queries import METRICS, get_trend, open_archive
+from garmin_archive.sleep import get_sleep
 
 CREATE_DEMO = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts' / 'create_demo_archive.py'))['create_demo_archive']
 
@@ -163,3 +164,44 @@ class ChartsTest(unittest.TestCase):
             cli.parser().parse_args(['chart', '--help'])
         self.assertIn('--data-dir', output.getvalue())
         self.assertEqual((self.data_dir / 'archive.sqlite3').read_bytes(), self.before)
+
+    def test_sleep_report_uses_separate_score_axis_and_only_complete_stage_bars(self):
+        from garmin_archive.charts import build_sleep_figure, render_trend
+        with open_archive(self.data_dir) as db:
+            result = get_sleep(db, '2026-01-01', '2026-01-30')
+        # Incomplete/contradictory stages must keep the total but omit the stack.
+        result['nights'][0]['values']['sleep_deep'] = None
+        result['nights'][0]['stages_complete'] = False
+        result['nights'][1]['values']['sleep_score'] = 0
+        for layout in ('chat', 'wide'):
+            figure = build_sleep_figure(result, synthetic=True, layout=layout)
+            self.assertEqual(figure.axes[1].get_ylim(), (0, 100))
+            self.assertEqual(figure.axes[1].lines[0].get_ydata()[1], 0)
+            self.assertTrue(math.isnan(figure.axes[1].lines[0].get_ydata()[11]))
+            self.assertEqual(len(figure.axes[0].patches), 25 * 4)
+            text = '\n'.join(t.get_text() for t in figure.texts)
+            self.assertIn('Sleep overview', text)
+            self.assertIn('Sleep score · 26/30 nights', text)
+            self.assertIn('Stages incomplete', text)
+            render_trend(result, self.root / f'sleep-{layout}.png', synthetic=True, layout=layout)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(cli.main(['--data-dir', str(self.data_dir), 'chart', 'sleep', '--from', '2026-01-01',
+                                      '--to', '2026-01-30', '--synthetic', '--output', str(self.root / 'report.png')]), 0)
+        self.assertEqual((self.data_dir / 'archive.sqlite3').read_bytes(), self.before)
+
+    def test_sleep_report_empty_single_and_scalar_stress_layouts(self):
+        from garmin_archive.charts import build_sleep_figure, build_trend_figure
+        with open_archive(self.data_dir) as db:
+            for first, last in (('2025-10-01','2025-12-29'), ('2026-01-01','2026-01-01')):
+                figure = build_sleep_figure(get_sleep(db, first, last), synthetic=True)
+                figure.canvas.draw()
+                if first.startswith('2025'):
+                    self.assertFalse(figure.axes[0].patches)
+                    self.assertIsNone(figure.axes[0].get_legend())
+        figure = build_trend_figure(self.query('sleep_stress'))
+        figure.canvas.draw()
+        summary = next(t for t in figure.texts if t.get_fontsize() == 30)
+        coverage = next(t for t in figure.texts if t.get_text() == '26/30')
+        self.assertFalse(summary.get_window_extent().overlaps(coverage.get_window_extent()))
+        self.assertEqual(figure.axes[0].get_ylim(), (0, 100))

@@ -17,11 +17,14 @@ garmin-archive path
 # Read stored summaries without a live request.
 garmin-archive day 2026-01-01
 garmin-archive trend sleep_duration --from 2026-01-01 --to 2026-01-07
+garmin-archive sleep --from 2026-01-01 --to 2026-01-07
+garmin-archive chart sleep --from 2026-01-01 --to 2026-01-07 --output sleep.png
 
 # Replace the example ID with one from your activity list.
 garmin-archive records 123456789 --limit 100
 garmin-archive records 123456789 --format csv --limit 1000 > activity.csv
 garmin-archive health sleep 2026-01-01
+garmin-archive health sleep 2026-01-01 --metadata
 garmin-archive export-original 123456789 activity.zip
 ```
 
@@ -31,7 +34,7 @@ Put `--data-dir /absolute/private/archive` before the command to choose an archi
 
 ## Output and automation
 
-`day`, `trend`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
+`day`, `trend`, `sleep`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
 
 `chart` uses the same read-only trend query and writes a new PNG. It follows the error contract below; a missing chart dependency exits `2` with `dependency_unavailable`. An unwritable or existing PNG destination exits `1` with `output_error`.
 
@@ -68,11 +71,15 @@ Argument-parsing errors use JSON on stderr and exit `2` for every command. Runti
 
 **Compatibility:** missing health responses, activities and original files now exit `3` instead of `1`; read/export diagnostics are JSON rather than plain text. Update callers that matched old messages or treated every failure as exit `1`.
 
+`health` without flags preserves raw stored JSON, including retained data after a failed refresh; it is for local inspection, not freshness-aware answers. Prefer structured summaries or `health --metadata`, which adds refresh/fetch context and masks non-ok data. A metadata-aware request for an unchecked date returns a successful envelope with null data, matching MCP `daily_health`. MCP fallback responses now also mask failed retained data; callers can inspect `retained_data_available` and `status`.
+
+`agent-guide` prints installed guidance without opening an archive. `routine-template` emits JSON with an absolute command and provider-neutral instructions; it schedules nothing. `setup-receipt` emits read-only installation/coverage/native-schedule evidence, returning an unavailable archive in its report rather than creating one. Successful receipt output does not mean setup is verified.
+
 ## Summaries, units and dates
 
-`day` and `trend` share MCP's query definitions.
+`day`, `trend` and `sleep` share MCP's query definitions. `sleep` returns all supported sleep fields and source window times together; `chart sleep` renders a branded overview with separate duration/stages and score panels.
 
-Supported metrics: `steps`, `distance`, `resting_heart_rate`, `sleep_duration`, `overnight_hrv`. Trends cover 1–90 inclusive days; omitted dates select seven days ending today. Results include dated values, units, freshness and missing/failed days. Means use available values only; failed refreshes mask stale values.
+Supported metrics: `steps`, `distance`, `resting_heart_rate`, `sleep_duration`, `overnight_hrv`, `sleep_score`, `sleep_deep`, `sleep_light`, `sleep_rem`, `sleep_awake`, `sleep_unmeasurable`, `sleep_stress`, `nap_duration`. See [sleep source definitions and time semantics](SLEEP.md). Trends cover 1–90 inclusive days; omitted dates select seven days ending today. Results include dated values, units, freshness and missing/failed days. Means use available values only; failed refreshes mask stale values.
 
 Sync saves the Garmin profile's measurement system and time zone. Queries use those defaults; today falls back to the host date if needed. Distance includes a preferred miles/kilometers value alongside source meters. Honor explicit unit requests. Cached preferences may be stale, and the current profile zone doesn't establish an older activity's location or time zone.
 

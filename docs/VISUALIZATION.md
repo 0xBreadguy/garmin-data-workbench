@@ -18,9 +18,13 @@ garmin-archive --data-dir /absolute/private/archive chart sleep_duration --from 
 
 The global `--data-dir` option goes **before** `chart`. Omit it to use the default archive. Output must be a new PNG; existing files are never overwritten. The default `--layout chat` is sized for conversations and phones; `--layout wide` gives a wider report figure. Both include the same data, branding and coverage details.
 
-The five [shared metrics](USAGE.md#summaries-units-and-dates) and 90-day limit apply. Dates default to the same seven-day window as `trend`. Charts divide sleep seconds by 3,600 to display **hours**, with the summary average in hours/minutes; structured `trend` output retains **seconds** without changing stored data. Distance follows saved profile preferences; other units come from the query. Averages use available values only and state their denominator.
+The [shared metrics](USAGE.md#summaries-units-and-dates) and 90-day limit apply. Dates default to the same seven-day window as `trend`. Charts divide sleep/stage/nap seconds by 3,600 to display **hours**, with the summary average in hours/minutes; structured `trend` output retains **seconds** without changing stored data. Distance follows saved profile preferences; other units come from the query. Averages use available values only and state their denominator.
 
 Steps and distance use bars starting at zero. Sleep, resting heart rate and HRV use unsmoothed lines. Line scales can focus on the observed range; read the labeled axis. Zero stays a value. Unavailable days are gaps, with a dated coverage strip and notes distinguishing failed, empty, unchecked and unreturned values. Retained data from a failed refresh stays masked. Fetch-time ranges describe available values, not a live connection or a freshness guarantee. Sparse data does not establish a trend, and movement up or down is not inherently good or bad.
+
+For a detailed sleep question, use `chart sleep --from 2026-01-01 --to 2026-01-30 --output sleep-overview.png`. It combines total duration and complete stage bars with a separate score panel. See [sleep report semantics](SLEEP.md); stages and scores are estimates, and incomplete breakdowns are never filled with zeros. Scalar score/stress charts use a 0–100 axis.
+
+Run the installed `agent-guide` for the same presentation and interpretation rules in shell-only or MCP workflows.
 
 ## Use the workbench brand
 
@@ -39,11 +43,13 @@ The built-in renderer applies this automatically. An agent using its own plottin
 From a repository checkout, create a **new** directory outside the repo. The script refuses any existing destination, including an empty directory:
 
 ```sh
-uv run --locked python scripts/create_demo_archive.py ../garmin-demo
-uv run --locked --extra charts garmin-archive --data-dir ../garmin-demo chart sleep_duration --from 2026-01-01 --to 2026-01-30 --synthetic --output ../synthetic-sleep.png
+uv run --quiet --locked python scripts/create_demo_archive.py ../garmin-demo
+uv run --quiet --locked --extra charts garmin-archive --data-dir ../garmin-demo chart sleep_duration --from 2026-01-01 --to 2026-01-30 --synthetic --output ../synthetic-sleep.png
 ```
 
-The script creates generated values for all five metrics for January 1–30, 2026. January 4 is unchecked, January 8 is empty, January 12 has a failed refresh over retained data, and January 17 lacks the metric. January 16 has genuine **synthetic zero** steps/distance. A `SYNTHETIC.txt` marker identifies the archive. There are no credentials, network calls, syncs, assistant registrations or schedules.
+The script creates generated values for all supported numeric metrics, including sleep stages, score, stress and daily nap duration for January 1–30, 2026. January 4 is unchecked, January 8 is empty, January 12 has a failed refresh over retained data, and January 17 lacks the metric. January 16 has genuine **synthetic zero** steps/distance. A `SYNTHETIC.txt` marker identifies the archive. There are no credentials, network calls, syncs, assistant registrations or schedules.
+
+The same demo works with `chart sleep` for a multi-panel report.
 
 Always pass `--synthetic` for demo charts. It places a compact visible label on the chart and identifies the source as a synthetic demo archive. The flag labels the input you supplied; it does not anonymize real data or detect whether values are synthetic.
 

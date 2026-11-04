@@ -9,7 +9,10 @@ No MCP client or Codex registration required:
 ```sh
 garmin-archive day 2026-01-01
 garmin-archive trend sleep_duration --from 2026-01-01 --to 2026-01-07
+garmin-archive sleep --from 2026-01-01 --to 2026-01-07
 ```
+
+Run `garmin-archive agent-guide` for installed query, branded chart and interpretation guidance. `assistant-guide --client other` prints a generic same-host shell handoff with absolute paths and that guidance; it does not assume an MCP connection. `connect --client shell` prints the handoff without registration, syncing or scheduling.
 
 Use absolute executable and archive paths in remote tasks. These commands need an existing archive, but no Garmin key or live request. See [metrics, units and dates](USAGE.md#summaries-units-and-dates).
 
@@ -41,9 +44,9 @@ Replace the executable path. For a custom archive, use `args: ["--data-dir", "/a
 
 ### Tool contract
 
-Seven tools read data/status; `configure_sync` changes the local macOS schedule when requested. Data tools need no Garmin credentials and make no live requests.
+Ten tools read data/status/guidance; `configure_sync` changes the local macOS schedule when requested. Data tools need no Garmin credentials and make no live requests.
 
-They provide daily summaries, up to 90 days of five [trend metrics](USAGE.md#summaries-units-and-dates), coverage, activities, stored daily responses and paginated FIT records. Samples omit coordinates and raw fields. Daily responses over 64 KB are rejected; inspect those locally with `health`.
+They provide daily summaries, up to 90 days of [trend metrics](USAGE.md#summaries-units-and-dates), detailed [sleep summaries](SLEEP.md), coverage, activities, stored daily responses and paginated FIT records. `agent_guide` returns installed guidance; `setup_receipt` separates setup evidence from outstanding verification. Samples omit coordinates and raw fields. Successful daily responses over 64 KB are rejected; inspect those locally with `health --metadata`. Failed refreshes mask retained response data.
 
 Results include dates, units, coverage and freshness. Missing values aren't zeros; failed refreshes don't present stale values as current. Activity names and daily responses may be sensitive, and returned data may reach the selected AI provider.
 

@@ -26,7 +26,8 @@ from garmin_personal_api import (
 from .archive import Archive, default_data_dir, now
 from .preferences import clean_profile, local_today, profile_preferences
 from .platforms import shell_command
-from .queries import METRICS, get_day, get_trend, open_archive
+from .queries import METRICS, get_day, get_trend, health_response, open_archive
+from .sleep import get_sleep
 from .sync import DATASETS, SyncStopped, _call, sync
 from garmin_personal_api.errors import HttpError
 
@@ -94,14 +95,18 @@ def parser() -> argparse.ArgumentParser:
     frequency.add_argument("--every-hours", type=_positive, help="Hours between scheduled syncs (1–168)")
     frequency.add_argument("--manual", action="store_true", help="Use manual sync; leave any existing schedule alone")
     install.add_argument("--lookback-days", type=_positive, default=2, help="Recent days to recheck each run (1–31; default: 2)")
-    install.add_argument("--client", choices=("codex", "claude", "chatgpt", "other"), default="codex",
+    install.add_argument("--client", choices=("codex", "claude", "chatgpt", "other", "shell"), default="codex",
                          help="Assistant to connect (default: codex)")
 
     connect = commands.add_parser("connect", help="Connect an assistant to an existing local archive")
-    connect.add_argument("--client", choices=("codex", "claude", "chatgpt", "other"), default="codex")
+    connect.add_argument("--client", choices=("codex", "claude", "chatgpt", "other", "shell"), default="codex")
 
     guide = commands.add_parser("assistant-guide", help="Print a handoff for your assistant")
     guide.add_argument("--client", choices=("dot", "codex", "claude", "muse", "other"), default="dot")
+    commands.add_parser("agent-guide", help="Read installed query, visualization and interpretation guidance; no archive needed")
+    commands.add_parser("setup-receipt", help="Read installation, archive and schedule evidence as JSON without syncing")
+    routine = commands.add_parser("routine-template", help="Print a provider-neutral sync routine template as JSON; schedules nothing")
+    routine.add_argument("--lookback-days", type=_positive, default=2)
 
     key = commands.add_parser(
         "save-key", help="Validate and save a key from a private secret file; makes live Garmin requests",
@@ -117,13 +122,16 @@ def parser() -> argparse.ArgumentParser:
     trend.add_argument("metric", choices=sorted(METRICS))
     trend.add_argument("--from", dest="start", type=_date, help="Start date (default: six days before end)")
     trend.add_argument("--to", dest="end", type=_date, help="End date (default: Garmin profile's today)")
+    sleep = commands.add_parser("sleep", help="Read a bounded sleep summary as JSON: stages, score, stress, naps and source times")
+    sleep.add_argument("--from", dest="start", type=_date, help="First of 1–90 inclusive dates (default: six days before end)")
+    sleep.add_argument("--to", dest="end", type=_date, help="Last date (default: Garmin profile's today, possibly incomplete)")
 
     chart = commands.add_parser("chart", help="Render a branded archive trend as a PNG (requires charts extra)",
         description="Read an existing archive and render a branded PNG without syncing. "
                     "Example: garmin-archive --data-dir /private/archive chart sleep_duration "
                     "--from 2026-01-01 --to 2026-01-30 --output sleep.png. "
                     "The global --data-dir option goes before chart. Sleep seconds are displayed as hours.")
-    chart.add_argument("metric", choices=sorted(METRICS))
+    chart.add_argument("metric", choices=sorted([*METRICS, "sleep"]), help="A metric, or sleep for stages/duration and score panels")
     chart.add_argument("--from", dest="start", type=_date)
     chart.add_argument("--to", dest="end", type=_date)
     chart.add_argument("--output", required=True, type=Path, help="New PNG file; existing files are not overwritten")
@@ -142,6 +150,7 @@ def parser() -> argparse.ArgumentParser:
     health = commands.add_parser("health", help="Print a stored daily health response as JSON")
     health.add_argument("dataset", choices=sorted(DATASETS))
     health.add_argument("day", type=_date)
+    health.add_argument("--metadata", action="store_true", help="Include refresh status/fetch times and mask retained data after a failed refresh")
 
     records = commands.add_parser("records", help="Show decoded time-series records as JSON (or CSV with --format csv)",
                                  description="Read decoded time-series records as JSON, or CSV with --format csv, without modifying the archive.")
@@ -355,9 +364,10 @@ def _read(args: argparse.Namespace) -> int:
         with open_archive(args.data_dir) as db:
             if args.command == "day":
                 _print_json(get_day(db, args.day.isoformat() if args.day else ""))
-            elif args.command in {"trend", "chart"}:
-                result = get_trend(db, args.metric, args.start.isoformat() if args.start else "",
-                                   args.end.isoformat() if args.end else "")
+            elif args.command in {"trend", "chart", "sleep"}:
+                start, end = args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else ""
+                result = (get_sleep(db, start, end) if args.command == "sleep" or args.metric == "sleep" else
+                          get_trend(db, args.metric, start, end))
                 if args.command == "chart":
                     from .charts import render_trend
                     try:
@@ -378,6 +388,9 @@ def _read(args: argparse.Namespace) -> int:
             elif args.command == "export-original":
                 return _export_original(db, args)
             elif args.command == "health":
+                if args.metadata:
+                    _print_json(health_response(db, args.dataset, args.day.isoformat()))
+                    return 0
                 row = db.execute(
                     "SELECT data_json FROM daily_data WHERE dataset=? AND day=?",
                     (args.dataset, args.day.isoformat()),
@@ -446,6 +459,9 @@ def _install(archive: Archive, args: argparse.Namespace) -> int:
             schedule_error = f"Could not configure scheduled sync: {error}"
 
     connection_result = _connect(archive, args.client)
+    from .onboarding import setup_receipt
+    print("Setup verification receipt (assistant query and recurring execution still require independent verification):")
+    _print_json(setup_receipt(archive.data_dir))
     if schedule_error:
         print(schedule_error, file=sys.stderr)
         return 1
@@ -456,6 +472,15 @@ def _install(archive: Archive, args: argparse.Namespace) -> int:
 
 def _connect(archive: Archive, client: str) -> int:
     from .install import probe_server, register_claude, register_codex, verify_codex_discovery
+    from .platforms import installed_executable
+
+    command = shell_command([str(installed_executable("garmin-archive")), "agent-guide"])
+    print(f"Before answering Garmin questions, read the installed guide: {command}")
+    if client == "shell":
+        from .install import assistant_guide
+        print(assistant_guide("other", data_dir=archive.data_dir))
+        print("Same-host CLI selected; verify an actual archive question in your assistant.")
+        return 0
 
     try:
         probe_server(archive.data_dir)
@@ -498,6 +523,21 @@ def _connect(archive: Archive, client: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "agent-guide":
+        from .guidance import agent_guide
+        print(agent_guide())
+        return 0
+    if args.command == "setup-receipt":
+        from .onboarding import setup_receipt
+        _print_json(setup_receipt(args.data_dir))
+        return 0
+    if args.command == "routine-template":
+        from .onboarding import routine_template
+        try:
+            _print_json(routine_template(args.data_dir, args.lookback_days))
+        except ValueError as error:
+            return _error("invalid_argument", str(error), 2)
+        return 0
     if args.command == "brand":
         from .brand import get_brand
         _print_json(get_brand())
@@ -522,7 +562,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "path":
         print(args.data_dir.expanduser() / "archive.sqlite3")
         return 0
-    if args.command in {"day", "trend", "chart", "status", "activities", "records", "health", "export-original"}:
+    if args.command in {"day", "trend", "sleep", "chart", "status", "activities", "records", "health", "export-original"}:
         return _read(args)
     if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
         print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)

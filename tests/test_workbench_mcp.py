@@ -40,7 +40,7 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                     self.assertIn("using Garmin profile preferences", initialized.instructions)
                     tools = await client.list_tools()
                     self.assertEqual({t.name for t in tools.tools},
-                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync"})
+                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync", "get_sleep", "agent_guide", "setup_receipt"})
                     self.assertTrue(all(t.annotations.readOnlyHint for t in tools.tools if t.name != 'configure_sync'))
                     self.assertFalse(next(t for t in tools.tools if t.name == 'configure_sync').annotations.readOnlyHint)
                     async def call(name, args):
@@ -70,6 +70,15 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(overview["metrics"]["distance"]["display_unit"], "mi")
                     self.assertEqual(overview["metrics"]["sleep_duration"]["value"], 27000)
                     self.assertEqual(overview["metrics"]["overnight_hrv"]["value"], 42)
+                    sleep = await call("get_sleep", {"start": "2026-01-01", "end": "2026-01-02"})
+                    self.assertEqual(sleep["nights"][0]["values"]["sleep_duration"], 27000)
+                    self.assertFalse(sleep["nights"][0]["stages_complete"])
+                    self.assertEqual(sleep["nights"][1]["status"], "not_checked")
+                    guide = await call("agent_guide", {})
+                    self.assertIn("chart sleep", guide["guide"])
+                    receipt = await call("setup_receipt", {})
+                    self.assertEqual(receipt["archive"]["status"], "readable")
+                    self.assertEqual(receipt["verification"]["recurring_execution"], "not_verified")
                     self.assertEqual(overview["activities"][0]["activity_id"], 42)
                     today = await call("get_day", {})
                     from datetime import datetime

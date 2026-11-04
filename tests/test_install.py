@@ -39,6 +39,7 @@ class InstallerFlowTest(unittest.TestCase):
         self.register_claude = self.stack.enter_context(patch("garmin_archive.install.register_claude", return_value="added"))
         self.discovery = self.stack.enter_context(patch("garmin_archive.install.verify_codex_discovery", return_value=[]))
         self.stack.enter_context(patch("garmin_archive.cli.sys.platform", "darwin"))
+        self.stack.enter_context(patch("garmin_archive.onboarding.schedule_status", return_value={"status": "not_configured"}))
 
     def run_install(self, *args):
         return cli.main(["--data-dir", str(self.archive), "install", *args])
@@ -113,6 +114,13 @@ class InstallerFlowTest(unittest.TestCase):
         self.assertEqual(cli.main(["--data-dir", str(self.archive), "connect"]), 1)
         self.assertFalse(self.archive.exists())
         self.probe.assert_not_called()
+
+    def test_shell_install_provides_guidance_and_receipt_without_mcp_registration(self):
+        self.assertEqual(self.run_install("--manual", "--client", "shell"), 0)
+        self.probe.assert_not_called()
+        self.register.assert_not_called()
+        self.assertIn("chart sleep", self.stdout.getvalue())
+        self.assertIn('"recurring_execution": "not_verified"', self.stdout.getvalue())
 
 
 class KeyAndCodexTest(unittest.TestCase):
