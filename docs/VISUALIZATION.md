@@ -28,6 +28,14 @@ Run the installed `agent-guide` for the same presentation and interpretation rul
 
 Body Battery scalar charts follow the [observed-reading definitions](BODY_BATTERY.md). Level charts use a fixed 0–100 scale; charged/drained amounts use bars starting at zero. The latest observed sample is not a live current value. `chart sleep` also shows Garmin's adjusted need as a distinct dotted line; need is an estimate, not a prescribed target.
 
+## MCP chart delivery
+
+The read-only `chart` tool accepts `metric` (`sleep` or any trend metric), `start`, `end` and `layout` (`chat`/`wide`). Dates are inclusive and bounded to 90 days. It returns a PNG as MCP image content plus identical JSON in structured content and a text block: contract version, title/metric, dates, rendered units, layout, per-series denominators/status counts, available-value fetch timestamps, synthetic provenance, caption/alt text and explanations. Sleep duration, score and need retain independent coverage.
+
+Rendering happens in memory; the tool accepts no filesystem output path and creates no chart file. Images are bounded to 1600 × 4096 pixels and 4 MiB. The CLI remains the file-export fallback. Missing plotting dependencies return `dependency_unavailable` with no image; invalid metrics, dates/layouts or archive errors are tool failures. Use query values for a small table if delivery is unavailable. A returned image does not prove a host displayed it to the person; run the host acceptance check.
+
+`brand` works without chart dependencies or an archive. It returns settings and three `garmin-brand://assets/…` URIs, readable as correctly typed PNG/SVG MCP resources, so a remote client need not resolve local logo paths.
+
 ## Use the workbench brand
 
 ```sh
@@ -49,11 +57,15 @@ uv run --quiet --locked python scripts/create_demo_archive.py ../garmin-demo
 uv run --quiet --locked --extra charts garmin-archive --data-dir ../garmin-demo chart sleep_duration --from 2026-01-01 --to 2026-01-30 --synthetic --output ../synthetic-sleep.png
 ```
 
-The script creates generated values for all supported numeric metrics, including sleep stages, score, stress, daily nap duration, sleep need and Body Battery for January 1–30, 2026. January 4 is unchecked, January 8 is empty, January 12 has a failed refresh over retained data, and January 17 lacks the metric. January 16 has genuine **synthetic zero** steps/distance. A `SYNTHETIC.txt` marker identifies the archive. There are no credentials, network calls, syncs, assistant registrations or schedules.
+The v2 default corpus has 120 days starting January 1, 2026, with a fixed seed and simulated collection timestamps. Sleep windows, awake time and stage proportions vary. Coverage failures differ by dataset; March 12–18 is entirely unchecked. Later cases include incomplete/inconsistent stages, duration without score, missing need, missing nap episode detail, and reordered/ambiguous Body Battery samples. January 16 has **synthetic zero** steps/distance. Synthetic activity summaries/details include GPS-present and GPS-absent examples; original FIT sensor fixtures live in the offline tests.
+
+Use `--profile metric-dst` for a separate metric/Europe-Berlin archive spanning the March DST change, `--empty` for an empty archive, or `--days 30` for a shorter example. Never combine profiles into one user's archive. `known-answers.json` records version, seed, expected scalar points, means, coverage and masked dates for selected ranges. Expectations come from scenario definitions, independently of production queries; tests pin the default corpus fingerprint. Changing expected answers requires intentional corpus-version review. The corpus is illustrative, not a population or personal baseline.
+
+The database records synthetic provenance, so copying it preserves the label. `SYNTHETIC.txt` is retained for legacy recognition. There are no credentials, network calls, assistant registrations or schedules.
 
 The same demo works with `chart sleep` for a multi-panel report.
 
-Always pass `--synthetic` for demo charts. It places a compact visible label on the chart and identifies the source as a synthetic demo archive. The flag labels the input you supplied; it does not anonymize real data or detect whether values are synthetic.
+Demo charts are labeled synthetic automatically, including legacy archives with `SYNTHETIC.txt`. The optional CLI `--synthetic` flag adds that label for other explicitly generated examples; it does not anonymize real data. Provenance reports fixture timestamps separately from archive generation time; an unmarked archive has unknown provenance.
 
 ## Keep images concise
 

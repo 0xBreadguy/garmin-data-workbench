@@ -58,6 +58,7 @@ def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "
     from matplotlib.image import imread
     from matplotlib.ticker import MaxNLocator
 
+    synthetic = synthetic or bool(result.get("archive_provenance", {}).get("synthetic"))
     brand = get_brand()
     colors = brand["colors"]
     points = result["points"]
@@ -263,21 +264,36 @@ def build_sleep_figure(result: dict, *, synthetic: bool = False, layout: str = "
                "status": n["status"] if n["status"] != "ok" else
                    ("ok" if n["values"]["sleep_duration"] is not None else "metric_not_returned")}
               for n in result["nights"]]
-    trend = {"metric": "sleep_duration", "unit": "s", "points": points, "from": result["from"], "to": result["to"]}
+    trend = {"archive_provenance": result.get("archive_provenance", {}), "metric": "sleep_duration", "unit": "s", "points": points, "from": result["from"], "to": result["to"]}
     return build_trend_figure(trend, synthetic=synthetic, layout=layout, sleep_report=result)
+
+
+def render_png(result: dict, *, synthetic: bool = False, layout: str = "chat") -> tuple[bytes, dict]:
+    """Render in memory for CLI and MCP, with bounded dimensions and PNG bytes."""
+    from io import BytesIO
+    from .chart_delivery import chart_metadata
+    metadata = chart_metadata(result, synthetic=synthetic, layout=layout)
+    sleep = result.get("dataset") == "sleep" and "nights" in result
+    fig = (build_sleep_figure(result, synthetic=metadata['synthetic'], layout=layout) if sleep else
+           build_trend_figure(result, synthetic=metadata['synthetic'], layout=layout))
+    width, height = fig.get_size_inches()
+    dpi = min(160, 1600 / width, 4096 / height)
+    output = BytesIO()
+    try:
+        fig.savefig(output, format="png", dpi=dpi, metadata={
+            "Title": metadata['title'], "Description": metadata['caption'],
+            "Software": "Garmin Data Workbench"})
+        if output.tell() > 4 * 1024 * 1024:
+            raise ValueError('Chart exceeds the 4 MiB PNG limit; request a shorter range')
+        return output.getvalue(), metadata
+    finally:
+        fig.clear()
 
 
 def render_trend(result: dict, output: Path, *, synthetic: bool = False, layout: str = "chat") -> None:
     if output.suffix.lower() != ".png":
         raise ValueError("Chart output must have a .png extension")
-    sleep = result.get("dataset") == "sleep" and "nights" in result
-    fig = (build_sleep_figure(result, synthetic=synthetic, layout=layout) if sleep else
-           build_trend_figure(result, synthetic=synthetic, layout=layout))
+    data, _ = render_png(result, synthetic=synthetic, layout=layout)
     # Exclusive creation and private permissions protect existing outputs/archives.
     with open(output, "xb", opener=lambda path, flags: os.open(path, flags, 0o600)) as target:
-        fig.savefig(target, format="png", dpi=160, metadata={
-            "Title": TITLES["sleep" if sleep else result["metric"]],
-            "Description": ("Synthetic data. " if synthetic else "") +
-                           f"{result['from']} to {result['to']}; gaps are unavailable values.",
-            "Software": "Garmin Data Workbench",
-        })
+        target.write(data)

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "remote": "origin",
+  "default_branch": "main",
+  "repository": "0xBreadguy/garmin-data-workbench",
+  "expected_actor": "0xBreadguy",
+  "checks": [
+    {"name": "Locked dependencies with charts", "argv": ["uv", "sync", "--locked", "--extra", "charts"], "timeout_seconds": 300},
+    {"name": "Full offline suite", "argv": ["uv", "run", "--locked", "--extra", "charts", "python", "-m", "unittest", "discover", "-s", "tests", "-v", "--durations", "10"], "timeout_seconds": 900},
+    {"name": "Source and wheel build", "argv": ["uv", "build"], "timeout_seconds": 300},
+    {"name": "Installed wheel without charts", "argv": ["uv", "run", "--locked", "--extra", "charts", "python", "scripts/smoke_installed.py"], "timeout_seconds": 300},
+    {"name": "Installed wheel with charts", "argv": ["uv", "run", "--locked", "--extra", "charts", "python", "scripts/smoke_installed.py", "--charts"], "timeout_seconds": 300},
+    {"name": "Publication diff whitespace", "argv": ["git", "diff", "--check", "origin/main"], "timeout_seconds": 30}
+  ]
+}

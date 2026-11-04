@@ -144,6 +144,8 @@ def _get_sleep(db: sqlite3.Connection, start: str, end: str) -> dict:
                      available=status == "ok" and bool(valid_day) and valid_day["day"] in (None, day),
                      limit=min(20, nap_budget))
         nap_budget -= len(naps["episodes"])
+        naps['detail_note'] = ('Daily nap duration is available; episode detail was not returned.'
+                               if values['nap_duration'] is not None and naps['status'] == 'not_returned' else None)
         nights.append({"day": day, "status": status, "values": values,
             "missing_fields": [name for name, value in values.items() if value is None],
             "fetched_at": point["fetched_at"], "last_attempt": point["last_attempt"],
@@ -154,7 +156,7 @@ def _get_sleep(db: sqlite3.Connection, start: str, end: str) -> dict:
     statuses = {}
     for night in nights:
         statuses[night["status"]] = statuses.get(night["status"], 0) + 1
-    return {"source": duration["source"], "dataset": "sleep", "from": duration["from"], "to": duration["to"],
+    return {"archive_provenance": duration["archive_provenance"], "source": duration["source"], "dataset": "sleep", "from": duration["from"], "to": duration["to"],
         "preferences": duration["preferences"], "today_source": duration["today_source"],
         "fields": {name: {"field": ".".join(METRICS[name][1]), "unit": METRICS[name][2],
                           "label": METRIC_TITLES[name]} for name in SLEEP_METRICS},

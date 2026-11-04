@@ -91,7 +91,7 @@ def contract_payloads():
     return payloads
 
 
-def activity_fit(sport=2):
+def activity_fit(sport=2, *, gps=True):
     """A FIT recording with scaled sensors, zeroes, invalids and summary messages.
 
     Positions are invented at the pole/equator, never a person's route. Wire
@@ -106,16 +106,17 @@ def activity_fit(sport=2):
                  - datetime(1989, 12, 31, tzinfo=UTC)).total_seconds())
     body = definition(0, 0, [(0, 1, 0), (1, 2, 0x84), (2, 2, 0x84)])
     body += b"\x00" + struct.pack("<BHH", 4, 1, 1)
-    body += definition(1, 20, [(253, 4, 0x86), (0, 4, 0x85), (1, 4, 0x85),
+    fields = [(253, 4, 0x86), (0, 4, 0x85), (1, 4, 0x85),
         (3, 1, 2), (4, 1, 2), (5, 4, 0x86), (7, 2, 0x84), (13, 1, 1),
-        (73, 4, 0x86), (78, 4, 0x86)])
+        (73, 4, 0x86), (78, 4, 0x86)]
+    body += definition(1, 20, fields if gps else [fields[0], *fields[3:]])
     for values in (
         (stamp, 1_073_741_824, -1_073_741_824, 123, 95, 12345, 250, -5, 4500, 3117),
         (stamp + 60, 0, 0, 0, 0, 0, 0, 0, 0, 2500),
         (stamp + 120, 0x7fffffff, 0x7fffffff, 255, 255, 0xffffffff, 65535, 127,
          0xffffffff, 0xffffffff),
     ):
-        body += b"\x01" + struct.pack("<IiiBBIHbII", *values)
+        body += b"\x01" + struct.pack("<IiiBBIHbII" if gps else "<IBBIHbII", *(values if gps else (values[0], *values[3:])))
     body += definition(2, 18, [(253, 4, 0x86), (2, 4, 0x86), (5, 1, 0),
                              (7, 4, 0x86), (8, 4, 0x86), (9, 4, 0x86)])
     body += b"\x02" + struct.pack("<IIBIII", stamp + 120, stamp, sport, 120000, 60000, 12345)
