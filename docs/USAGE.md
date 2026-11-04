@@ -2,6 +2,22 @@
 
 [Setup](SETUP.md) · [Assistants](ASSISTANTS.md) · [Commands](#commands) · [SQL](#sql-and-source-data) · [Scheduling](#catch-up-and-scheduling)
 
+## Discover the installed CLI
+
+Start without credentials or an archive:
+
+```sh
+garmin-archive --help
+garmin-archive agent-guide
+garmin-archive metrics
+garmin-archive api-catalog
+garmin-archive api-catalog sleep --pointer '/dailyNapDTOS/*'
+garmin-archive version
+garmin-archive --version
+```
+
+`COMMAND --help` lists required arguments and defaults. `metrics` returns the finite interpreted metric catalog as JSON: names accepted by `trend`, titles, datasets and source units. It uses the shared query definitions, including observed Body Battery statistics; a dataset is not a promise that a metric maps directly to one native field. Use `api-catalog SOURCE` and JSON Pointer traversal for native fields. Quote pointers containing `*` so shells do not expand them. `version` reuses the installation receipt's package/build provenance, OS, Python version and optional chart-dependency availability, without inspecting an archive or schedule. `--version` prints just the package version. An unknown revision is explicit; version `0.1.0` alone does not identify the executed source revision. Chart dependency presence does not verify rendering or image delivery.
+
 ## Commands
 
 ```sh
@@ -31,17 +47,39 @@ garmin-archive health sleep 2026-01-01 --metadata
 garmin-archive export-original 123456789 activity.zip
 ```
 
-Use `--offset` to page through activities or records. `records --full` includes all decoded fields and may expose precise coordinates.
+Use `--offset` to page through activities or records (limits 1–10000; defaults 20 and 100). Native `api-catalog` and `source-data` pages allow 1–100 items; follow `next_offset` until null. Activity/record lists retain their bare-list format; advance the offset by the requested limit until an empty list. IDs and offsets must fit a signed 64-bit SQLite integer. `records --full` includes all decoded fields and may expose precise coordinates.
 
-Put `--data-dir /absolute/private/archive` before the command to choose an archive. The database is `archive.sqlite3`; the default directory is `~/.local/share/garmin-extraction` or an absolute `$XDG_DATA_HOME/garmin-extraction`. Command and directory names are unchanged from the project's original name.
+Put `--data-dir /absolute/private/archive` before the command to choose an archive. The database is `archive.sqlite3`; the default directory is `~/.local/share/garmin-extraction` or an absolute `$XDG_DATA_HOME/garmin-extraction`. Quote paths with spaces. On POSIX shells:
+
+```sh
+'/absolute/path with spaces/garmin-archive' --data-dir '/absolute/private archive' status
+```
+
+In native PowerShell, use the call operator for a quoted executable path:
+
+```powershell
+& 'C:\Tools\Garmin Workbench\garmin-archive.exe' --data-dir 'C:\Private Archive' status
+```
+
+Use paths on the execution host. `--data-dir` after the command is rejected with an actionable error; it does not select a different archive. Command and directory names are unchanged from the project's original name.
 
 ## Output and automation
 
 `day`, `trend`, `sleep`, `body-battery`, `source-data`, `source-series`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
 
-`chart` uses the same read-only trend query and writes a new PNG. It follows the error contract below; a missing chart dependency exits `2` with `dependency_unavailable`. An unwritable or existing PNG destination exits `1` with `output_error`.
+`chart` uses the same read-only trend query and writes a new PNG. By default it prints `Chart saved to PATH`. Add `--json` to receive one JSON object on stdout after saving, with `output_path` (the supplied destination) and the shared chart metadata: `caption`, `alt_text`, `coverage`, `units`, `freshness`, `archive_provenance`, `synthetic` and `explanations`. The `delivery` field describes a saved CLI file; attaching and displaying it in the host remains a separate step.
 
-Successful reads write JSON to stdout by default; no `--json` flag is needed. `records --format csv` writes CSV instead. `path` prints a plain path; `chart` and `export-original` print a confirmation. Help remains plain text.
+```sh
+garmin-archive --data-dir /absolute/private/archive chart body_battery_max --from 2026-01-01 --to 2026-01-07 --output body-battery.png --json
+```
+
+Keep the caption, freshness meaning and relevant explanations alongside the delivered image. Body Battery extrema describe observed samples; available-date coverage does not establish continuous full-day coverage. Explicit synthetic provenance labels charts and metadata automatically; synthetic fetch timestamps are simulated, not evidence of a live refresh. `--synthetic` can also explicitly label demo data. Use a new `.png` destination each time: existing files are never overwritten. The charts extra remains optional; see [chart installation and layouts](VISUALIZATION.md).
+
+Both output modes follow the error contract below; a missing chart dependency exits `2` with `dependency_unavailable`. An unwritable or existing PNG destination exits `1` with `output_error`. Failures leave stdout empty and report JSON on stderr.
+
+`sync` uses Garmin credentials/network and writes the archive. `install` prepares credentials, syncs, connects a client and can configure scheduling. `connect` probes local MCP and may register client configuration. `setup` changes the managed macOS schedule. `save-key` uses live authentication and writes the private key unless `--dry-run` is selected. These are explicit actions, not discovery checks. Locally decidable invalid ranges, limits, selectors and setup intervals fail before archive creation or authentication. Interactive cancellation and later runtime failures can still leave initialized setup state.
+
+Successful reads write JSON to stdout by default; no `--json` flag is needed. `records --format csv` writes CSV instead. `path` prints a plain path; `chart` (without `--json`) and `export-original` print a confirmation. Help remains plain text.
 
 For automation, call the installed `garmin-archive` executable directly. When running from a source checkout, use `uv run --quiet --locked` so uv's environment creation, build and installation messages don't precede the CLI's JSON errors on stderr:
 
@@ -84,7 +122,7 @@ Argument-parsing errors use JSON on stderr and exit `2` for every command. Runti
 
 The [Personal API coverage guide](API_COVERAGE.md) lists all 26 collected sources and native field access. `api-catalog` needs no archive. `source-data` pages complete native responses, including large arrays; `source-series` preserves native scalar values across dates without inferring an aggregation. These queries share MCP definitions.
 
-The named daily metrics also include calorie totals/active/BMR/consumed, goals, hydration, stress durations, intensity, floors, wheelchair movement, respiration, Pulse Ox and heart-rate extrema. Run `day DATE` to discover their names, fields and units. Existing metrics: `steps`, `distance`, `resting_heart_rate`, `sleep_duration`, `overnight_hrv`, `sleep_score`, `sleep_deep`, `sleep_light`, `sleep_rem`, `sleep_awake`, `sleep_unmeasurable`, `sleep_stress`, `nap_duration`, `sleep_need`, `sleep_need_baseline`, `body_battery_charged`, `body_battery_drained`, `body_battery_min`, `body_battery_max`, `body_battery_first`, `body_battery_last`. See [sleep source definitions and time semantics](SLEEP.md) and [Body Battery aggregation semantics](BODY_BATTERY.md). Sleep-need values use source minutes; stage/nap durations use seconds. Body Battery last/first refer to observed samples, not a live current or bedtime/wake-up level. Trends cover 1–90 inclusive days; omitted dates select seven days ending today. Results include dated values, units, freshness and missing/failed days. Means use available values only; failed refreshes mask stale values.
+The named daily metrics also include calorie totals/active/BMR/consumed, goals, hydration, stress durations, intensity, floors, wheelchair movement, respiration, Pulse Ox and heart-rate extrema. Run `metrics` to discover all names, titles, datasets and units without an archive, or `day DATE` to inspect their dated values and coverage. Existing metrics: `steps`, `distance`, `resting_heart_rate`, `sleep_duration`, `overnight_hrv`, `sleep_score`, `sleep_deep`, `sleep_light`, `sleep_rem`, `sleep_awake`, `sleep_unmeasurable`, `sleep_stress`, `nap_duration`, `sleep_need`, `sleep_need_baseline`, `body_battery_charged`, `body_battery_drained`, `body_battery_min`, `body_battery_max`, `body_battery_first`, `body_battery_last`. See [sleep source definitions and time semantics](SLEEP.md) and [Body Battery aggregation semantics](BODY_BATTERY.md). Sleep-need values use source minutes; stage/nap durations use seconds. Body Battery last/first refer to observed samples, not a live current or bedtime/wake-up level. Trends cover 1–90 inclusive days. Dates must be exactly `YYYY-MM-DD`; `--to` defaults to the Garmin profile's today (host date fallback), and `--from` defaults to six days before that end, even when `--to` is explicit. Supplying only `--from` retains today as the end and can exceed 90 days; supply both bounds for historical questions. There is no CLI time-zone/unit override flag: use explicit dates and convert source units or the returned display units when requested. Results include dated values, units, freshness and missing/failed days. Means use available values only; failed refreshes mask stale values.
 
 Sync saves the Garmin profile's measurement system and time zone. Queries use those defaults; today falls back to the host date if needed. Distance includes a preferred miles/kilometers value alongside source meters. Honor explicit unit requests. Cached preferences may be stale, and the current profile zone doesn't establish an older activity's location or time zone.
 

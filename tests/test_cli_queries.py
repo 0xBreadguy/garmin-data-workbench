@@ -279,6 +279,73 @@ class CLIQueryTest(unittest.TestCase):
         self.assertEqual((code, errors), (0, ""))
         self.assertIn("default: json", output)
 
+    def test_discovery_needs_no_archive_and_uses_shared_metric_definitions(self):
+        target = self.root / "missing"
+        code, output, errors = self.run_query("metrics", data_dir=target)
+        self.assertEqual((code, errors), (0, ""))
+        metrics = {item["name"]: item for item in json.loads(output)["metrics"]}
+        self.assertEqual(set(metrics), set(cli.METRICS))
+        self.assertEqual(metrics["sleep_need"]["unit"], "min")
+        self.assertEqual(metrics["sleep_duration"]["unit"], "s")
+        self.assertEqual(metrics["distance"]["dataset"], "daily_summary")
+        for command in (("version",), ("--version",), ("agent-guide",)):
+            code, output, errors = self.run_query(*command, data_dir=target)
+            self.assertEqual((code, errors), (0, ""))
+            self.assertTrue(output)
+            if command == ("version",):
+                info = json.loads(output)
+                self.assertIn("version", info)
+                self.assertIn("source", info)
+                self.assertIsInstance(info["charts_available"], bool)
+        self.assertFalse(target.exists())
+
+    def test_invalid_mutating_inputs_stop_before_archive_auth_or_schedule(self):
+        target = self.root / "missing"
+        cases = (("sync", "--pause", "nan"), ("sync", "--pause", "-1"),
+                 ("sync", "--catch-up", "--to", "2026-01-01"),
+                 ("sync", "--from", "2026-01-02", "--to", "2026-01-01"),
+                 ("sync", "--lookback-days", "32"),
+                 ("install", "--every-hours", "169"),
+                 ("setup", "--every-hours", "169"),
+                 ("save-key", "--from-file", "PRIVATE", "--timeout", "nan"))
+        with patch("garmin_archive.schedule.configure_schedule") as schedule, \
+             patch("garmin_archive.install.save_key_from_file") as key:
+            for args in cases:
+                with self.subTest(args=args):
+                    self.assert_error(self.run_query(*args, data_dir=target), 2, "invalid_argument")
+                    self.assertFalse(target.exists())
+            schedule.assert_not_called()
+            key.assert_not_called()
+        with patch("sys.stdin.isatty", return_value=False):
+            for command in ("install", "setup"):
+                self.assert_error(self.run_query(command, data_dir=target), 2, "invalid_argument")
+                self.assertFalse(target.exists())
+
+    def test_invalid_bounds_and_source_selectors_precede_archive_open(self):
+        cases = (("records", str(2**63)), ("records", "42", "--offset", str(2**63)),
+                 ("activities", "--limit", "10001"), ("records", "42", "--limit", "10001"),
+                 ("api-catalog", "--limit", "101"), ("source-data", "sleep", "--limit", "101"),
+                 ("source-data", "sleep"), ("source-data", "activity"),
+                 ("source-data", "profile", "--day", "2026-01-01"),
+                 ("trend", "steps", "--to", "0001-01-01"), ("day", "20260101"))
+        with patch("garmin_archive.cli.open_archive") as opened:
+            for args in cases:
+                with self.subTest(args=args):
+                    self.assert_error(self.run_query(*args), 2, "invalid_argument")
+            opened.assert_not_called()
+        # Explicit one-day year-1 queries remain valid.
+        code, output, errors = self.run_query("trend", "steps", "--from", "0001-01-01", "--to", "0001-01-01")
+        self.assertEqual((code, errors), (0, ""))
+        self.assertEqual(json.loads(output)["coverage"]["requested_days"], 1)
+        for command in (("activities", "--limit", "10000"), ("records", "42", "--limit", "10000")):
+            self.assertEqual(self.run_query(*command)[0], 0)
+
+    def test_parser_errors_do_not_echo_pasted_values(self):
+        for args in (("PRIVATE",), ("trend", "PRIVATE"), ("status", "--PRIVATE"),
+                     ("sync", "--pause", "PRIVATE"), ("sync", "--refresh=PRIVATE")):
+            with self.subTest(args=args):
+                self.assert_error(self.run_query(*args), 2, "invalid_argument")
+
     def test_module_entry_point_preserves_error_streams_and_exit_codes(self):
         # Run the module in a child process too: main() return values alone
         # don't establish shell-visible exit codes and stderr behavior.

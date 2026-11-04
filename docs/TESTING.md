@@ -44,6 +44,7 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | All 25 JSON sources through SDK collection and complete paged query round trips; empty/error recovery | `test_contract_corpus.py` |
 | Metrics and missingness | `test_queries.py` |
 | Read-only CLI queries | `test_cli_queries.py` |
+| CLI PNG exports, structured captions and save failures | `test_cli_chart_metadata.py` |
 | Chart semantics and branding | `test_charts.py` |
 | Versioned demo answers, DST and archive provenance | `test_demo_provenance.py` |
 | MCP image/brand resource transport and chart failures | `test_chart_delivery.py` |

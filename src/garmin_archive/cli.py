@@ -26,7 +26,7 @@ from garmin_personal_api import (
 from .archive import Archive, default_data_dir, now
 from .preferences import clean_profile, local_today, profile_preferences
 from .platforms import shell_command
-from .queries import METRICS, get_day, get_trend, health_response, open_archive
+from .queries import METRICS, METRIC_TITLES, get_day, get_trend, health_response, open_archive
 from .api_data import api_catalog, source_data, source_series, snapshot_coverage
 from .sources import SOURCES
 from .sleep import get_sleep
@@ -42,50 +42,99 @@ def _error(code: str, message: str, exit_code: int = 1) -> int:
 
 
 class CLIArgumentParser(argparse.ArgumentParser):
+    def _check_value(self, action, value):
+        # argparse normally echoes invalid values, which may be pasted secrets.
+        if action.choices is not None and value not in action.choices:
+            choices = ", ".join(str(choice) for choice in action.choices)
+            raise argparse.ArgumentError(action, f"Choose one of: {choices}")
+
     def error(self, message: str) -> None:
+        if "ignored explicit argument" in message:
+            message = message.split(": ignored explicit argument", 1)[0] + ": does not accept a value; use COMMAND --help."
+        if message.startswith("ambiguous option:"):
+            message = "Ambiguous option; use the full option name from COMMAND --help."
+        if message.startswith("unrecognized arguments:"):
+            message = "Unrecognized arguments; use --help or COMMAND --help. Put --data-dir before the command."
         self.exit(_error("invalid_argument", message, 2))
 
 
 def _date(value: str) -> date:
     try:
-        return date.fromisoformat(value)
+        parsed = date.fromisoformat(value)
+        if parsed.isoformat() != value:
+            raise ValueError
+        return parsed
     except ValueError as error:
         raise argparse.ArgumentTypeError("Use a date in YYYY-MM-DD format") from error
+
+
+def _number(value: str) -> float:
+    try:
+        return float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("Must be a number") from error
 
 
 def _positive(value: str) -> int:
     try:
         number = int(value)
-        if number < 1:
+        if not 1 <= number <= 2**63 - 1:
             raise ValueError
         return number
     except ValueError as error:
-        raise argparse.ArgumentTypeError("Must be a positive integer") from error
+        raise argparse.ArgumentTypeError("Must be a positive integer no greater than 9223372036854775807") from error
 
 
 def _nonnegative(value: str) -> int:
     try:
         number = int(value)
-        if number < 0:
+        if not 0 <= number <= 2**63 - 1:
             raise ValueError
         return number
     except ValueError as error:
-        raise argparse.ArgumentTypeError("Must be a non-negative integer") from error
+        raise argparse.ArgumentTypeError("Must be a non-negative integer no greater than 9223372036854775807") from error
 
 
 def parser() -> argparse.ArgumentParser:
-    result = CLIArgumentParser(description="Download and query your own Garmin data locally.")
+    result = CLIArgumentParser(
+        description="Download and query your own Garmin data locally.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Start here (no archive or key needed):
+  garmin-archive agent-guide           Installed agent instructions and examples
+  garmin-archive metrics               Interpreted metric names, source units and titles
+  garmin-archive api-catalog           Native sources; add SOURCE to discover fields
+  garmin-archive version               Package/build revision, OS and chart availability
+
+Archive selection: put --data-dir DIRECTORY before the command.
+Read-only queries: day, trend, sleep, body-battery, status, activities, health,
+records, source-data, source-series. They never sync or create an archive.
+Exports: chart and export-original write new files and never overwrite.
+Live/configuration: sync uses credentials/network; install also connects clients
+and may schedule; connect registers clients; setup changes the macOS schedule;
+save-key authenticates and saves a key unless --dry-run is selected.
+Use COMMAND --help for arguments. Read output is JSON; parser/read errors are
+JSON on stderr (exit 2 invalid input, 1 operational failure, 3 not found).
+""")
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        package_version = version("garmin-data-workbench")
+    except PackageNotFoundError:
+        package_version = "unknown"
+    result.add_argument("--version", action="version", version=f"garmin-data-workbench {package_version}")
     result.add_argument(
         "--data-dir", type=Path, default=default_data_dir(),
         help="Private archive directory (default: XDG_DATA_HOME/garmin-extraction or ~/.local/share/garmin-extraction)",
     )
     commands = result.add_subparsers(dest="command", required=True)
 
-    sync_parser = commands.add_parser("sync", help="Sync health and activity data for an inclusive date range")
+    commands.add_parser("version", help="Print package/build provenance, OS and chart availability as JSON; no archive needed")
+    commands.add_parser("metrics", help="List interpreted metric names, titles, datasets and source units as JSON; no archive needed")
+
+    sync_parser = commands.add_parser("sync", help="Sync an inclusive date range using live Garmin requests and credentials")
     sync_parser.add_argument("--from", dest="start", type=_date, default=None, help="Start date, YYYY-MM-DD (default: six days ago)")
     sync_parser.add_argument("--to", dest="end", type=_date, default=None, help="End date, YYYY-MM-DD (default: today)")
     sync_parser.add_argument("--refresh", action="store_true", help="Re-fetch completed days in the selected range")
-    sync_parser.add_argument("--pause", type=float, default=0.3, help="Seconds between requests (default: 0.3)")
+    sync_parser.add_argument("--pause", type=_number, default=0.3, help="Seconds between requests (default: 0.3)")
     sync_parser.add_argument("--catch-up", action="store_true", help="Resume from the last successful catch-up run; suitable for scheduling")
     sync_parser.add_argument("--lookback-days", type=_positive, default=7, help="Days to recheck for late uploads during catch-up (1–31; default: 7)")
 
@@ -93,7 +142,7 @@ def parser() -> argparse.ArgumentParser:
     setup.add_argument("--every-hours", type=_positive, help="Hours between scheduled syncs (1–168)")
     setup.add_argument("--lookback-days", type=_positive, default=2, help="Recent days to recheck each run (1–31; default: 2)")
 
-    install = commands.add_parser("install", help="Set up a local archive and connect an assistant")
+    install = commands.add_parser("install", help="Live sync, prepare credentials, connect an assistant and optionally schedule")
     frequency = install.add_mutually_exclusive_group()
     frequency.add_argument("--every-hours", type=_positive, help="Hours between scheduled syncs (1–168)")
     frequency.add_argument("--manual", action="store_true", help="Use manual sync; leave any existing schedule alone")
@@ -101,7 +150,7 @@ def parser() -> argparse.ArgumentParser:
     install.add_argument("--client", choices=("codex", "claude", "chatgpt", "other", "shell"), default="codex",
                          help="Assistant to connect (default: codex)")
 
-    connect = commands.add_parser("connect", help="Connect an assistant to an existing local archive")
+    connect = commands.add_parser("connect", help="Probe local MCP and register a client for an existing archive; no Garmin sync")
     connect.add_argument("--client", choices=("codex", "claude", "chatgpt", "other", "shell"), default="codex")
 
     guide = commands.add_parser("assistant-guide", help="Print a handoff for your assistant")
@@ -122,7 +171,7 @@ def parser() -> argparse.ArgumentParser:
     key.add_argument("--from-file", type=Path, required=True, help="Private file supplied through the host's secure secret facility (never a key value)")
 
     key.add_argument('--dry-run', action='store_true', help='Check local source shape/privacy and destination only; no authentication, cache or key writes')
-    key.add_argument('--timeout', type=float, default=15, help='Live validation timeout per request in seconds (1–120; default 15)')
+    key.add_argument('--timeout', type=_number, default=15, help='Live validation timeout per request in seconds (1–120; default 15)')
 
     day = commands.add_parser("day", help="Read a day overview as JSON without syncing (default: Garmin profile's today)")
     day.add_argument("day", nargs="?", type=_date)
@@ -146,6 +195,7 @@ def parser() -> argparse.ArgumentParser:
     chart.add_argument("--from", dest="start", type=_date)
     chart.add_argument("--to", dest="end", type=_date)
     chart.add_argument("--output", required=True, type=Path, help="New PNG file; existing files are not overwritten")
+    chart.add_argument("--json", action="store_true", help="Print the saved PNG path and shared caption, coverage and freshness metadata as JSON")
     chart.add_argument("--synthetic", action="store_true", help="Label generated/demo data visibly and identify its source as synthetic")
     chart.add_argument("--layout", choices=("chat", "wide"), default="chat", help="Readable chat/phone layout or wide report layout (default: chat)")
     commands.add_parser("brand", help="Print shared brand colors, rules and local logo paths as JSON; no archive needed")
@@ -155,10 +205,10 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("path", help="Print the SQLite database path without opening or creating it")
     activities = commands.add_parser("activities", help="List stored activity summaries as JSON",
                                     description="List stored activity summaries as JSON without syncing or modifying the archive.")
-    activities.add_argument("--limit", type=_positive, default=20)
+    activities.add_argument("--limit", type=_positive, default=20, help="Page size, 1–10000 (default: 20); continue with --offset")
     activities.add_argument("--offset", type=_nonnegative, default=0)
 
-    health = commands.add_parser("health", help="Print a stored daily health response as JSON")
+    health = commands.add_parser("health", help="Print raw stored daily JSON; use --metadata to mask failed-refresh values")
     health.add_argument("dataset", choices=sorted(DATASETS))
     health.add_argument("day", type=_date)
     health.add_argument("--metadata", action="store_true", help="Include refresh status/fetch times and mask retained data after a failed refresh")
@@ -166,16 +216,16 @@ def parser() -> argparse.ArgumentParser:
     catalog = commands.add_parser("api-catalog", help="Discover all Personal API sources and native response fields; no archive needed")
     catalog.add_argument("dataset", nargs="?", default="", choices=["", *SOURCES])
     catalog.add_argument("--pointer", default="", help="JSON Pointer; use * for an array item schema")
-    catalog.add_argument("--limit", type=_positive, default=100)
+    catalog.add_argument("--limit", type=_positive, default=100, help="Page size, 1–100 (default: 100); follow next_offset")
     catalog.add_argument("--offset", type=_nonnegative, default=0)
     source = commands.add_parser("source-data", help="Page any archived Personal API response field, including nested arrays")
     source.add_argument("dataset", choices=list(SOURCES))
-    source.add_argument("--day", type=_date)
-    source.add_argument("--activity-id", type=_positive, default=0)
+    source.add_argument("--day", type=_date, help="Required for daily sources; omit for current/activity sources")
+    source.add_argument("--activity-id", type=_positive, default=0, help="Required for activity/list/file sources; omit for daily/current sources")
     source.add_argument("--pointer", default="", help="JSON Pointer; empty for root, numeric indices for array items")
-    source.add_argument("--limit", type=_positive, default=100)
+    source.add_argument("--limit", type=_positive, default=100, help="Page size, 1–100 (default: 100); follow next_offset")
     source.add_argument("--offset", type=_nonnegative, default=0)
-    source.add_argument("--include-location", action="store_true")
+    source.add_argument("--include-location", action="store_true", help="Explicitly include native coordinates; omitted by default")
     series = commands.add_parser("source-series", help="Read a native scalar field over 1–90 request dates without inferring an aggregation")
     series.add_argument("dataset", choices=list(DATASETS))
     series.add_argument("pointer", help="JSON Pointer to a scalar field")
@@ -185,14 +235,22 @@ def parser() -> argparse.ArgumentParser:
     records = commands.add_parser("records", help="Show decoded time-series records as JSON (or CSV with --format csv)",
                                  description="Read decoded time-series records as JSON, or CSV with --format csv, without modifying the archive.")
     records.add_argument("activity_id", type=_positive)
-    records.add_argument("--limit", type=_positive, default=100)
+    records.add_argument("--limit", type=_positive, default=100, help="Page size, 1–10000 (default: 100); continue with --offset")
     records.add_argument("--offset", type=_nonnegative, default=0)
     records.add_argument("--format", choices=("json", "csv"), default="json", help="Output format (default: json)")
     records.add_argument("--full", action="store_true", help="Include complete decoded fields, including location when recorded")
 
-    original = commands.add_parser("export-original", help="Save the original downloaded activity ZIP")
+    original = commands.add_parser("export-original", help="Export original ZIP to a new file; may contain GPS; never overwrites")
     original.add_argument("activity_id", type=_positive)
     original.add_argument("path", type=Path)
+    # Keep detailed help useful when an agent starts at a subcommand.
+    for name, command_parser in commands.choices.items():
+        if name != "chart":  # Chart help/output is maintained by its feature owner.
+            command_parser.epilog = (
+                "Put --data-dir DIRECTORY before the command. Dates use YYYY-MM-DD. "
+                "For examples, units, freshness and safe query guidance: garmin-archive agent-guide. "
+                "Discover metrics with garmin-archive metrics and native fields with api-catalog."
+            )
     return result
 
 
@@ -424,7 +482,14 @@ def _read(args: argparse.Namespace) -> int:
                         return _error("dependency_unavailable", "Charts require the optional charts extra; see docs/VISUALIZATION.md.", 2)
                     except OSError:
                         return _error("output_error", "Could not write chart; choose a new writable PNG path. Existing files are not overwritten.")
-                    print(f"Chart saved to {args.output}")
+                    if args.json:
+                        from .chart_delivery import chart_metadata
+                        metadata = chart_metadata(result, synthetic=args.synthetic, layout=args.layout)
+                        metadata["output_path"] = str(args.output)
+                        metadata["delivery"] = "PNG file saved; host attachment and display must be verified separately."
+                        _print_json(metadata)
+                    else:
+                        print(f"Chart saved to {args.output}")
                 else:
                     _print_json(result)
             elif args.command == "status":
@@ -451,6 +516,8 @@ def _read(args: argparse.Namespace) -> int:
         return 0
     except json.JSONDecodeError:
         return _error("invalid_data", "Stored response is not valid JSON; check the archive and sync status.")
+    except OverflowError:
+        return _error("invalid_argument", "Date or integer is outside the supported range; supply explicit --from and --to dates.", 2)
     except ValueError as error:
         return _error("invalid_argument", str(error), 2)
     except (OSError, sqlite3.Error):
@@ -569,8 +636,61 @@ def _connect(archive: Archive, client: str) -> int:
     return 0
 
 
+def _validate_args(args: argparse.Namespace) -> None:
+    """Reject locally decidable input errors before archive creation or auth."""
+    if hasattr(args, "lookback_days") and not 1 <= args.lookback_days <= 31:
+        raise ValueError("--lookback-days must be between 1 and 31")
+    if getattr(args, "every_hours", None) is not None and not 1 <= args.every_hours <= 168:
+        raise ValueError("--every-hours must be between 1 and 168")
+    if args.command in {"install", "setup"} and args.every_hours is None and not getattr(args, "manual", False) and not sys.stdin.isatty():
+        raise ValueError("Choose --every-hours (or install --manual) when running noninteractively")
+    if args.command == "sync":
+        if not math.isfinite(args.pause) or args.pause < 0:
+            raise ValueError("--pause must be finite and nonnegative")
+        if args.catch_up and args.end is not None:
+            raise ValueError("--catch-up always syncs through today; omit --to")
+    if args.command == "save-key" and (not math.isfinite(args.timeout) or not 1 <= args.timeout <= 120):
+        raise ValueError("--timeout must be between 1 and 120 seconds")
+    start, end = getattr(args, "start", None), getattr(args, "end", None)
+    if start is not None and end is not None:
+        if start > end:
+            raise ValueError("Date range must be between 1 and 90 days, inclusive" if args.command != "sync" else "--from must not be after --to")
+        if args.command != "sync" and (end - start).days >= 90:
+            raise ValueError("Date range must be between 1 and 90 days, inclusive")
+    if start is None and end is not None and end < date.min + timedelta(days=6):
+        raise ValueError("Default seven-day range precedes year 1; supply --from explicitly")
+    if hasattr(args, "limit"):
+        maximum = 100 if args.command in {"api-catalog", "source-data"} else 10000
+        if args.limit > maximum:
+            raise ValueError(f"--limit must be between 1 and {maximum}; use --offset to page")
+    if args.command == "source-data":
+        scope = SOURCES[args.dataset].scope
+        if scope == "daily" and (args.day is None or args.activity_id):
+            raise ValueError("Daily sources require --day YYYY-MM-DD and omit --activity-id")
+        if scope != "daily" and args.day is not None:
+            raise ValueError("Current/activity sources omit --day")
+        if scope == "current" and args.activity_id:
+            raise ValueError("Current sources omit --activity-id")
+        if scope not in {"daily", "current"} and not args.activity_id:
+            raise ValueError("Activity/list/file sources require --activity-id")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    try:
+        _validate_args(args)
+    except ValueError as error:
+        return _error("invalid_argument", str(error), 2)
+    if args.command == "version":
+        from .onboarding import installation_info
+        _print_json(installation_info())
+        return 0
+    if args.command == "metrics":
+        _print_json({"metrics": [{"name": name, "title": METRIC_TITLES[name], "dataset": dataset, "unit": unit}
+                                for name, (dataset, _path, unit) in sorted(METRICS.items())],
+                     "units": "Source units; distance also has profile-based display units in query results.",
+                     "native_fields": "Use api-catalog for native fields; interpreted metrics may use fallbacks/aggregation. See agent-guide."})
+        return 0
     if args.command == "api-catalog":
         try:
             _print_json(api_catalog(args.dataset, args.pointer, limit=args.limit, offset=args.offset))
