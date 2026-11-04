@@ -30,11 +30,14 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | Archive, FIT decoding, sync | `test_archive.py` |
 | Metrics and missingness | `test_queries.py` |
 | Read-only CLI queries | `test_cli_queries.py` |
+| Chart semantics, branding and demo archive | `test_charts.py` |
 | Units and time zones | `test_preferences.py` |
 | Entry points and POSIX/PowerShell command examples | `test_platforms.py` |
 | Stdio MCP handshake and responses | `test_workbench_mcp.py` |
 
 Run affected checks while iterating. Broaden for shared behavior, schema, dependencies, configuration or uncertain regression scope. Documentation edits usually need command/link checks and diff review. Before pushing or merging to the default branch, require the full suite and release checks for that revision; exact-revision CI counts.
+
+For an automated CLI compatibility check, record the checkout revision and exact invocation, and capture the exit code, stdout and stderr separately. Use the installed executable or `uv run --quiet --locked` (`--extra charts` for charting); see the [output contract](USAGE.md#output-and-automation). Include a first invocation with a fresh disposable `UV_PROJECT_ENVIRONMENT` path to catch setup chatter. With a synthetic archive, missing health responses and activity IDs should exit `3` with `not_found` JSON on stderr; a nonexistent archive should exit `1` with `archive_unavailable` and remain absent. Compare the quiet invocation with the environment's direct executable; uv setup failures aren't CLI responses.
 
 For packaging, run `uv build` and inspect artifacts, then:
 
