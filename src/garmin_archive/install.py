@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import getpass
+import errno
 import json
 import logging
 import os
@@ -16,6 +17,7 @@ import threading
 import time
 import warnings
 from pathlib import Path
+from requests.exceptions import Timeout as RequestTimeout
 from typing import Any
 
 from mcp import ClientSession, StdioServerParameters
@@ -58,43 +60,84 @@ def ensure_key() -> str:
     return "created"
 
 
-def save_key_from_file(source: Path) -> None:
-    """Import a host-provided secret file without a TTY, sync or client changes."""
-    # Open without following a final symlink or blocking on a FIFO. Check the
-    # opened descriptor rather than a path which could change between checks.
+def _key_destination() -> Path:
+    path = Path(DEFAULT_API_KEY_FILE).expanduser()
+    if os.path.lexists(path):
+        raise RuntimeError("The Garmin key file already exists; it was not overwritten.")
+    parent = path.parent
+    while not parent.exists():
+        parent = parent.parent
+    if not parent.is_dir() or not os.access(parent, os.W_OK | os.X_OK):
+        raise RuntimeError("The key destination needs a writable parent directory; fix its permissions and retry.")
+    return path
+
+
+def _read_secret_file(source: Path) -> str:
+    source = source.expanduser()
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
-    fd = os.open(source.expanduser(), flags)
+    try:
+        initial = source.lstat()
+        if stat.S_ISLNK(initial.st_mode):
+            raise RuntimeError("Symlink secret sources are rejected; use a regular private file from the host secret facility.")
+        if not stat.S_ISREG(initial.st_mode):
+            raise RuntimeError("The secret source must be a regular private file.")
+        fd = os.open(source, flags)
+    except OSError as error:
+        message = ("Symlink secret sources are rejected; use a regular private file." if error.errno == errno.ELOOP else
+                   "Secret source was not found; supply the file from the host secret facility." if error.errno == errno.ENOENT else
+                   "Cannot read secret source; check its type, ownership and read permissions.")
+        raise RuntimeError(message) from None
     with os.fdopen(fd, "rb") as input_file:
         info = os.fstat(input_file.fileno())
-        if not stat.S_ISREG(info.st_mode):
-            raise RuntimeError("The secret source must be a regular private file.")
+        # Windows CRT descriptors need not expose the same file identity as lstat.
+        identity_changed = os.name == 'posix' and (info.st_dev, info.st_ino) != (initial.st_dev, initial.st_ino)
+        if not stat.S_ISREG(info.st_mode) or identity_changed:
+            raise RuntimeError("Secret source changed or is not a regular file; retry with a stable private file.")
         if os.name == "posix" and (info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) & 0o077):
-            raise RuntimeError("The secret file must be owned by the current user with no group or other permissions.")
+            raise RuntimeError("The secret file must be owned by the current user with no group or other permissions (usually 0600).")
         raw = input_file.read(16_385)
     if len(raw) > 16_384:
         raise RuntimeError("The secret file is too large; expected a single API key.")
     try:
         key = raw.decode("utf-8").strip()
-    except UnicodeError as error:
-        raise RuntimeError("The secret file must contain a UTF-8 API key.") from error
-    if "\n" in key or "\r" in key or "\x00" in key:
-        raise RuntimeError("The secret file must contain a single API key.")
-    _validate_and_save_key(key)
+    except UnicodeError:
+        raise RuntimeError("The secret file must contain a UTF-8 API key.") from None
+    if not key or any(c in key for c in ("\n", "\r", "\x00")):
+        raise RuntimeError("The secret file must contain a single nonempty API key.")
+    return key
 
 
-def _validate_and_save_key(key: str) -> None:
-    path = Path(DEFAULT_API_KEY_FILE).expanduser()
-    if os.path.lexists(path):
-        raise RuntimeError("The Garmin key file already exists; it was not overwritten.")
+def save_key_from_file(source: Path, *, dry_run: bool = False, timeout: float = 15) -> dict | None:
+    """Preflight privately supplied key material; authenticate only on real import."""
+    if not 1 <= timeout <= 120:
+        raise RuntimeError('Validation timeout must be between 1 and 120 seconds per request.')
+    _key_destination()
+    key = _read_secret_file(source)
+    if dry_run:
+        return {'status': 'preflight_passed', 'authentication': 'not_attempted', 'saved': False,
+                'source_shape': 'single_nonempty_utf8_value',
+                'source_permissions': 'owner_only_checked' if os.name == 'posix' else 'windows_acl_not_verified',
+                'destination': 'absent_parent_access_checked', 'destination_write': 'not_attempted',
+                'secret_facility': 'not_verified_by_preflight'}
+    _validate_and_save_key(key, timeout=timeout)
+    return None
+
+
+def _validate_and_save_key(key: str, *, timeout: float = 15) -> None:
+    path = _key_destination()
     if not key:
         raise RuntimeError("No key supplied; setup stopped.")
     previous_log_level = logging.root.manager.disable
     logging.disable(logging.CRITICAL)
     try:
-        with PersonalApiAuthenticator() as auth:
+        print(f"Validating Garmin authentication (request timeout {timeout:g}s)…", file=sys.stderr, flush=True)
+        with PersonalApiAuthenticator(timeout=timeout) as auth:
             token = auth.obtain_token(key)
-        with GarminPersonalApiClient(token.access_token) as client:
+        print(f"Checking Garmin profile access (request timeout {timeout:g}s)…", file=sys.stderr, flush=True)
+        with GarminPersonalApiClient(token.access_token, timeout=timeout) as client:
             client.get_user_profile_settings()
+    except (RequestTimeout, TimeoutError):
+        raise RuntimeError("Garmin validation timed out; the key was not saved. Check connectivity and retry later or adjust --timeout.") from None
     except Exception as error:  # response details can contain sensitive data
         raise RuntimeError(f"Garmin could not validate the key ({type(error).__name__}); it was not saved.") from error
     finally:
@@ -163,13 +206,13 @@ def register_claude(data_dir: Path, *, executable: Path | None = None) -> str:
     return "added"
 
 
-def assistant_guide(client: str, *, data_dir: Path | None = None) -> str:
+def assistant_guide(client: str, *, data_dir: Path | None = None, include_guide: bool = True) -> str:
     """Build a copyable handoff; it contains no health data or credentials."""
     computer = socket.gethostname()
     from .guidance import agent_guide
     common = ("Use the archive's status and freshness when answering, include missing-data caveats, "
               "and never ask me for my Garmin key. If access fails, tell me which connection or computer is unavailable.\n\n"
-              + agent_guide())
+              + (agent_guide() if include_guide else ""))
     if client == "dot":
         return (f"Please remember: my Garmin Data Workbench is on my connected computer {computer}. "
                 "When I ask about my Garmin health or activity data, use a local Codex task on that computer "

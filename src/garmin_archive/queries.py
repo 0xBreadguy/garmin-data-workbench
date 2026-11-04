@@ -13,6 +13,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Iterator
 
+from .provenance import archive_provenance
 from .preferences import display_distance, local_today, profile_preferences
 from .sources import DAILY_SOURCES
 
@@ -120,7 +121,7 @@ def health_response(db: sqlite3.Connection, dataset: str, day: str, *, max_bytes
         status = "response_missing"
     if status in {"ok", "empty"} and raw is not None and max_bytes is not None and len(raw.encode("utf-8")) > max_bytes:
         raise ValueError("Stored response is too large for MCP; inspect it locally with health --metadata")
-    return {"source": "local archive", "dataset": dataset, "day": day, "status": status,
+    return {"archive_provenance": archive_provenance(db), "source": "local archive", "dataset": dataset, "day": day, "status": status,
             "error": row["error"],
             "fetched_at": row["fetched_at"], "last_attempt": row["last_attempt"],
             "retained_data_available": raw is not None,
@@ -290,7 +291,7 @@ def metric_trend(db: sqlite3.Connection, metric: str, start: str, end: str) -> d
     if dataset == "body_battery":
         from .body_battery import BODY_FIELDS
         field_info = BODY_FIELDS[metric]
-    return {"metric": metric, "unit": unit, "source": "Garmin Personal API via local archive",
+    return {"archive_provenance": archive_provenance(db), "metric": metric, "unit": unit, "source": "Garmin Personal API via local archive",
             "dataset": dataset, **field_info, "from": start, "to": end,
             "coverage": {"requested_days": days, "days_with_value": len(values), "statuses": counts},
             "mean_of_available_days": round(sum(values) / len(values), 2) if values else None,
@@ -321,7 +322,7 @@ def day_overview(db: sqlite3.Connection, day: str) -> dict:
         "json_extract(summary_json, '$.duration') AS duration_s, "
         "json_extract(summary_json, '$.averageHR') AS average_heart_rate_bpm, fit_status, updated_at "
         "FROM activities WHERE day=? ORDER BY activity_id DESC LIMIT 26", (day,))]
-    return {"day": day, "source": "Garmin Personal API via local archive", "metrics": metrics,
+    return {"archive_provenance": archive_provenance(db), "day": day, "source": "Garmin Personal API via local archive", "metrics": metrics,
             "coverage": coverage, "activities": rows[:25], "activities_truncated": len(rows) > 25,
             "activity_units": {"distance_m": "m", "duration_s": "s", "average_heart_rate_bpm": "bpm"},
             "note": "Values are returned only when recognized in a successfully fetched response."}

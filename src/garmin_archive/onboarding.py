@@ -41,6 +41,7 @@ def installation_info() -> dict:
 
 
 def setup_receipt(data_dir: Path) -> dict:
+    from .provenance import archive_provenance
     path = data_dir.expanduser().resolve()
     archive = {"status": "unavailable", "coverage": [], "catch_up": None}
     try:
@@ -51,7 +52,7 @@ def setup_receipt(data_dir: Path) -> dict:
             has_catchup = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='catchup_state'").fetchone()
             row = db.execute("SELECT * FROM catchup_state WHERE id=1").fetchone() if has_catchup else None
             fit_failures = db.execute("SELECT COUNT(*) FROM activities WHERE fit_status='error'").fetchone()[0]
-            archive = {"status": "readable", "coverage": coverage, "catch_up": dict(row) if row else None,
+            archive = {"archive_provenance": archive_provenance(db), "status": "readable", "coverage": coverage, "catch_up": dict(row) if row else None,
                        "fit_failures": fit_failures}
     except (OSError, sqlite3.Error):
         pass

@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import io
 import logging
+import runpy
 import os
 import subprocess
 import sys
@@ -317,6 +318,54 @@ class SecretFileTest(unittest.TestCase):
         os.mkfifo(self.source, 0o600)
         self.assertEqual(self.run_save(), 1)
         self.auth.assert_not_called()
+
+    def test_dry_run_checks_shape_without_network_or_any_writes(self):
+        before = sorted(str(p.relative_to(self.root)) for p in self.root.rglob('*'))
+        self.assertEqual(cli.main(['save-key', '--from-file', str(self.source), '--dry-run']), 0)
+        result = __import__('json').loads(self.output.getvalue())
+        self.assertEqual(result['authentication'], 'not_attempted')
+        self.assertFalse(result['saved'])
+        self.assertEqual(before, sorted(str(p.relative_to(self.root)) for p in self.root.rglob('*')))
+        self.auth.assert_not_called()
+        self.client.assert_not_called()
+        self.assertNotIn('synthetic-private-key', self.output.getvalue())
+
+    def test_timeouts_report_phase_and_never_save_secret(self):
+        from requests.exceptions import ReadTimeout
+        for phase in ('auth', 'profile'):
+            with self.subTest(phase=phase):
+                self.auth.return_value.__enter__.return_value.obtain_token.side_effect = ReadTimeout('PRIVATE_BODY') if phase == 'auth' else None
+                self.client.return_value.__enter__.return_value.get_user_profile_settings.side_effect = ReadTimeout('PRIVATE_BODY')
+                self.assertEqual(cli.main(['save-key', '--from-file', str(self.source), '--timeout', '2']), 1)
+                self.assertFalse(self.destination.exists())
+                self.assertIn('timed out', self.errors.getvalue())
+                self.assertIn('Validating Garmin authentication', self.errors.getvalue())
+                self.assertNotIn('PRIVATE_BODY', self.errors.getvalue())
+                self.auth.assert_called_with(timeout=2)
+        self.assertIn('Checking Garmin profile access', self.errors.getvalue())
+
+    def test_agent_guide_client_option_includes_generic_policy_and_handoff(self):
+        self.assertEqual(cli.main(['agent-guide', '--client', 'muse']), 0)
+        self.assertIn('canonical presentation policy', self.output.getvalue())
+        self.assertIn('This handoff does not establish a connection', self.output.getvalue())
+        self.assertEqual(self.output.getvalue().count('# Using Garmin Data Workbench'), 1)
+        self.auth.assert_not_called()
+
+    def test_live_connection_script_reports_timeout_phase_without_secret_details(self):
+        from requests.exceptions import ConnectTimeout
+        main = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/check_connection.py'))['main']
+        client = self.client.return_value.__enter__.return_value
+        client.get_user_profile_settings.side_effect = ConnectTimeout('PRIVATE_BODY')
+        previous = logging.root.manager.disable
+        with patch.dict(main.__globals__, {'PersonalApiAuthenticator': self.auth,
+                                          'GarminPersonalApiClient': self.client,
+                                          'resolve_api_key': lambda: 'synthetic-private-key'}):
+            self.assertEqual(main(['--timeout', '2']), 1)
+        self.assertEqual(logging.root.manager.disable, previous)
+        self.assertIn('Checking Garmin profile access', self.errors.getvalue())
+        self.assertIn('Connection check timed out', self.errors.getvalue())
+        self.assertNotIn('PRIVATE_BODY', self.errors.getvalue())
+        self.assertNotIn('synthetic-private-key', self.errors.getvalue())
 
     def test_non_tty_installer_points_to_secret_facility_without_prompting(self):
         with patch("garmin_archive.install.resolve_api_key", side_effect=GarminPersonalApiError("missing")), \

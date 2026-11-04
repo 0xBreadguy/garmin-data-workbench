@@ -76,7 +76,7 @@ Argument-parsing errors use JSON on stderr and exit `2` for every command. Runti
 
 `health` without flags preserves raw stored JSON, including retained data after a failed refresh; it is for local inspection, not freshness-aware answers. Prefer structured summaries or `health --metadata`, which adds refresh/fetch context and masks non-ok data. A metadata-aware request for an unchecked date returns a successful envelope with null data, matching MCP `daily_health`. MCP fallback responses now also mask failed retained data; callers can inspect `retained_data_available` and `status`.
 
-`agent-guide` prints installed guidance without opening an archive. `routine-template` emits JSON with an absolute command and provider-neutral instructions; it schedules nothing. `setup-receipt` emits read-only installation/coverage/native-schedule evidence, returning an unavailable archive in its report rather than creating one. Successful receipt output does not mean setup is verified.
+`agent-guide` prints installed guidance without opening an archive; optional `--client muse` appends the corresponding `assistant-guide` handoff. `routine-template` emits JSON with an absolute command and provider-neutral instructions; it schedules nothing. `setup-receipt` emits read-only installation/coverage/native-schedule evidence, returning an unavailable archive in its report rather than creating one. Successful receipt output does not mean setup is verified.
 
 ## Summaries, units and dates
 
@@ -159,3 +159,5 @@ Adjust executable, archive and log paths for your installation. Use the same OS 
 ### Verify recurring sync
 
 Check for duplicate jobs, protect logs and verify an actual execution and archive status. The job needs the same storage and key after restarts. Sleeping/offline hosts may update later. More frequent syncs and longer lookbacks make more requests; uploads outside the lookback may need a manual refresh. Garmin's exact quota isn't published, and catch-up can't guarantee historical data.
+
+Summary and native-query envelopes include `archive_provenance`. Explicit synthetic provenance (or a legacy `SYNTHETIC.txt` marker) labels charts automatically. Unmarked provenance is unknown; fetch timestamps do not prove live Garmin freshness for synthetic data. Legacy bare-list activity/record exports retain their existing format.

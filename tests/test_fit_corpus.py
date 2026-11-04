@@ -70,6 +70,13 @@ class FitCorpusTest(unittest.TestCase):
             self.assertEqual(json.loads(stored[0])[field], value)
         self.assertEqual(self.archive.path.read_bytes(), before)
 
+    def test_indoor_fit_omits_position_fields_but_retains_sensors(self):
+        self.collect(activity_zip(activity_fit(gps=False)))
+        full = self.records('--full')
+        self.assertEqual(full[0]['power_w'], 250)
+        self.assertNotIn('position_lat', json.dumps(full))
+        self.assertNotIn('position_long', json.dumps(full))
+
     def test_multiple_fit_files_preserve_sessions_and_overlapping_recordings(self):
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w") as archive:

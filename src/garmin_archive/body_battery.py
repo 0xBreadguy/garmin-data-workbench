@@ -145,6 +145,7 @@ def get_body_battery(db: sqlite3.Connection, start: str = "", end: str = "") -> 
 
 def _get_body_battery(db: sqlite3.Connection, start: str, end: str) -> dict:
     from .queries import query_range
+    from .provenance import archive_provenance
     first, last, prefs, today_source = query_range(db, start, end)
     days = [body_battery_day(db, (first + timedelta(days=i)).isoformat()) for i in range((last - first).days + 1)]
     coverage = {}
@@ -156,7 +157,7 @@ def _get_body_battery(db: sqlite3.Connection, start: str, end: str) -> dict:
     for day in days:
         day["missing_fields"] = [name for name in BODY_FIELDS if day["values"][name] is None]
         statuses[day["status"]] = statuses.get(day["status"], 0) + 1
-    return {"source": "Garmin Personal API via local archive", "dataset": "body_battery", "from": first.isoformat(),
+    return {"archive_provenance": archive_provenance(db), "source": "Garmin Personal API via local archive", "dataset": "body_battery", "from": first.isoformat(),
         "to": last.isoformat(), "preferences": prefs, "today_source": today_source, "fields": BODY_FIELDS,
         "coverage": {"requested_days": len(days), "statuses": statuses, "fields": coverage}, "days": days,
         "notes": ["Levels use Garmin's 0–100 Body Battery scale; charge/drain are reported amounts in scale points, not percentages.",

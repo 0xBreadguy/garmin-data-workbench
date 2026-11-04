@@ -10,6 +10,13 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS archive_provenance (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    kind TEXT NOT NULL CHECK (kind = 'synthetic'),
+    created_at TEXT NOT NULL,
+    corpus_version TEXT NOT NULL,
+    seed INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS daily_data (
     dataset TEXT NOT NULL,
     day TEXT NOT NULL,
@@ -122,6 +129,12 @@ class Archive:
         self.connection.executescript(SCHEMA)
         self.connection.execute("PRAGMA user_version = 1")
         self.connection.commit()
+
+    def mark_synthetic(self, corpus_version: str, seed: int, created_at: str) -> None:
+        """Explicit generator provenance, retained when the database is copied."""
+        with self.connection:
+            self.connection.execute("INSERT INTO archive_provenance VALUES (1, 'synthetic', ?, ?, ?)",
+                                    (created_at, corpus_version, seed))
 
     def close(self) -> None:
         self.connection.close()

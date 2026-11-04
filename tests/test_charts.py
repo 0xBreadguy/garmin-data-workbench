@@ -49,9 +49,9 @@ class BrandDemoTest(unittest.TestCase):
                 for metric in METRICS:
                     trend = get_trend(db, metric, '2026-01-01', '2026-01-30')
                     self.assertEqual(trend['coverage']['days_with_value'], 26)
-                    self.assertEqual([trend['points'][i]['status'] for i in (3,7,11,16)],
+                    self.assertEqual([trend['points'][i]['status'] for i in tuple(v + {'sleep': 0, 'daily_summary': 1, 'heart_rate': 2, 'body_battery': 3, 'hrv': 4, 'daily_summary_legacy': 5}[trend['dataset']] for v in (3,7,11,16))],
                                      ['not_checked','empty','error','metric_not_returned'])
-                    self.assertIsNone(trend['points'][11]['value'])
+                    self.assertTrue(all(p['value'] is None for p in trend['points'] if p['status'] != 'ok'))
                     if metric in ('steps', 'distance'):
                         self.assertEqual(trend['points'][15]['value'], 0)
             with self.assertRaises(FileExistsError):
@@ -109,7 +109,7 @@ class ChartsTest(unittest.TestCase):
             axis = figure.axes[0]
             self.assertEqual(axis.get_ylim()[0], 0)
             self.assertEqual(axis.patches[15].get_height(), 0)
-            self.assertTrue(math.isnan(axis.patches[11].get_height()))
+            self.assertTrue(math.isnan(axis.patches[12].get_height()))
             self.assertEqual(to_hex(axis.patches[0].get_facecolor()).upper(), get_brand()['colors']['primary'])
             if metric == 'distance':
                 self.assertEqual(axis.patches[0].get_height(), trend['display']['points'][0]['value'])
@@ -223,7 +223,7 @@ class ChartsTest(unittest.TestCase):
             figure = build_trend_figure(self.query(metric))
             figure.canvas.draw()
             self.assertEqual(figure.axes[0].get_ylim(), (0, 100))
-            self.assertTrue(math.isnan(figure.axes[0].lines[0].get_ydata()[11]))
+            self.assertTrue(math.isnan(figure.axes[0].lines[0].get_ydata()[14]))
             summary = next(t for t in figure.texts if t.get_fontsize() == 30)
             coverage = next(t for t in figure.texts if t.get_text() == '26/30')
             self.assertFalse(summary.get_window_extent().overlaps(coverage.get_window_extent()))
