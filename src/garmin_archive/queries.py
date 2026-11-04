@@ -48,7 +48,7 @@ METRIC_TITLES = {"steps": "Daily steps", "distance": "Daily distance",
     "sleep_unmeasurable": "Unclassified sleep", "sleep_stress": "Overnight stress",
     "nap_duration": "Nap duration", "sleep_need": "Sleep need", "sleep_need_baseline": "Baseline sleep need",
     "body_battery_charged": "Body Battery charged", "body_battery_drained": "Body Battery drained",
-    "body_battery_min": "Body Battery minimum", "body_battery_max": "Body Battery maximum",
+    "body_battery_min": "Observed Body Battery min", "body_battery_max": "Observed Body Battery max",
     "body_battery_first": "Body Battery first reading", "body_battery_last": "Body Battery last reading"}
 
 # Daily scalar conveniences over the legacy summary, whose documented fields

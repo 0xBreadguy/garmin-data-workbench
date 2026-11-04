@@ -2,6 +2,8 @@
 
 Run [setup](SETUP.md) on the archive host first. Agents can query through a shell or local stdio MCP. An agent coordinating from elsewhere also needs a supported connection to that host.
 
+Before setup, say where commands and the archive will run: a desktop chat app may execute in a separate VM, and a fresh conversation may share prior installations. For mock requests, use the [isolated mock-only route](SETUP.md#mock-only-setup-stop-before-credentials), preserving existing tools and state. Finish with the [compact host/query handoff](SETUP.md#hand-off), distinguishing expected persistence from an actual new-session test.
+
 ## Shell access on the workstation
 
 No MCP client or Codex registration required:
@@ -15,6 +17,8 @@ garmin-archive sleep --from 2026-01-01 --to 2026-01-07
 Run `garmin-archive agent-guide` for installed query, branded chart and interpretation guidance. `assistant-guide --client other` prints a generic same-host shell handoff with absolute paths and that guidance; it does not assume an MCP connection. `connect --client shell` prints the handoff without registration, syncing or scheduling.
 
 Use absolute executable and archive paths in remote tasks. These commands need an existing archive, but no Garmin key or live request. See [metrics, units and dates](USAGE.md#summaries-units-and-dates).
+
+For a synthetic archive, pass its explicit `--data-dir` to `assistant-guide --client other` or `--client muse`, using the executable in the new environment. The printed paths are usable only on that host; report synthetic/manual status alongside them. Shell query success and an installed MCP executable do not establish MCP registration, discovery or a real client query.
 
 ## Local MCP clients
 
@@ -72,4 +76,4 @@ The shipped server uses stdio and provides no authenticated remote HTTP connecto
 
 ## Verification status
 
-A local Codex conversation has used the MCP successfully. Claude Code registration has been checked in isolation. Muse has a reported offline VM check, but its live setup and provider routine remain unverified. Other handoffs need end-to-end tests. Test installation, discovery, live sync, a real query and recurring execution separately using [the setup checks](SETUP.md#4-connect-and-test-the-assistant).
+A local Codex conversation has used the MCP successfully. Claude Code registration has been checked in isolation. Synthetic CLI answers and visible images were verified in the Muse and Grok apps at the [recorded baseline](COMPATIBILITY.md#assistant-acceptance-snapshot); Grok reused an existing installation, and Dot was blocked before its first prompt. Those checks did not exercise MCP, controlled persistence, live setup or provider routines. Use the [acceptance reporting stages](TESTING.md#assistant-acceptance-reports) and [setup checks](SETUP.md#4-connect-and-test-the-assistant) to record each result separately.

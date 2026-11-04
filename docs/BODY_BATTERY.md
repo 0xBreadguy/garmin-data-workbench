@@ -16,14 +16,16 @@ The [official Personal API Swagger](https://developer.garmin.com/gc-developer-pr
 | --- | --- | --- |
 | `body_battery_charged` | Report's `charged` amount for the reporting day | scale points |
 | `body_battery_drained` | Report's `drained` amount for the reporting day | scale points |
-| `body_battery_min` | Lowest valid observed reading | Body Battery level |
-| `body_battery_max` | Highest valid observed reading | Body Battery level |
+| `body_battery_min` | Minimum among valid observed samples | Body Battery level |
+| `body_battery_max` | Maximum among valid observed samples | Body Battery level |
 | `body_battery_first` | First valid observed reading by UTC timestamp | Body Battery level |
 | `body_battery_last` | Last valid observed reading by UTC timestamp | Body Battery level |
 
 Levels are on Garmin's 0–100 scale, not percentages, medical measurements or a new recovery score. Daily charge/drain amounts are nonnegative int32 scale-point totals; they are not inferred from last minus first or capped at 100. The query never interpolates, estimates wake-up/bedtime levels, or computes an unweighted average of irregularly spaced readings. Cross-day means average each available daily statistic, with its denominator.
 
 The last reading is **last observed**, not a live current value or necessarily the day's final value. First/last metrics include their observation timestamp. `day` and `trend` retain that context. The detailed summary returns fetched_at, last_attempt, dataset/report/readings status, valid/invalid sample counts, duplicate counts, conflicting-timestamp counts, any source UTC reporting-window bounds and missing_fields. Counts are observations, not a full-day coverage guarantee.
+
+Call extrema **observed sampled minimum/maximum**, rather than unqualified daily peaks or bottoms. For a synthetic report with four valid samples **25, 85, 40, 30**, the observed minimum is 25, maximum 85 and last observed level 30. Those samples do not prove the full-day extrema or a current level, even if the source reporting window spans a whole day. Likewise, 7/7 available dates means seven dates with a valid statistic, not continuous coverage. Shared chart titles identify observed extrema; caption/alt text and explanation metadata carry the sampling limits while preserving the 0–100 level scale.
 
 ## Descriptor and missing-data handling
 

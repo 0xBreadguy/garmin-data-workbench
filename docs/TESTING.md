@@ -70,6 +70,25 @@ On Windows, POSIX mode-bit assertions do not apply; shared behavior still runs. 
 
 `uv run python scripts/benchmark_archive.py` measures a temporary synthetic database, not sync or assistant latency.
 
+## Assistant acceptance reports
+
+Use the [setup report](../.github/ISSUE_TEMPLATE/setup-report.md) for synthetic assistant checks as well as authorized live checks. Record each stage as **passed** (expected behavior demonstrated), **failed** (attempted; expected behavior not met), **blocked** (could not attempt; name the prerequisite), or **not run** (including excluded stages). After an access blocker, unexercised stages stay **not run**.
+
+Record the intended assistant and actual authorized surface, whether the first prompt was sent, and the untouched first outcome separately from coached recovery. App inventory alone does not verify assistant mode or access. An explicit test-tool denial is an external blocker, not a workbench failure: stop the attempt and require a supported, authorized retest after access is resolved. Do not bypass the denial with alternate identifiers or surfaces.
+
+Keep these conditions distinct:
+
+- Fresh conversation versus residual assistant memory/context; a new chat need not reset memory.
+- Fresh installation versus reused clone, environment or installed tool; record the installed revision and how prior state was checked/preserved.
+- UI OS versus actual command host/OS and archive storage; a Mac app can execute in a Linux VM. Leave unreached host/storage details unknown.
+- Directly observed evidence versus assistant-reported commands, versions, tests and filesystem state. Seeing an assistant's claim does not independently verify its execution.
+
+Report installation, synthetic CLI queries, MCP discovery, MCP queries, MCP image transport and actual visible image delivery separately. MCP help proves no connection stage; a CLI attachment does not exercise MCP. For controlled persistence, record the session/restart boundary and a read-only check of the same synthetic installation/archive afterward. Provider claims or residual files alone do not pass. Actual recurring execution needs its own observation, separate from routine creation or persistence.
+
+For host-level delivery acceptance, use the synthetic archive and the actual assistant and image interface. Ask “How was my sleep this week?” and verify the final answer includes the delivered sleep chart, dates and coverage; a generated file or local path alone does not pass. Repeat with an explicit text-only request (no image), sparse or missing data (no misleading trend; gaps remain missing), and unavailable rendering or delivery (explain the limitation and provide a concise table). Record the host, installed revision, conditions and outcomes. These checks exercise assistant choice and host delivery; renderer and MCP unit tests cannot establish either.
+
+Separate observed product defects, hypotheses and assistant adherence gaps. Documentation can guide assistant behavior; passing repository checks cannot guarantee it. Keep reports sanitized: no raw acceptance chats, private host paths, credentials or health data.
+
 ## Live checks are separate
 
 Follow [SETUP.md](SETUP.md) only when a real-account test is authorized. Don't run `install`, `sync`, `setup`, `save-key` or `scripts/check_connection.py` as offline smoke tests: they use credentials, make live requests or change configuration.
@@ -87,8 +106,6 @@ Registration doesn't prove discovery; discovery doesn't prove a real query. Matc
 `save-key` tests mock authentication and use disposable files. They don't verify a provider's secret-entry facility. Report compatibility through the [setup template](../.github/ISSUE_TEMPLATE/setup-report.md), without private data.
 
 For sleep acceptance, use the generated demo and render `chart sleep` in both chat and wide layouts. Verify stage stacks only for complete/reconciled breakdowns, independent score coverage/axis, masked failed refreshes, source/date notes and actual image delivery. Test empty, single-day and sparse periods. Before claiming live field validation, compare a representative night (including source timestamps and scores) with Garmin Connect. Provider routine creation is separate from observing its first execution.
-
-For host-level delivery acceptance, use the synthetic archive and the actual assistant and image interface. Ask “How was my sleep this week?” and verify the final answer includes the delivered sleep chart, dates and coverage; a generated file or local path alone does not pass. Repeat with an explicit text-only request (no image), sparse or missing data (no misleading trend; gaps remain missing), and unavailable rendering or delivery (explain the limitation and provide a concise table). Record the host, installed revision, conditions and outcomes. These checks exercise assistant choice and host delivery; renderer and MCP unit tests cannot establish either.
 
 For Body Battery, use descriptor permutations, missing/duplicate descriptors, out-of-order and conflicting timestamps, invalid samples, partial-day coverage and failed retained data. Compare `body-battery`, `day`, `trend` and MCP fields. Verify source observation times remain distinct from fetch times. Sleep-need tests must distinguish adjusted/baseline minutes, independently dated next-night need, invalid units/types and hour conversion in charts. Installed-wheel smoke checks exercise both new summaries.
 

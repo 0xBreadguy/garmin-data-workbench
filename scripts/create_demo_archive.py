@@ -2,6 +2,9 @@
 
 From the checkout: uv run --locked python scripts/create_demo_archive.py ../garmin-demo
 The destination must not exist. No credentials, sync, clients or schedules are used.
+Dates and simulated fetch times stay fixed; the demo is never shifted to today.
+Sleep score and stage formulas are independent, not a physiological model.
+Body Battery values are intentionally fixed, apart from coverage/ambiguity cases.
 """
 from __future__ import annotations
 
@@ -186,10 +189,30 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(error))
     except OSError:
         parser.error("Could not create demo; check destination and permissions.")
-    print("Created a versioned synthetic archive and known-answers.json. No live data was used.")
-    print(shell_command(["garmin-archive", "--data-dir", str(args.destination.expanduser().resolve()),
-                         "chart", "sleep_duration", "--from", "2026-01-01", "--to", "2026-01-30",
-                         "--synthetic", "--output", "synthetic-sleep.png"]))
+    destination = args.destination.expanduser().resolve()
+    print(f"Created synthetic corpus v{CORPUS_VERSION}, seed {args.seed}, and known-answers.json at {destination}.")
+    print("Manual/offline demo: no live data used; no sync, client registration or recurring job configured by this command.")
+    print(f"Simulated fetch timestamp: {FETCHED_AT} (fixed fixture time, not live freshness).")
+    print("Sleep scores and stages use independent formulas; they cannot explain physiological causes.")
+    print("Body Battery values are intentionally fixed; they cannot demonstrate changing weekly trends.")
+    if args.empty:
+        print("Available dates: none (--empty); no observations or latest demo week.")
+        return 0
+    first = date(2026, 1, 1)
+    last = first + timedelta(days=args.days - 1)
+    start = max(first, last - timedelta(days=6))
+    print(f"Demo date window (inclusive): {first} through {last} ({args.days} dates; coverage varies by dataset).")
+    print(f"Latest demo {'week' if args.days >= 7 else 'dates'} (inclusive): {start} through {last}.")
+    print('If "this week" falls outside this window, there are no observations for it; disclose any demo-date substitution.')
+    print("Dates are not shifted to today. Choose fixture dates, or generate a separate longer corpus in a new directory outside the repo.")
+    print(f'First question: "How was sleep in the synthetic demo from {start} through {last}, inclusive? Show the sleep overview."')
+    command = ["garmin-archive", "--data-dir", str(destination)]
+    dates = ["--from", str(start), "--to", str(last)]
+    print("Read the full sleep summary (stages, score, need, naps and source times):")
+    print(shell_command([*command, "sleep", *dates]))
+    print("Render the sleep overview (requires the charts extra; output must be new):")
+    print(shell_command([*command, "chart", "sleep", *dates, "--synthetic",
+                         "--output", str(destination / "synthetic-sleep-overview.png")]))
     return 0
 
 

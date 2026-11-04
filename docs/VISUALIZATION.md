@@ -54,16 +54,31 @@ From a repository checkout, create a **new** directory outside the repo. The scr
 
 ```sh
 uv run --quiet --locked python scripts/create_demo_archive.py ../garmin-demo
-uv run --quiet --locked --extra charts garmin-archive --data-dir ../garmin-demo chart sleep_duration --from 2026-01-01 --to 2026-01-30 --synthetic --output ../synthetic-sleep.png
+uv run --quiet --locked garmin-archive --data-dir ../garmin-demo sleep --from 2026-04-24 --to 2026-04-30
+uv run --quiet --locked --extra charts garmin-archive --data-dir ../garmin-demo chart sleep --from 2026-04-24 --to 2026-04-30 --synthetic --output ../garmin-demo/synthetic-sleep-overview.png
 ```
 
-The v2 default corpus has 120 days starting January 1, 2026, with a fixed seed and simulated collection timestamps. Sleep windows, awake time and stage proportions vary. Coverage failures differ by dataset; March 12–18 is entirely unchecked. Later cases include incomplete/inconsistent stages, duration without score, missing need, missing nap episode detail, and reordered/ambiguous Body Battery samples. January 16 has **synthetic zero** steps/distance. Synthetic activity summaries/details include GPS-present and GPS-absent examples; original FIT sensor fixtures live in the offline tests.
+The generator prints the inclusive date window, synthetic/manual state, a first question and full `sleep` / `chart sleep` commands using the selected archive's absolute path. This is offline generation, with no credentials, Garmin requests, sync, assistant registrations or recurring jobs configured by the command. Existing installations and jobs are left alone. Keep demo directories and PNGs outside Git; never point these examples at a personal archive.
 
-Use `--profile metric-dst` for a separate metric/Europe-Berlin archive spanning the March DST change, `--empty` for an empty archive, or `--days 30` for a shorter example. Never combine profiles into one user's archive. `known-answers.json` records version, seed, expected scalar points, means, coverage and masked dates for selected ranges. Expectations come from scenario definitions, independently of production queries; tests pin the default corpus fingerprint. Changing expected answers requires intentional corpus-version review. The corpus is illustrative, not a population or personal baseline.
+The **v2, seed-42 default covers January 1–April 30, 2026 inclusive** (120 dates). Start with: **“How was sleep in the synthetic demo April 24–30, 2026? Show the sleep overview.”** This latest demo week has seven available sleep nights. The `sleep` query includes stages, score, need, naps and source times; `chart sleep` gives the overview with independent duration/need and score coverage. `sleep_duration` alone answers the narrower duration question. Read the installed `garmin-archive agent-guide` for presentation and interpretation guidance, plus [sleep report semantics](SLEEP.md).
 
-The database records synthetic provenance, so copying it preserves the label. `SYNTHETIC.txt` is retained for legacy recognition. There are no credentials, network calls, assistant registrations or schedules.
+Dates never move to today. A current “this week” outside the corpus has **no observations**, not zero sleep or live values. State the requested dates and missing coverage; if using the latest demo week instead, explicitly name that substitution. Query defaults still follow the current date, so use explicit `--from` and `--to` for demos. The fixed simulated fetch timestamp is **May 1, 2026 at 12:00 UTC**; archive generation time is recorded separately and does not make fixture observations current.
 
-The same demo works with `chart sleep` for a multi-panel report.
+For a comparison, select existing fixture weeks such as **April 17–23 versus April 24–30, 2026**. Each query/chart accepts at most 90 inclusive dates. Sleep windows, awake time and stage proportions vary. Coverage failures differ by dataset; **March 12–18 is entirely unchecked**. Other cases include incomplete/inconsistent stages, duration without score, missing need, missing nap episode detail, and reordered/ambiguous Body Battery samples. January 16 has **synthetic zero** steps/distance. Synthetic activity summaries/details include GPS-present and GPS-absent examples; original FIT sensor fixtures live in the offline tests.
+
+If you need later fixture dates, generate a **separate** longer corpus in another nonexistent directory outside the repository. `--days` accepts 1–366 dates, always starting January 1, 2026; it does not extend or rewrite an existing archive. For example, 320 dates end November 16, 2026:
+
+```sh
+uv run --quiet --locked python scripts/create_demo_archive.py ../garmin-demo-320 --days 320
+uv run --quiet --locked garmin-archive --data-dir ../garmin-demo-320 sleep --from 2026-10-29 --to 2026-11-04
+uv run --quiet --locked --extra charts garmin-archive --data-dir ../garmin-demo-320 chart sleep --from 2026-10-29 --to 2026-11-04 --output ../garmin-demo-320/synthetic-sleep-overview.png
+```
+
+These later dates are still invented, and retain the same fixed May 1 simulated fetch timestamp; they do not establish live freshness or a chronological collection history. Keep the default archive for its known-answer checks. Use `--profile metric-dst` for a separate metric/Europe-Berlin archive spanning the March DST change, `--empty` for a marked archive with no observations, or `--days 30` for a shorter example. Never combine profiles or demo and real data into one archive.
+
+Synthetic sleep scores and stage proportions are generated by **independent formulas**. A low score alongside less deep sleep does not explain the score's cause; these fixtures cannot establish physiological causality. Body Battery intentionally repeats four readings (**25, 85, 40, 30**) with **60 charged / 50 drained**, apart from missingness and descriptor/ambiguity cases. It demonstrates observed-sample semantics and coverage, but cannot demonstrate changing weekly Body Battery trends. Available readings' extrema do not establish whole-day extrema. Neither corpus is a population or personal baseline.
+
+`known-answers.json` records version, seed, expected scalar points, means, coverage and masked dates for selected ranges. Expectations come from scenario definitions, independently of production queries; tests pin the default corpus fingerprint. Changing expected answers requires intentional corpus-version review. The database records synthetic provenance, so copying it preserves the label; `SYNTHETIC.txt` is retained for legacy recognition.
 
 Demo charts are labeled synthetic automatically, including legacy archives with `SYNTHETIC.txt`. The optional CLI `--synthetic` flag adds that label for other explicitly generated examples; it does not anonymize real data. Provenance reports fixture timestamps separately from archive generation time; an unmarked archive has unknown provenance.
 
