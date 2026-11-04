@@ -9,6 +9,8 @@ For the default synthetic demo, start with “How was sleep April 24–30, 2026?
 
 ## Choose a small query
 
+- `version`: identify the executing package/build revision, OS and chart availability as JSON; no archive needed. `--version` prints only the package version.
+- `metrics`: discover interpreted scalar metric names, titles, datasets and source units as JSON without an archive. Use the query's display units when presenting results.
 - `day YYYY-MM-DD` / MCP `get_day`: daily metrics, activities and coverage.
 - `trend METRIC --from YYYY-MM-DD --to YYYY-MM-DD` / `get_trend`: one metric over 1–90 inclusive dates.
 - `sleep --from YYYY-MM-DD --to YYYY-MM-DD` / `get_sleep`: sleep duration, score, stages, stress, naps, adjusted/baseline sleep need and source sleep-window times together. Prefer this over extracting raw sleep JSON.
@@ -37,6 +39,8 @@ For multi-day trends, sleep overviews and Body Battery questions, normally reply
 Use the renderer's caption/alt text when provided. It should state title, inclusive dates, available-day denominator, rendered units, synthetic provenance and wearable estimates where applicable. Keep routine explanation outside the image. Explain the dotted sleep-need line as Garmin's estimate, the independent score panel, and any gap-strip symbols present; do not assume the image explains these by itself.
 
 For MCP, use `chart` with `metric="sleep"` or a named scalar metric. It returns PNG image content and structured caption, coverage, provenance and explanation metadata without creating a file. `brand` returns settings and asset resource URIs retrievable with MCP resources/read. Host display still needs verification.
+
+For CLI delivery, add `--json` to `chart` to receive the saved `output_path`, `caption`, `alt_text`, `freshness` and `explanations`. Attach that PNG and carry its caption, fetch-time meaning and relevant explanations into the answer, including sampled-level limits for Body Battery. Null fetch bounds mean no available fetch timestamp; synthetic timestamps remain simulated. File creation alone does not establish host display or MCP transport.
 
 Read `brand` before producing a custom chart. Prefer `chart sleep` for a sleep overview (stages, duration and a separate score panel), or `chart METRIC` for a single metric. Both accept `--from`, `--to`, a new `--output file.png`, and `--layout chat` (default) or `wide`. Charts require the optional charts extra. For a source install use `uv tool install --from '.[charts]' garmin-data-workbench`; this changes the installed tool, so coordinate it with the user's setup. Synthetic archive provenance automatically labels CLI and MCP images, including legacy `SYNTHETIC.txt` archives. `--synthetic` can additionally label an explicitly generated CLI example; it does not anonymize real data. Summary/native query envelopes include `archive_provenance`; unmarked means unknown, not proven real. Synthetic fetch times are fixture timestamps, not evidence of a live Garmin refresh.
 

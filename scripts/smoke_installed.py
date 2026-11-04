@@ -108,6 +108,11 @@ def main() -> None:
         assert "usage:" in run([str(cli), "--help"])
         assert "usage:" in run([str(mcp), "--help"])
         assert len(json.loads(run([str(cli), "api-catalog"]))["sources"]) == 26
+        metrics = json.loads(run([str(cli), "--data-dir", str(workdir / "missing"), "metrics"]))
+        assert {"sleep_duration", "sleep_need", "body_battery_max"}.issubset({item["name"] for item in metrics["metrics"]})
+        installed_version = json.loads(run([str(cli), "--data-dir", str(workdir / "missing"), "version"]))
+        assert installed_version["source"] == installation_info()["source"], "Installed version command has stale provenance"
+        assert "garmin-data-workbench" in run([str(cli), "--version"])
         assert "chart sleep" in run([str(cli), "agent-guide"])
         assert "same host" in run([str(cli), "assistant-guide", "--client", "other"])
         receipt = json.loads(run([str(cli), "--data-dir", str(workdir / "missing"), "setup-receipt"]))
@@ -168,8 +173,10 @@ finally:
         asyncio.run(asyncio.wait_for(check_mcp(mcp, archive, workdir, env, args.charts), timeout=30))
         if args.charts:
             chart = workdir / "steps.png"
-            run([str(cli), "--data-dir", str(archive), "chart", "steps", "--from", "2026-01-01",
-                 "--to", "2026-01-03", "--synthetic", "--layout", "wide", "--output", str(chart)])
+            metadata = json.loads(run([str(cli), "--data-dir", str(archive), "chart", "steps", "--from", "2026-01-01",
+                 "--to", "2026-01-03", "--synthetic", "--layout", "wide", "--output", str(chart), "--json"]))
+            assert metadata["output_path"] == str(chart) and metadata["synthetic"], metadata
+            assert metadata["delivery"] == "PNG file saved; host attachment and display must be verified separately."
             assert chart.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"), "Installed chart command did not write a PNG"
             run([str(python), "-c", "from PIL import Image; import sys; image=Image.open(sys.argv[1]); assert 'Synthetic data' in image.info['Description']; image.verify()", str(chart)])
             report = workdir / "sleep.png"

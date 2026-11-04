@@ -57,6 +57,16 @@ inventory, existing controller binaries or offline tests. Use the
 [stage-by-stage reporting guidance](TESTING.md#assistant-acceptance-reports)
 to keep blocked, not run, failed and passed results distinct.
 
+Focused follow-up at `10672e4` verified readable current-version sleep labels
+in both apps. [Grok's retest](acceptance/2026-11-04-grok-post-merge-retest.md)
+still needed corrections to prose arithmetic and sampled-level wording.
+[Muse's retest](acceptance/2026-11-04-muse-post-merge-retest.md) initially used
+its old installation, then delivered correct current-version CLI answers and
+images after a separate-setup clarification. VM installation/preservation
+details remained assistant-reported. These retests did not exercise MCP,
+controlled persistence or live Garmin, and do not validate the later CLI and
+guidance changes made in response.
+
 ## Current boundaries
 
 | Area | Behavior |
