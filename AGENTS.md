@@ -10,6 +10,7 @@ This file is the shared entry point for coding agents and assistants helping a u
 - For complete Personal API source coverage, native fields and pagination, read [docs/API_COVERAGE.md](docs/API_COVERAGE.md). Use `api-catalog`/`api_catalog` to discover fields and `source-data`/`source_data` for bounded access.
 - Read [README.md](README.md) for the product and [docs/USAGE.md](docs/USAGE.md) for commands.
 - For a user's installation, follow [docs/SETUP.md](docs/SETUP.md). A request to inspect or test the code does not imply permission to use credentials, sync health data, or create a recurring job.
+- For mock-only installation, take the [isolated mock route](docs/SETUP.md#mock-only-setup-stop-before-credentials) before live setup: metadata-only prior-state discovery, a new checkout/environment and a new outside-repository synthetic archive. Preserve existing state and report any reuse honestly.
 - For code changes, read [CONTRIBUTING.md](CONTRIBUTING.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [docs/TESTING.md](docs/TESTING.md).
 - Check `git status --short --branch` before editing. Preserve existing work and use the checkout assigned to your task. Do not discard changes or switch another worker's branch.
 
@@ -63,7 +64,7 @@ These checks need no Garmin account, key, live archive, client registration, or 
 
 ## User setup and privacy
 
-- Discover the intended host and check persistent storage, scheduling, secure key entry and local MCP support. Cloud-hosted assistants can use the generic setup path. Do not assume cron, systemd, macOS, Codex, or a particular bot integration exists.
+- Discover and name the execution host/OS before setup; the chat app's computer may differ from the assistant VM running commands and holding the archive. Check persistent storage, scheduling, secure key entry and local MCP support. Distinguish expected persistence from an actual new-session/restart test. Cloud-hosted assistants can use the generic setup path. Do not assume cron, systemd, macOS, Codex, or a particular bot integration exists.
 - Before a cloud sync, explain that other processes or agents running as the same operating-system user can read owner-only files, including the Garmin key, token cache, health archive and precise activity locations. The user chooses whether that environment is acceptable; apply an existing informed choice without asking repeatedly.
 - Never ask for a Garmin key in chat or print secrets to inspect them. Use a hidden terminal prompt or the host's supported secret mechanism. Keep keys out of commands, logs, fixtures and Git.
 - Keep real data outside the repository. Default archive: `~/.local/share/garmin-extraction` (or under an absolute `XDG_DATA_HOME`). Key file: `~/.config/garmin/connect-personal-api-key`; the Garmin client also uses a token cache under `~/.config/garmin/`.
@@ -78,3 +79,5 @@ Use the smallest meaningful check for the change; see [docs/TESTING.md](docs/TES
 Review `git diff --check`, the diff, and the files being staged. Keep secrets, archives, caches and unrelated edits out of commits. Report what changed, which checks passed, any live or platform checks still missing, and the next actionable step. Installation, MCP discovery, a successful sync, a real assistant query and recurring execution are separate verification steps; don't claim one proves the others.
 
 Keep current setup and architecture facts in this repository. Don't require a contributor's private memory, personal accounts, or a particular agent runtime to work on the project.
+
+Finish user setup with the [compact handoff](docs/SETUP.md#hand-off): execution host, fresh/reused state, synthetic/live and manual/scheduled state, same-host absolute executable/archive references, persistence evidence and separate CLI, image-delivery and MCP discovery/query results. Documentation guides assistants; it does not guarantee their behavior.

@@ -9,13 +9,37 @@ Check [host compatibility and verification limits](COMPATIBILITY.md) first. The 
 Use your computer or a persistent remote workstation. Confirm:
 
 - Python 3.12+, [uv](https://docs.astral.sh/uv/) and storage that survives new sessions.
-- Private key entry through a hidden terminal prompt or a verified secret facility.
+- For live setup, private key entry through a hidden terminal prompt or a verified secret facility.
 - A query path: shell commands on the host, local stdio MCP, or a separately secured remote connection.
 - A scheduler, if wanted. Manual sync is fine.
+
+Name the execution host and OS before starting: commands and archive may live in an assistant's VM even when its chat app is on the user's Mac. A new chat or bot may share an existing filesystem. Distinguish provider-claimed persistent storage from a successful new-session/restart test; don't restart the host just to complete setup.
 
 **Choose the host before supplying credentials.** Processes sharing your OS user can read the key, token cache, health archive and original files, including GPS locations. Owner-only permissions don't isolate those processes; privileged processes and cloud providers may also have access. Let the user accept that environment before authentication or sync. Query results may reach the selected AI provider.
 
 Use synthetic data for compatibility tests. Don't copy personal archives or credentials to test a host.
+
+### Mock-only setup: stop before credentials
+
+A request such as “Install this repo using only mock data; don't connect to Garmin or access existing personal data” selects this route. It needs no key, client registration or recurring job. Skip the live setup steps below and finish with [the handoff](#hand-off).
+
+1. Discover prior state by metadata only: executable locations, `uv tool list`, candidate checkout revision/status and environment-directory existence. For keys, token caches and personal archives, check only existence. For client/job configuration, use existence checks or supported metadata-only listings without command bodies or secret values. Never open contents or query existing archives. If discovery isn't available, report it as unknown.
+2. Choose a **new dedicated checkout and environment**, plus a **new synthetic archive outside every repository**. Check that the destinations are absent, including the environment selected by `UV_PROJECT_ENVIRONMENT`. Don't pull/fast-forward an existing clone, sync its `.venv`, replace a tool installation, or move/delete old state. Preserve tools, configurations, registrations, jobs and data. If reuse already occurred, disclose exactly what was reused or changed and what remains unknown; don't call it a fresh install or attempt a reset.
+3. Generate and query only the new demo. For example, in a POSIX shell, replace `/absolute/new/garmin-mock` with a new location on the chosen host outside existing checkouts:
+
+```sh
+git clone https://github.com/0xBreadguy/garmin-data-workbench.git /absolute/new/garmin-mock/source
+cd /absolute/new/garmin-mock/source
+export UV_PROJECT_ENVIRONMENT=/absolute/new/garmin-mock/env
+uv sync --locked --extra charts
+uv run --quiet --locked --extra charts python scripts/create_demo_archive.py /absolute/new/garmin-mock/demo
+uv run --quiet --locked --extra charts garmin-archive --data-dir /absolute/new/garmin-mock/demo sleep --from 2026-04-24 --to 2026-04-30
+uv run --quiet --locked --extra charts garmin-archive --data-dir /absolute/new/garmin-mock/demo chart sleep --from 2026-04-24 --to 2026-04-30 --output /absolute/new/garmin-mock/sleep.png
+```
+
+Use host-native absolute paths; in PowerShell set `$env:UV_PROJECT_ENVIRONMENT` to the new environment path. Charts are optional: omit `--extra charts` and the chart command for text-only setup. This environment leaves any installed `uv tool` copy in place. Dependency downloads may use the network; the generator and queries make no Garmin requests. Do not run `install`, `sync`, `setup`, `save-key` (including its dry run), or `scripts/check_connection.py` for this route.
+
+The default demo covers January 1–April 30, 2026, with simulated collection timestamps. Offer “How was sleep in the latest demo week, April 24–30?” rather than implying current-week personal data. See [demo cases and provenance](VISUALIZATION.md#try-generated-demo-data). Deliver a generated image through the host's supported attachment interface; a file path alone doesn't verify delivery. Finish here with synthetic/manual status; live setup requires a separate user request.
 
 ## 2. Install the commands
 
@@ -33,7 +57,7 @@ Ask whether the user wants charts during setup. If so, replace the install comma
 
 Agents should run `garmin-archive agent-guide` after installation; `agent-guide --client muse` also appends the Muse handoff (other supported client names work too). This installed guide covers queries, sleep interpretation, branded charts, delivery and setup verification even when the repository docs are no longer in context.
 
-Find the executable directory with `uv tool dir --bin`; add it to `PATH` if needed. Use absolute paths in client configuration and jobs. A tool install is a snapshot. After updating the checkout:
+Find the executable directory with `uv tool dir --bin`; if it isn't on `PATH`, invoke the executables by absolute path and report that in the handoff. Add it to the shell's `PATH` if wanted. Use absolute paths in client configuration and jobs. A tool install is a snapshot. After updating the checkout:
 
 ```sh
 uv tool install --force --no-cache --from . garmin-data-workbench
@@ -131,8 +155,16 @@ Check for existing jobs, preserve unrelated schedules and verify an actual execu
 
 ## Hand off
 
-Report the host, archive path, installed source revision, query path, schedule or manual sync, checks passed and remaining gaps. Keep private data out of reports. Use the [setup report](../.github/ISSUE_TEMPLATE/setup-report.md) for compatibility findings.
+Give a compact completion handoff in the user's private setup conversation:
 
-Run `garmin-archive setup-receipt` (or MCP `setup_receipt`) for read-only evidence. The installer also prints a receipt after its connection step. It includes build revision/dirty status where known, version, chart availability, archive coverage/failures and native schedule configuration. Unknown provenance stays unknown; dirty builds are labeled. It reads no keys and makes no network requests. It does not inspect provider routines or establish an assistant conversation succeeded.
+- Execution host/OS and where the archive lives, explicitly distinguishing an assistant VM from the chat app's computer.
+- Source revision and fresh versus reused checkout/environment; disclose changed or unknown prior state.
+- Synthetic versus live data, exact available dates and simulated versus actual collection freshness; manual/on-demand for this archive or the chosen schedule. No new job does not establish the absence of existing jobs.
+- Query route actually used. Give an absolute same-host executable and `--data-dir` reference usable next session, especially if the executable isn't on `PATH`. For the mock environment above, the executable is `env/bin/garmin-archive` under the new root (`env/Scripts/garmin-archive.exe` on Windows). [The shell handoff](ASSISTANTS.md#shell-access-on-the-workstation) prints the command with resolved paths.
+- Checks passed and gaps: persistence expected versus tested in a new session/restart; CLI query/image delivery separately from MCP registration, discovery and real tool query. Mark untested stages explicitly. `garmin-archive-mcp --help` proves neither discovery nor a client connection.
+
+Keep private host identifiers and absolute paths out of public reports. Use the [setup report](../.github/ISSUE_TEMPLATE/setup-report.md) for sanitized compatibility findings.
+
+For live setup, run `garmin-archive setup-receipt` (or MCP `setup_receipt`) for read-only evidence, selecting `--data-dir` explicitly for a custom archive. The installer also prints a receipt after its connection step. It includes build revision/dirty status where known, version, chart availability, archive coverage/failures and native schedule configuration. Unknown provenance stays unknown; dirty builds are labeled. It reads no keys and makes no network requests. It does not inspect provider routines or establish an assistant conversation succeeded. For mock-only setup, use `status` with the explicit new demo path instead: the receipt also inspects native job configuration, beyond existence-only discovery.
 
 Use “configured; first automated execution pending” until a real scheduled run is observed and its archive update checked. A successful manual sync or loaded job alone cannot verify recurrence. Report manual mode when that is the user's choice; do not create a job just to complete the guide.
