@@ -8,6 +8,7 @@ import json
 import math
 import os
 import runpy
+import shutil
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -67,12 +68,21 @@ class BrandDemoTest(unittest.TestCase):
 
 @unittest.skipUnless(importlib.util.find_spec('matplotlib'), 'charts extra not installed')
 class ChartsTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        temp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(temp.cleanup)
+        cls.demo_template = Path(temp.name) / 'demo'
+        # Chart tests consume the same data; demo generation is tested above.
+        CREATE_DEMO(cls.demo_template)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.data_dir = self.root / 'demo'
-        CREATE_DEMO(self.data_dir)
+        # Copy a closed archive so each test can mutate only its own files.
+        shutil.copytree(self.demo_template, self.data_dir)
         self.before = (self.data_dir / 'archive.sqlite3').read_bytes()
 
     def query(self, metric, start='2026-01-01', end='2026-01-30'):

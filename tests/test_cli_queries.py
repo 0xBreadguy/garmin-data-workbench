@@ -7,6 +7,7 @@ import io
 import importlib.util
 import json
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -22,12 +23,14 @@ from garmin_archive.queries import open_archive
 
 
 class CLIQueryTest(unittest.TestCase):
-    def setUp(self):
-        self.stack = contextlib.ExitStack()
-        self.addCleanup(self.stack.close)
-        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
-        self.data_dir = self.root / "archive"
-        archive = Archive(self.data_dir)
+    @classmethod
+    def setUpClass(cls):
+        temp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(temp.cleanup)
+        cls.archive_template = Path(temp.name) / "archive"
+        # These tests exercise queries; archive writes have their own suite.
+        archive = Archive(cls.archive_template)
+        cls.addClassCleanup(archive.close)
         archive.save_preferences("statute_us", "America/Los_Angeles")
         archive.save_daily("daily_summary", "2026-01-01", {"data": [{"calendarDate": "2026-01-01",
             "movement": {"steps": {"value": 0, "distanceInMeters": 1609.344}}, "position_lat": "PRIVATE"}]})
@@ -47,6 +50,13 @@ class CLIQueryTest(unittest.TestCase):
         archive.set_fit_status(44, "error", "Synthetic decoding failure")
         archive.set_fit_status(45, "unsupported")
         archive.close()
+
+    def setUp(self):
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        self.data_dir = self.root / "archive"
+        shutil.copytree(self.archive_template, self.data_dir)
         self.database = self.data_dir / "archive.sqlite3"
         self.initial_bytes = self.database.read_bytes()
         # Any attempt at network/key access is a test failure.
