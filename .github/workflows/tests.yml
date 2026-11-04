@@ -8,8 +8,14 @@ on:
 permissions:
   contents: read
 
+# New commits replace obsolete PR checks; main pushes retain their own smoke run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   tests:
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -29,3 +35,25 @@ jobs:
         run: uv build
       - name: Check installed commands and synthetic MCP query
         run: uv run --locked --extra charts python scripts/smoke_installed.py --charts
+      - name: Check installed commands without chart dependencies
+        if: runner.os == 'Linux'
+        run: uv run --locked --extra charts python scripts/smoke_installed.py
+
+  post_merge:
+    name: Post-merge package smoke
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: uv sync --locked --extra charts
+      - name: Build package
+        run: uv build
+      - name: Check installed commands and synthetic MCP query
+        run: uv run --locked --extra charts python scripts/smoke_installed.py --charts
+      - name: Check installed commands without chart dependencies
+        run: uv run --locked --extra charts python scripts/smoke_installed.py

@@ -14,7 +14,11 @@ uv run garmin-archive-mcp --help
 git diff --check
 ```
 
-[CI](../.github/workflows/tests.yml) runs the locked offline suite on macOS, Windows and Ubuntu with Python 3.12 for PRs and pushes to `main`. Each job also builds and smoke-tests an installed wheel. There is no separate lint, format or type-check gate. See [compatibility boundaries](COMPATIBILITY.md) before treating offline results as live-host support.
+[CI](../.github/workflows/tests.yml) runs the locked offline suite on macOS, Windows and Ubuntu with Python 3.12 for PRs. Each OS job also builds and smoke-tests an installed wheel with charts. Ubuntu additionally checks the installed wheel without chart dependencies. The smoke script creates a separate environment for each installation, so the basic-install check excludes charts even though the checkout has them installed.
+
+The default branch's GitHub ruleset requires `tests (ubuntu-latest)`, `tests (macos-latest)` and `tests (windows-latest)` from GitHub Actions, with the PR up to date with its base branch. Keep these job names aligned with the ruleset when editing CI. New commits cancel obsolete runs for the same PR.
+
+Pushes to `main` run only an Ubuntu package build and installed-wheel smoke checks with and without charts. The full suite and three-OS checks belong before merging; the post-merge check validates packaging for the final commit without repeating the full matrix. Main runs do not cancel an in-progress main run. There is no deployment or publication step, or separate lint, format or type-check gate. See [compatibility boundaries](COMPATIBILITY.md) before treating offline results as live-host support.
 
 CI enables the optional `charts` extra so rendering tests run on every OS. To match locally, add `--extra charts` to both `uv sync --locked` and `uv run --locked`.
 
