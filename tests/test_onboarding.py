@@ -31,6 +31,9 @@ class OnboardingTest(unittest.TestCase):
                     if command == "agent-guide":
                         self.assertIn("chart sleep", output.getvalue())
                         self.assertIn("hypotheses", output.getvalue())
+                        self.assertIn("proactively ask", output.getvalue())
+                        self.assertIn("sync schedule only updates data", output.getvalue())
+                        self.assertIn("on-demand check-in", output.getvalue())
                 self.assertFalse(missing.exists())
 
     def test_loaded_schedule_and_successful_catchup_do_not_prove_recurring_execution(self):

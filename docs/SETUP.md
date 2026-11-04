@@ -110,6 +110,8 @@ In a fresh session, query a synced date. Return dates, units, freshness and miss
 
 Finish with a useful first question such as “How has my sleep been?” Use `sleep` / `get_sleep` for stages, score and stress; use `chart sleep` for the branded overview and attach the actual PNG if the host supports it. For a custom chart, run `brand` and retain the same coverage/source rules. See the installed `agent-guide`. Do not let missing chart dependencies silently produce an unbranded fallback.
 
+Proactively offer optional ongoing monitoring and check-ins, such as a morning report. If wanted, agree on the subjects, frequency, local time and timezone, delivery destination, and whether to report every time or only on notable changes. On-demand questions are fine too. A sync schedule does not create or deliver reports: check the assistant host's scheduling and delivery capabilities, obtain the user's authorization, and verify a real run and delivery. If unavailable, offer on-demand check-ins instead. Reports should state freshness, coverage and missing or failed data, and follow the interpretation guidance in `agent-guide`.
+
 ## 5. Schedule only when wanted
 
 Use an interval the user chooses. On macOS:

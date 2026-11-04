@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 import os
 import textwrap
-from datetime import UTC, date, datetime
+from datetime import date
 from pathlib import Path
 
 from .brand import get_brand
@@ -47,26 +47,6 @@ def _date_groups(days: list[str], *, year: bool) -> str:
     groups.append((start, previous))
     return "; ".join(_day_label(a, year=year) if a == b else
                      f"{_day_label(a, year=year)}–{_day_label(b, year=year)}" for a, b in groups)
-
-
-def _fetch_note(points: list[dict]) -> str:
-    stamps = []
-    for point in points:
-        if point["status"] != "ok" or point["value"] is None or not point.get("fetched_at"):
-            continue
-        try:
-            stamp = datetime.fromisoformat(point["fetched_at"])
-            if stamp.tzinfo is not None:
-                stamps.append(stamp.astimezone(UTC))
-        except ValueError:
-            pass
-    if not stamps:
-        return "Available-value fetch times unknown."
-    first, last = min(stamps), max(stamps)
-    label = first.strftime("%Y-%m-%d %H:%M")
-    if first.strftime("%Y-%m-%d %H:%M") != last.strftime("%Y-%m-%d %H:%M"):
-        label += " – " + last.strftime("%Y-%m-%d %H:%M")
-    return "Values fetched: " + label + " UTC"
 
 
 def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "chat", sleep_report: dict | None = None):
@@ -116,18 +96,9 @@ def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "
         ):
             if days:
                 notes.extend(textwrap.wrap(f"{label}: {_date_groups(days, year=cross_year)}", text_width))
-        notes.extend(textwrap.wrap("Score [×] means unavailable, not zero. Stages and scores are Garmin wearable estimates. "
-                                   "Need is Garmin's sleep estimate. Total sleep excludes naps and awake time.", text_width))
-    if metric.startswith("body_battery_"):
-        notes.extend(textwrap.wrap("Reported amounts may cover a partial day. Levels summarize observed samples only; "
-                                   "the last reading is not a live value.", text_width))
-    fetch_points = ([{"status": n["status"], "fetched_at": n["fetched_at"],
-                     "value": 0 if any(v is not None for v in n["values"].values()) else None}
-                     for n in sleep_report["nights"]] if sleep_report else points)
-    notes.extend(textwrap.wrap(_fetch_note(fetch_points), text_width))
     note_leading = .19 if wide else .25
     panel_space = 2.4 if sleep_report else 0
-    height = 6.9 + len(notes) * note_leading + panel_space
+    height = 6.35 + len(notes) * note_leading + panel_space
     fig = Figure(figsize=(width, height), facecolor=colors["background"])
     FigureCanvasAgg(fig)
 
@@ -137,7 +108,6 @@ def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "
                         va="top", parse_math=False, **kwargs)
 
     left, right = .45, width - .45
-    text(left, .26, "DAILY TREND", 9, colors["secondary"], weight="bold")
     if synthetic:
         text(right, .26, "SYNTHETIC DATA", 9, colors["primary"], ha="right", weight="bold",
              bbox={"boxstyle": "round,pad=.35", "facecolor": colors["tint"], "edgecolor": "none"})
@@ -272,13 +242,8 @@ def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "
     strip.set_xticks(ticks, [_day_label(points[i]["day"]) for i in ticks])
     strip.tick_params(axis="x", labelsize=10 if wide else 12, colors=colors["secondary"], length=0, pad=8)
     footer_top = strip_top + .76
-    text(left, footer_top, f"{len(available)} of {len(points)} {noun} available · Gaps are not zero", 10 if wide else 11,
-         colors["secondary"])
     for i, line in enumerate(notes):
-        text(left, footer_top + .27 + i * note_leading, line, 9 if wide else 11, colors["secondary"])
-    source_top = footer_top + .34 + len(notes) * note_leading
-    text(left, source_top, "Source: synthetic demo archive" if synthetic else "Source: local Garmin archive",
-         9 if wide else 11, colors["secondary"])
+        text(left, footer_top + i * note_leading, line, 9 if wide else 11, colors["secondary"])
 
     # Reuse the supplied icon PNG, cropping only its white canvas padding while
     # composing the chart. The authored logo geometry and colors stay intact.
