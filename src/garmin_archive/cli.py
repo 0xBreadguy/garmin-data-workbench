@@ -26,7 +26,11 @@ from garmin_personal_api import (
 from .archive import Archive, default_data_dir, now
 from .preferences import clean_profile, local_today, profile_preferences
 from .platforms import shell_command
-from .queries import METRICS, get_day, get_trend, open_archive
+from .queries import METRICS, get_day, get_trend, health_response, open_archive
+from .api_data import api_catalog, source_data, source_series, snapshot_coverage
+from .sources import SOURCES
+from .sleep import get_sleep
+from .body_battery import get_body_battery
 from .sync import DATASETS, SyncStopped, _call, sync
 from garmin_personal_api.errors import HttpError
 
@@ -94,14 +98,18 @@ def parser() -> argparse.ArgumentParser:
     frequency.add_argument("--every-hours", type=_positive, help="Hours between scheduled syncs (1–168)")
     frequency.add_argument("--manual", action="store_true", help="Use manual sync; leave any existing schedule alone")
     install.add_argument("--lookback-days", type=_positive, default=2, help="Recent days to recheck each run (1–31; default: 2)")
-    install.add_argument("--client", choices=("codex", "claude", "chatgpt", "other"), default="codex",
+    install.add_argument("--client", choices=("codex", "claude", "chatgpt", "other", "shell"), default="codex",
                          help="Assistant to connect (default: codex)")
 
     connect = commands.add_parser("connect", help="Connect an assistant to an existing local archive")
-    connect.add_argument("--client", choices=("codex", "claude", "chatgpt", "other"), default="codex")
+    connect.add_argument("--client", choices=("codex", "claude", "chatgpt", "other", "shell"), default="codex")
 
     guide = commands.add_parser("assistant-guide", help="Print a handoff for your assistant")
     guide.add_argument("--client", choices=("dot", "codex", "claude", "muse", "other"), default="dot")
+    commands.add_parser("agent-guide", help="Read installed query, visualization and interpretation guidance; no archive needed")
+    commands.add_parser("setup-receipt", help="Read installation, archive and schedule evidence as JSON without syncing")
+    routine = commands.add_parser("routine-template", help="Print a provider-neutral sync routine template as JSON; schedules nothing")
+    routine.add_argument("--lookback-days", type=_positive, default=2)
 
     key = commands.add_parser(
         "save-key", help="Validate and save a key from a private secret file; makes live Garmin requests",
@@ -117,13 +125,19 @@ def parser() -> argparse.ArgumentParser:
     trend.add_argument("metric", choices=sorted(METRICS))
     trend.add_argument("--from", dest="start", type=_date, help="Start date (default: six days before end)")
     trend.add_argument("--to", dest="end", type=_date, help="End date (default: Garmin profile's today)")
+    sleep = commands.add_parser("sleep", help="Read a bounded sleep summary as JSON: stages, score, stress, naps and source times")
+    sleep.add_argument("--from", dest="start", type=_date, help="First of 1–90 inclusive dates (default: six days before end)")
+    sleep.add_argument("--to", dest="end", type=_date, help="Last date (default: Garmin profile's today, possibly incomplete)")
+    battery = commands.add_parser("body-battery", help="Read daily Body Battery charge/drain and descriptor-aware observed levels as JSON")
+    battery.add_argument("--from", dest="start", type=_date, help="First of 1–90 inclusive dates (default: six days before end)")
+    battery.add_argument("--to", dest="end", type=_date, help="Last date (default: Garmin profile's today, possibly incomplete)")
 
     chart = commands.add_parser("chart", help="Render a branded archive trend as a PNG (requires charts extra)",
         description="Read an existing archive and render a branded PNG without syncing. "
                     "Example: garmin-archive --data-dir /private/archive chart sleep_duration "
                     "--from 2026-01-01 --to 2026-01-30 --output sleep.png. "
                     "The global --data-dir option goes before chart. Sleep seconds are displayed as hours.")
-    chart.add_argument("metric", choices=sorted(METRICS))
+    chart.add_argument("metric", choices=sorted([*METRICS, "sleep"]), help="A metric, or sleep for stages/duration and score panels")
     chart.add_argument("--from", dest="start", type=_date)
     chart.add_argument("--to", dest="end", type=_date)
     chart.add_argument("--output", required=True, type=Path, help="New PNG file; existing files are not overwritten")
@@ -142,6 +156,26 @@ def parser() -> argparse.ArgumentParser:
     health = commands.add_parser("health", help="Print a stored daily health response as JSON")
     health.add_argument("dataset", choices=sorted(DATASETS))
     health.add_argument("day", type=_date)
+    health.add_argument("--metadata", action="store_true", help="Include refresh status/fetch times and mask retained data after a failed refresh")
+
+    catalog = commands.add_parser("api-catalog", help="Discover all Personal API sources and native response fields; no archive needed")
+    catalog.add_argument("dataset", nargs="?", default="", choices=["", *SOURCES])
+    catalog.add_argument("--pointer", default="", help="JSON Pointer; use * for an array item schema")
+    catalog.add_argument("--limit", type=_positive, default=100)
+    catalog.add_argument("--offset", type=_nonnegative, default=0)
+    source = commands.add_parser("source-data", help="Page any archived Personal API response field, including nested arrays")
+    source.add_argument("dataset", choices=list(SOURCES))
+    source.add_argument("--day", type=_date)
+    source.add_argument("--activity-id", type=_positive, default=0)
+    source.add_argument("--pointer", default="", help="JSON Pointer; empty for root, numeric indices for array items")
+    source.add_argument("--limit", type=_positive, default=100)
+    source.add_argument("--offset", type=_nonnegative, default=0)
+    source.add_argument("--include-location", action="store_true")
+    series = commands.add_parser("source-series", help="Read a native scalar field over 1–90 request dates without inferring an aggregation")
+    series.add_argument("dataset", choices=list(DATASETS))
+    series.add_argument("pointer", help="JSON Pointer to a scalar field")
+    series.add_argument("--from", dest="start", type=_date)
+    series.add_argument("--to", dest="end", type=_date)
 
     records = commands.add_parser("records", help="Show decoded time-series records as JSON (or CSV with --format csv)",
                                  description="Read decoded time-series records as JSON, or CSV with --format csv, without modifying the archive.")
@@ -220,12 +254,19 @@ def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: d
             warning = None
             try:
                 profile = _call(client.get_user_profile_settings, args.pause, time.sleep)
-                archive.save_preferences(*clean_profile(profile))
-            except SyncStopped:
+            except SyncStopped as error:
+                archive.mark_snapshot_error("profile", "current", str(error))
                 raise
             except (HttpError, ValueError, TypeError) as error:
+                archive.mark_snapshot_error("profile", "current", f"HTTP {error.status_code}" if isinstance(error, HttpError) else type(error).__name__)
                 # Keep the last successful preferences if a nonfatal request fails.
                 warning = f"Profile settings unavailable ({type(error).__name__}); using cached settings or host date."
+            else:
+                archive.save_snapshot("profile", "current", profile)
+                try:
+                    archive.save_preferences(*clean_profile(profile))
+                except ValueError:
+                    warning = "Profile response has no usable defaults; using cached settings or host date."
             garmin_today, _ = local_today(profile_preferences(archive.connection))
             if use_profile_default:
                 end = garmin_today
@@ -245,7 +286,8 @@ def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: d
                             archive.connection.execute("UPDATE catchup_state SET start_day=? WHERE id=1", (start.isoformat(),))
                 if start > end:
                     raise ValueError("Start date is after Garmin's current date")
-            report = sync(archive, client, start, end, refresh=args.refresh, pause=args.pause, today=garmin_today)
+            report = sync(archive, client, start, end, refresh=args.refresh, pause=args.pause, today=garmin_today,
+                          profile_checked=True)
     except Exception as error:  # noqa: BLE001 -- keep private API response bodies out of the terminal
         if args.catch_up:
             with archive.connection:
@@ -266,6 +308,7 @@ def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: d
         "completed_days_skipped": report.skipped,
         "activities_seen": report.activities,
         "activity_files_decoded": report.decoded,
+        "source_snapshots_succeeded": report.snapshots,
         "non_fit_originals": report.unsupported,
         "stopped": report.stopped,
         "errors": report.errors,
@@ -290,7 +333,8 @@ def _status(db: sqlite3.Connection, path: Path) -> int:
         "SELECT activity_id, fit_error AS error FROM activities WHERE fit_status='error' ORDER BY activity_id"
     )]
     catchup = db.execute("SELECT * FROM catchup_state WHERE id=1").fetchone()
-    _print_json({"database": str(path), "catch_up": dict(catchup) if catchup else None, "coverage": states, "activity_files": fit, "errors": errors, "fit_errors": fit_errors})
+    _print_json({"database": str(path), "catch_up": dict(catchup) if catchup else None, "coverage": states,
+                 "source_snapshots": snapshot_coverage(db), "activity_files": fit, "errors": errors, "fit_errors": fit_errors})
     return 0
 
 
@@ -353,11 +397,19 @@ def _read(args: argparse.Namespace) -> int:
     """Query an existing archive without creating, migrating or syncing it."""
     try:
         with open_archive(args.data_dir) as db:
-            if args.command == "day":
+            if args.command == "source-data":
+                _print_json(source_data(db, args.dataset, args.day.isoformat() if args.day else "", args.activity_id,
+                    args.pointer, limit=args.limit, offset=args.offset, include_location=args.include_location))
+            elif args.command == "source-series":
+                _print_json(source_series(db, args.dataset, args.pointer,
+                    args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else ""))
+            elif args.command == "day":
                 _print_json(get_day(db, args.day.isoformat() if args.day else ""))
-            elif args.command in {"trend", "chart"}:
-                result = get_trend(db, args.metric, args.start.isoformat() if args.start else "",
-                                   args.end.isoformat() if args.end else "")
+            elif args.command in {"trend", "chart", "sleep", "body-battery"}:
+                start, end = args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else ""
+                result = (get_body_battery(db, start, end) if args.command == "body-battery" else
+                          get_sleep(db, start, end) if args.command == "sleep" or args.metric == "sleep" else
+                          get_trend(db, args.metric, start, end))
                 if args.command == "chart":
                     from .charts import render_trend
                     try:
@@ -378,6 +430,9 @@ def _read(args: argparse.Namespace) -> int:
             elif args.command == "export-original":
                 return _export_original(db, args)
             elif args.command == "health":
+                if args.metadata:
+                    _print_json(health_response(db, args.dataset, args.day.isoformat()))
+                    return 0
                 row = db.execute(
                     "SELECT data_json FROM daily_data WHERE dataset=? AND day=?",
                     (args.dataset, args.day.isoformat()),
@@ -446,6 +501,9 @@ def _install(archive: Archive, args: argparse.Namespace) -> int:
             schedule_error = f"Could not configure scheduled sync: {error}"
 
     connection_result = _connect(archive, args.client)
+    from .onboarding import setup_receipt
+    print("Setup verification receipt (assistant query and recurring execution still require independent verification):")
+    _print_json(setup_receipt(archive.data_dir))
     if schedule_error:
         print(schedule_error, file=sys.stderr)
         return 1
@@ -456,6 +514,15 @@ def _install(archive: Archive, args: argparse.Namespace) -> int:
 
 def _connect(archive: Archive, client: str) -> int:
     from .install import probe_server, register_claude, register_codex, verify_codex_discovery
+    from .platforms import installed_executable
+
+    command = shell_command([str(installed_executable("garmin-archive")), "agent-guide"])
+    print(f"Before answering Garmin questions, read the installed guide: {command}")
+    if client == "shell":
+        from .install import assistant_guide
+        print(assistant_guide("other", data_dir=archive.data_dir))
+        print("Same-host CLI selected; verify an actual archive question in your assistant.")
+        return 0
 
     try:
         probe_server(archive.data_dir)
@@ -498,6 +565,27 @@ def _connect(archive: Archive, client: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "api-catalog":
+        try:
+            _print_json(api_catalog(args.dataset, args.pointer, limit=args.limit, offset=args.offset))
+        except ValueError as error:
+            return _error("invalid_argument", str(error), 2)
+        return 0
+    if args.command == "agent-guide":
+        from .guidance import agent_guide
+        print(agent_guide())
+        return 0
+    if args.command == "setup-receipt":
+        from .onboarding import setup_receipt
+        _print_json(setup_receipt(args.data_dir))
+        return 0
+    if args.command == "routine-template":
+        from .onboarding import routine_template
+        try:
+            _print_json(routine_template(args.data_dir, args.lookback_days))
+        except ValueError as error:
+            return _error("invalid_argument", str(error), 2)
+        return 0
     if args.command == "brand":
         from .brand import get_brand
         _print_json(get_brand())
@@ -522,7 +610,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "path":
         print(args.data_dir.expanduser() / "archive.sqlite3")
         return 0
-    if args.command in {"day", "trend", "chart", "status", "activities", "records", "health", "export-original"}:
+    if args.command in {"day", "trend", "sleep", "body-battery", "chart", "status", "activities", "records", "health", "export-original", "source-data", "source-series"}:
         return _read(args)
     if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
         print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)

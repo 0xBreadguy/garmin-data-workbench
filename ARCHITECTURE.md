@@ -1,6 +1,6 @@
 # Architecture
 
-One user's archive, one collector, multiple query clients. Reviewed November 1, 2026.
+One user's archive, one collector, multiple query clients. Reviewed November 3, 2026.
 
 ```text
 Garmin Personal API -> sync -> SQLite + source JSON + original ZIPs
@@ -20,6 +20,10 @@ Garmin Personal API -> sync -> SQLite + source JSON + original ZIPs
 | Agent access | Bounded results with units, dates, freshness and coverage; no coordinates in default samples |
 
 Keep collection separate from queries. Stored data remains queryable when Garmin is unavailable; failed refreshes must not make old values look current. Preserve source units, timestamp meaning and originals. Null, empty, failed and zero are distinct. Returned tool data may reach the AI provider.
+
+The MVP uses only Garmin's official Personal API. [The coverage contract](docs/API_COVERAGE.md) covers its 26 documented endpoints. Daily responses stay in `daily_data`; current profile/zones and activity details/workouts use `source_snapshots` with independent refresh status and retained JSON. This additive table is compatible with schema version 1; read-only queries never create it, and older archives report uncollected sources as `not_checked`. The next writer creates it without rewriting existing rows. No durability settings change.
+
+`sources.py` owns collection routes; the packaged response contract owns schema discovery. `api_data.py` provides shared bounded native field access and scalar series. Native access preserves source values, flags and sentinels; interpreted daily metrics in `queries.py` apply documented mappings and validity rules. Every field is accessible without requiring a separate tool or invented daily aggregate. Coordinates are omitted from default MCP responses and require an explicit native-source opt-in.
 
 [Schema and SQL](docs/USAGE.md#sql-and-source-data) · [Sync behavior](docs/USAGE.md#sync-and-recovery)
 
