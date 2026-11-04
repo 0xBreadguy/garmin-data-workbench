@@ -21,9 +21,20 @@ Place global `--data-dir /absolute/private/archive` before the command. A same-h
 
 ## Present and visualize
 
+This section is the canonical presentation policy; setup docs and visualization skills defer to it.
+
+For multi-day trends, sleep overviews and Body Battery questions, normally reply in this order: a focused delivered chart, a short prose interpretation, then one coverage/freshness line. Do not wait for a separate chart request. Exceptions:
+
+- The user requests text only.
+- A single-day or single-value question is answered better by prose or a small table.
+- Fewer than three usable observations are available: normally use a small table and state the gap. An explicitly requested chart or useful two-point comparison is still allowed; do not claim a trend or baseline from sparse data.
+- Rendering or image delivery is unavailable: explicitly say no chart was delivered and give a small table of available values.
+
+Use the renderer's caption/alt text when provided. It should state title, inclusive dates, available-day denominator, rendered units, synthetic provenance and wearable estimates where applicable. Keep routine explanation outside the image. Explain the dotted sleep-need line as Garmin's estimate, the independent score panel, and any gap-strip symbols present; do not assume the image explains these by itself.
+
 Read `brand` before producing a custom chart. Prefer `chart sleep` for a sleep overview (stages, duration and a separate score panel), or `chart METRIC` for a single metric. Both accept `--from`, `--to`, a new `--output file.png`, and `--layout chat` (default) or `wide`. Charts require the optional charts extra. For a source install use `uv tool install --from '.[charts]' garmin-data-workbench`; this changes the installed tool, so coordinate it with the user's setup. Use `--synthetic` for generated examples only; it does not anonymize real data.
 
-Custom charts must use the `brand` colors and supplied logo assets, label dates, units and coverage, preserve gaps and zero, and mask values after failed refreshes. Keep images focused on data; explain relevant source, freshness, estimates and interpretation in the accompanying response rather than adding routine paragraphs to the image. Primary blue is #0863E8; navy ink is #0B2855. The sleep report uses blue stage shades and separate panels instead of unrelated scales on one axis. Attach the actual PNG through the host's image interface; a path alone may not deliver it. If image delivery is unavailable, say so and provide a small table. Do not use image-generation models to plot measurements.
+Custom charts must use the `brand` colors and supplied logo assets, label dates, units and coverage, preserve gaps and zero, and mask values after failed refreshes. Keep images focused on data; explain relevant source, freshness, estimates and interpretation in the accompanying response rather than adding routine paragraphs to the image. Primary blue is #0863E8; navy ink is #0B2855. The sleep report uses blue stage shades and separate panels instead of unrelated scales on one axis. Attach the actual PNG through the host's image interface; a path alone may not deliver it. If rendering or image delivery is unavailable, say so and provide a small table. Do not use image-generation models to plot measurements.
 
 Sleep need uses **minutes**, not the seconds used for measured sleep. `sleep_need` is Garmin's adjusted actual recommendation; `sleep_need_baseline` is the unadjusted baseline. `next_sleep_need` has its own explicit source date; do not shift it onto the current night or substitute baseline for actual. Built-in charts convert minute durations to hours. Missing need is not zero; do not infer a deficit or a recommended bedtime.
 
