@@ -12,6 +12,7 @@ import shutil
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -88,6 +89,68 @@ class ChartsTest(unittest.TestCase):
     def query(self, metric, start='2026-01-01', end='2026-01-30'):
         with open_archive(self.data_dir) as db:
             return get_trend(db, metric, start, end)
+
+    def assert_readable_dates(self, figure, strip, count):
+        figure.canvas.draw()
+        ticks = list(strip.get_xticks())
+        self.assertEqual(ticks, sorted(set(ticks)))
+        self.assertEqual((ticks[0], ticks[-1]), (0, count - 1))
+        self.assertLessEqual(len(ticks), min(5, count))
+        self.assertEqual(len(strip.lines), count)  # Keep every dated coverage mark.
+        bounds = [label.get_window_extent() for label in strip.get_xticklabels()]
+        # A visible 10-point gutter, including at the PNG export resolution.
+        for left, right in zip(bounds, bounds[1:]):
+            self.assertGreaterEqual((right.x0 - left.x1) * 72 / figure.dpi, 10)
+
+    def test_sleep_week_date_labels_have_space_in_chat_and_wide(self):
+        from garmin_archive.charts import build_sleep_figure
+        with open_archive(self.data_dir) as db:
+            result = get_sleep(db, '2026-04-24', '2026-04-30')
+        for layout in ('chat', 'wide'):
+            for dpi in (100, 160):
+                with self.subTest(layout=layout, dpi=dpi):
+                    figure = build_sleep_figure(result, layout=layout)
+                    figure.set_dpi(dpi)
+                    strip = figure.axes[2]
+                    self.assert_readable_dates(figure, strip, 7)
+                    labels = strip.get_xticklabels()
+                    self.assertEqual((labels[0].get_text(), labels[-1].get_text()), ('Apr 24', 'Apr 30'))
+                    self.assertGreaterEqual(len(labels), 3)
+                    self.assertEqual(figure.axes[1].get_ylim(), (0, 100))
+                    self.assertEqual(strip.get_xlim(), figure.axes[1].get_xlim())
+
+    def test_date_spacing_handles_short_long_and_calendar_boundary_ranges(self):
+        from garmin_archive.charts import build_trend_figure
+        cases = [('2026-01-01', days) for days in (1, 2, 3, 4, 5, 6, 8, 9, 14, 30, 90)]
+        cases += [('2026-09-24', 7), ('2026-09-27', 7), ('2025-12-29', 7)]
+        for first, count in cases:
+            last = (date.fromisoformat(first) + timedelta(days=count - 1)).isoformat()
+            trend = self.query('sleep_duration', first, last)
+            for layout in ('chat', 'wide'):
+                with self.subTest(first=first, count=count, layout=layout):
+                    figure = build_trend_figure(trend, layout=layout)
+                    figure.set_dpi(160)
+                    self.assert_readable_dates(figure, figure.axes[1], count)
+
+    def test_sparse_sleep_week_keeps_dates_and_missingness(self):
+        from garmin_archive.charts import build_sleep_figure
+        # Leave only Jan 5 available, retaining the unchecked/empty source gaps.
+        with open_archive(self.data_dir) as db:
+            result = get_sleep(db, '2026-01-04', '2026-01-10')
+        for night in result['nights'][2:]:
+            night['values'] = dict.fromkeys(night['values'])
+            if night['status'] == 'ok':
+                night['status'] = 'not_checked'
+            night['stages_complete'] = False
+        for layout in ('chat', 'wide'):
+            with self.subTest(layout=layout):
+                figure = build_sleep_figure(result, layout=layout)
+                strip = figure.axes[2]
+                self.assert_readable_dates(figure, strip, 7)
+                self.assertEqual([line.get_marker() for line in strip.lines], ['|', 'o', '|', '|', 's', '|', '|'])
+                duration = figure.axes[0].lines[0].get_ydata()
+                self.assertEqual(sum(not math.isnan(value) for value in duration), 1)
+                self.assertIn('1/7', [t.get_text() for t in figure.texts])
 
     def test_sleep_converts_units_masks_failed_values_and_dates_statuses(self):
         from garmin_archive.charts import build_trend_figure
