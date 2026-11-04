@@ -1,6 +1,6 @@
 # Visualizing your archive
 
-Normally include a focused chart for a multi-day trend or sleep overview when rendering and image delivery are available, without waiting to be asked. Use a chart for comparisons when it helps answer the question. Respect text-only requests; use a table or prose for a single value or data too sparse for a useful chart. Sparse observations do not establish a trend. Charts read the existing archive without syncing or requiring Garmin credentials.
+Follow the canonical [presentation policy](../src/garmin_archive/agent_guide.md#present-and-visualize), also available through installed `agent-guide`: normally deliver a chart for multi-day trends, sleep and Body Battery, followed by a short interpretation and coverage/freshness line. The policy enumerates text-only, single-day, sparse-data and unavailable-delivery exceptions. Charts read the existing archive without syncing or requiring Garmin credentials.
 
 ## Render a chart
 

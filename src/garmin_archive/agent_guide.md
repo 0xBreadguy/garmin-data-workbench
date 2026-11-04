@@ -21,7 +21,16 @@ Place global `--data-dir /absolute/private/archive` before the command. A same-h
 
 ## Present and visualize
 
-Normally include a focused chart with a multi-day trend or sleep overview when rendering and image delivery are available; do not wait to be asked. Use judgment for comparisons: chart them when it helps answer the question. Respect a text-only request, and prefer prose or a table for a single value or data too sparse for a useful chart. Do not imply sparse observations establish a trend.
+This section is the canonical presentation policy; setup docs and visualization skills defer to it.
+
+For multi-day trends, sleep overviews and Body Battery questions, normally reply in this order: a focused delivered chart, a short prose interpretation, then one coverage/freshness line. Do not wait for a separate chart request. Exceptions:
+
+- The user requests text only.
+- A single-day or single-value question is answered better by prose or a small table.
+- Fewer than three usable observations are available: normally use a small table and state the gap. An explicitly requested chart or useful two-point comparison is still allowed; do not claim a trend or baseline from sparse data.
+- Rendering or image delivery is unavailable: explicitly say no chart was delivered and give a small table of available values.
+
+Use the renderer's caption/alt text when provided. It should state title, inclusive dates, available-day denominator, rendered units, synthetic provenance and wearable estimates where applicable. Keep routine explanation outside the image. Explain the dotted sleep-need line as Garmin's estimate, the independent score panel, and any gap-strip symbols present; do not assume the image explains these by itself.
 
 Read `brand` before producing a custom chart. Prefer `chart sleep` for a sleep overview (stages, duration and a separate score panel), or `chart METRIC` for a single metric. Both accept `--from`, `--to`, a new `--output file.png`, and `--layout chat` (default) or `wide`. Charts require the optional charts extra. For a source install use `uv tool install --from '.[charts]' garmin-data-workbench`; this changes the installed tool, so coordinate it with the user's setup. Use `--synthetic` for generated examples only; it does not anonymize real data.
 

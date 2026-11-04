@@ -114,6 +114,7 @@ def create_server(data_dir: Path) -> FastMCP:
 
         Uses stored reports and source column descriptors; no raw readings or events.
         Defaults to seven dates ending today; last reading is not a live current value.
+        Normally chart multi-day comparisons; agent_guide defines presentation exceptions.
         """
         with open_archive(data_dir) as db:
             return query_body_battery(db, start, end)
