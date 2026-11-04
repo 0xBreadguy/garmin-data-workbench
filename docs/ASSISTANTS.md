@@ -76,4 +76,4 @@ The shipped server uses stdio and provides no authenticated remote HTTP connecto
 
 ## Verification status
 
-A local Codex conversation has used the MCP successfully. Claude Code registration has been checked in isolation. Muse has a reported offline VM check, but its live setup and provider routine remain unverified. Other handoffs need end-to-end tests. Test installation, discovery, live sync, a real query and recurring execution separately using [the setup checks](SETUP.md#4-connect-and-test-the-assistant).
+A local Codex conversation has used the MCP successfully. Claude Code registration has been checked in isolation. Synthetic CLI answers and visible images were verified in the Muse and Grok apps at the [recorded baseline](COMPATIBILITY.md#assistant-acceptance-snapshot); Grok reused an existing installation, and Dot was blocked before its first prompt. Those checks did not exercise MCP, controlled persistence, live setup or provider routines. Use the [acceptance reporting stages](TESTING.md#assistant-acceptance-reports) and [setup checks](SETUP.md#4-connect-and-test-the-assistant) to record each result separately.

@@ -32,8 +32,10 @@ and Linux live setup need separate reports. See [testing](TESTING.md) and the
 
 ## Assistant acceptance snapshot
 
-November 4, 2026 synthetic checks at source revision `28e2aa9`; report-only
-commits: Muse `b143cd0`, Grok `433b492`, Dot `edc6ccb`. These results cover the
+November 4, 2026 synthetic checks at source revision `28e2aa9`; reports:
+[Muse](acceptance/2026-11-04-muse-fresh-install.md) (`b143cd0`),
+[Grok](acceptance/2026-11-04-grok-fresh-install.md) (`433b492`), and
+[Dot](acceptance/2026-11-04-dot-fresh-install.md) (`edc6ccb`). These results cover the
 tested surface and path, not every integration or later revision. App access,
 visible answers and opened images were directly observed; command execution,
 installation state and VM details below were assistant-reported.

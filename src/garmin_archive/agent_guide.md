@@ -3,6 +3,10 @@
 Use the existing local archive for questions. Queries require no Garmin key or live request.
 Do not sync, register a client, change a schedule, or create a routine unless the user asks.
 
+Before setup or handoff, name the command/archive host separately from the chat app's computer. Give same-host absolute executable/archive paths, disclose reused state, and distinguish expected persistence from a controlled new-session test. Follow the [isolated mock setup route](https://github.com/0xBreadguy/garmin-data-workbench/blob/main/docs/SETUP.md#mock-only-setup-stop-before-credentials) for mock-only requests.
+
+For the default synthetic demo, start with “How was sleep April 24–30, 2026?” using `sleep` and `chart sleep` with explicit dates. Disclose any substitution for a current-date question. The [demo guide](https://github.com/0xBreadguy/garmin-data-workbench/blob/main/docs/VISUALIZATION.md#try-generated-demo-data) explains other fixture windows and simulated freshness.
+
 ## Choose a small query
 
 - `day YYYY-MM-DD` / MCP `get_day`: daily metrics, activities and coverage.
