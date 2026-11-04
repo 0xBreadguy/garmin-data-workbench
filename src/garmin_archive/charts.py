@@ -88,8 +88,9 @@ def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "
     values = [p["value"] if p["status"] == "ok" else None for p in points]
     if display:
         values = [s["value"] if v is not None else None for s, v in zip(source_points, values)]
-    if unit == "s":
-        values = [v / 3600 if v is not None else None for v in values]
+    if unit in {"s", "min"}:
+        divisor = 3600 if unit == "s" else 60
+        values = [v / divisor if v is not None else None for v in values]
         unit = "hours"
     available = [v for v in values if v is not None]
     wide = layout == "wide"
@@ -110,11 +111,16 @@ def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "
                 if n["values"]["sleep_duration"] is not None and not n["stages_complete"]]),
             ("Sleep score unavailable [×]", [n["day"] for n in sleep_report["nights"]
                 if n["values"]["sleep_duration"] is not None and n["values"]["sleep_score"] is None]),
+            ("Sleep need unavailable", [n["day"] for n in sleep_report["nights"]
+                if n["values"]["sleep_duration"] is not None and n["values"].get("sleep_need") is None]),
         ):
             if days:
                 notes.extend(textwrap.wrap(f"{label}: {_date_groups(days, year=cross_year)}", text_width))
         notes.extend(textwrap.wrap("Score [×] means unavailable, not zero. Stages and scores are Garmin wearable estimates. "
-                                   "Total sleep excludes naps and awake time.", text_width))
+                                   "Need is Garmin's sleep estimate. Total sleep excludes naps and awake time.", text_width))
+    if metric.startswith("body_battery_"):
+        notes.extend(textwrap.wrap("Reported amounts may cover a partial day. Levels summarize observed samples only; "
+                                   "the last reading is not a live value.", text_width))
     fetch_points = ([{"status": n["status"], "fetched_at": n["fetched_at"],
                      "value": 0 if any(v is not None for v in n["values"].values()) else None}
                      for n in sleep_report["nights"]] if sleep_report else points)
@@ -146,7 +152,7 @@ def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "
             summary = f"{minutes // 60}h {minutes % 60:02d}m"
         elif metric == "steps":
             summary = f"{mean:,.0f}"
-        elif metric in {"sleep_score", "sleep_stress"}:
+        elif metric in {"sleep_score", "sleep_stress"} or metric.startswith("body_battery_"):
             summary = f"{mean:,.1f}"
         else:
             summary = f"{mean:,.1f} {unit}"
@@ -202,11 +208,12 @@ def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "
 
     # Status marks share the chart's date positions. The dated notes below give
     # exact dates even in a dense 90-day export; status never becomes a zero.
-    if metric in {"sleep_score", "sleep_stress"}:
+    if metric in {"sleep_score", "sleep_stress", "body_battery_min", "body_battery_max", "body_battery_first", "body_battery_last"}:
         ax.set_ylim(0, 100)
     if sleep_report:
         # Total duration remains visible for nights with incomplete stages.
-        ax.set_ylim(0, max(max(available, default=0) * 1.2, 1))
+        needs = [n["values"].get("sleep_need") for n in sleep_report["nights"]]
+        ax.set_ylim(0, max(max(available + [v / 60 for v in needs if v is not None], default=0) * 1.2, 1))
         stage_labels = ("Deep", "REM", "Light", "Unclassified")
         stage_colors = (colors["ink"], colors["primary"], "#8EB5ED", "#D3DFEF")
         indices = [i for i, night in enumerate(sleep_report["nights"]) if night["stages_complete"]]
@@ -221,8 +228,11 @@ def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "
             line.set_zorder(4)
         if ax.lines:
             ax.lines[0].set_label("Total")
+        if any(value is not None for value in needs):
+            ax.plot(xs, [v / 60 if v is not None else math.nan for v in needs], color=colors["ink"],
+                    linestyle=":", linewidth=1.6, label="Garmin need", zorder=4)
         if indices or ax.lines:
-            ax.legend(loc="lower left", bbox_to_anchor=(0, 1.03), ncol=3 if not wide else 5,
+            ax.legend(loc="lower left", bbox_to_anchor=(0, 1.03), ncol=3 if not wide else 6,
                       frameon=False, fontsize=8, handlelength=1, borderaxespad=0)
         score_top, score_height = chart_top + chart_height + .6, 1.45
         score = fig.add_axes([plot_left / width, 1 - (score_top + score_height) / height,

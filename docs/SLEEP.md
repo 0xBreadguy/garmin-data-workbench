@@ -26,7 +26,13 @@ Mappings follow the [official Personal API Swagger](https://developer.garmin.com
 | `sleep_awake` | `awakeSleepSeconds` | seconds awake during the sleep window; not added to sleep |
 | `nap_duration` | `napTimeSeconds` | seconds of naps associated with the date; separate from nightly sleep |
 | `sleep_score` | `sleepScores.overall.value` | Garmin score, 0–100; only the recognized `overall` entry is used |
+| `sleep_need` | `sleepNeed.actual` | minutes; Garmin's adjusted recommendation for the associated night |
+| `sleep_need_baseline` | `sleepNeed.baseline` | minutes; baseline before adjustments |
 | `sleep_stress` | `avgSleepStress` | Garmin overnight stress scale; not a percentage or diagnosis |
+
+Sleep-need units are corroborated by [Garth's own documented SleepNeed examples](https://garth.readthedocs.io/en/latest/api/data/#daily-sleep-data-with-sleep-need), which explicitly label `actual` and `baseline` in minutes. Garmin's schema identifies those same fields but leaves units implicit; this is client-contract evidence, not an explicit vendor unit declaration. [Garmin's Sleep Coach description](https://www.garmin.com/en-CA/blog/fitness/five-factors-garmin-sleep-coach-uses-to-find-your-sleep-needs/) describes recommendations in ten-minute increments. No Garth dependency or unofficial collection endpoint is added.
+
+The dynamic `actual` value is not the baseline. Need fields accept whole minutes in 0–1440; implausible values are missing, never automatically reinterpreted as seconds. An explicit nested `sleepNeed.calendarDate` must match the associated night. Each night's `next_sleep_need` preserves `nextSleepNeed.calendarDate`, `actual`, `baseline`, and minute units separately; a missing/invalid next date masks that recommendation. Next need is not shifted onto the current night's scalar trend. No sleep deficit or recommended bedtime is inferred.
 
 Booleans, strings, negative/nonfinite values, explicitly INVALID scores and scores/stress above 100 are unavailable, not coerced. Unknown response shapes/score keys remain missing. Garmin's schema describes a score-component map; we do not guess alternatives to `overall`. These mappings and synthetic tests do not establish accuracy for every device. Compare representative values with Garmin Connect before claiming live validation.
 
@@ -38,7 +44,7 @@ The associated date is Garmin's `calendarDate`. It need not be the bedtime date.
 
 ## Report behavior
 
-`chart sleep` uses the supplied brand, a chat/phone layout by default, and a wide report layout with `--layout wide`. Duration appears as an unsmoothed blue line in hours. Stage bars appear only when all four stage values exist and their sum agrees with total sleep within 60 seconds. Missing stages are not inferred as zero and inconsistent totals are not repaired. Awake time and naps are excluded from the stack. The score panel has its own labeled 0–100 axis and available-night count. Gaps, missing score dates and incomplete-stage dates are explicit. Wearable estimates, source and fetch context accompany the report.
+`chart sleep` uses the supplied brand, a chat/phone layout by default, and a wide report layout with `--layout wide`. Duration appears as an unsmoothed blue line in hours. A distinct dotted line shows Garmin's adjusted sleep need where available, converting source minutes to hours; baseline is not substituted. `chart sleep_need` and `chart sleep_need_baseline` also work independently. Stage bars appear only when all four stage values exist and their sum agrees with total sleep within 60 seconds. Missing stages are not inferred as zero and inconsistent totals are not repaired. Awake time and naps are excluded from the stack. The score panel has its own labeled 0–100 axis and available-night count. Gaps, missing score dates and incomplete-stage dates are explicit. Wearable estimates, source and fetch context accompany the report.
 
 Use the [demo archive](VISUALIZATION.md#try-generated-demo-data) and `--synthetic` to test without health data. The flag labels supplied synthetic data; it does not anonymize real measurements.
 
@@ -46,4 +52,4 @@ Use the [demo archive](VISUALIZATION.md#try-generated-demo-data) and `--syntheti
 
 Installed `agent-guide` guidance distinguishes measurements, Garmin assessments and hypotheses. A short history does not establish a baseline or causality. Show coverage, dates and freshness, and avoid turning an association into a precise prescription. The workbench supplies measurements, not a new readiness/recovery score.
 
-Sleep need is deferred: the published `SleepNeedDTO.actual`/`baseline` descriptions do not give a usable unit contract. Body Battery summaries are deferred until daily aggregation and field meanings are validated. Detailed nap episodes, clock-time statistics and derived recovery scores are also outside this change; the documented daily nap duration is included. Actual provider secret entry, representative Connect comparisons and the first recurring execution need separate live validation.
+Sleep need and [Body Battery summaries](BODY_BATTERY.md) are implemented. Detailed nap episodes, clock-time statistics and derived recovery scores are also outside this change; the documented daily nap duration is included. Actual provider secret entry, representative Connect comparisons and the first recurring execution need separate live validation.

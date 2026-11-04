@@ -16,6 +16,7 @@ from .archive import default_data_dir
 from .preferences import display_distance, local_today, profile_preferences
 from .queries import get_day as query_day, get_trend as query_trend, health_response, open_archive
 from .sleep import get_sleep as query_sleep
+from .body_battery import get_body_battery as query_body_battery
 from .guidance import agent_guide as read_agent_guide
 from .schedule import configure_schedule, schedule_status
 
@@ -53,13 +54,23 @@ def create_server(data_dir: Path) -> FastMCP:
 
     @server.tool(annotations=READ_ONLY)
     def get_sleep(start: str = "", end: str = "") -> dict:
-        """Get 1–90 inclusive dates of sleep stages, score, stress, naps and source times.
+        """Get 1–90 inclusive dates of sleep stages, score, stress, naps, sleep need and source times.
 
         YYYY-MM-DD dates default to seven dates ending today (which may be incomplete).
         Missing/failed values remain null; local times never use the current profile zone.
         """
         with open_archive(data_dir) as db:
             return query_sleep(db, start, end)
+
+    @server.tool(annotations=READ_ONLY)
+    def get_body_battery(start: str = "", end: str = "") -> dict:
+        """Get 1–90 inclusive dates of Body Battery charge/drain and observed min/max/first/last.
+
+        Uses stored reports and source column descriptors; no raw readings or events.
+        Defaults to seven dates ending today; last reading is not a live current value.
+        """
+        with open_archive(data_dir) as db:
+            return query_body_battery(db, start, end)
 
     @server.tool(annotations=READ_ONLY)
     def setup_status() -> dict:
@@ -97,7 +108,9 @@ def create_server(data_dir: Path) -> FastMCP:
 
         metric is steps, distance, resting_heart_rate, sleep_duration, overnight_hrv,
         sleep_score, sleep_deep, sleep_light, sleep_rem, sleep_awake,
-        sleep_unmeasurable, sleep_stress, or nap_duration. start and end are YYYY-MM-DD. End defaults to today in
+        sleep_unmeasurable, sleep_stress, nap_duration, sleep_need, sleep_need_baseline,
+        body_battery_charged, body_battery_drained, body_battery_min, body_battery_max,
+        body_battery_first, or body_battery_last. start and end are YYYY-MM-DD. End defaults to today in
         Garmin's profile timezone (or host timezone if unavailable); start
         defaults to six days before end.
         Means use only days with values, never missing days.

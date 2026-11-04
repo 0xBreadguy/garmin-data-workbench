@@ -39,12 +39,23 @@ def create_demo_archive(destination: Path) -> None:
                     "awakeSleepSeconds": 600, "napTimeSeconds": 1200 if i % 5 == 0 else 0,
                     "avgSleepStress": round(20 + 10 * math.sin(i)),
                     "sleepScores": {"overall": {"value": round(80 + 12 * math.sin(i * .8))}},
+                    "sleepNeed": {"calendarDate": day, "actual": 480 + (i % 3) * 10, "baseline": 480},
+                    "nextSleepNeed": {"calendarDate": (date.fromisoformat(day) + timedelta(days=1)).isoformat(),
+                                      "actual": 470 + (i % 3) * 10, "baseline": 480},
                     "sleepStartTimestampGMT": (wake - timedelta(seconds=duration + 600)).isoformat(),
                     "sleepEndTimestampGMT": wake.isoformat(),
                     "sleepStartTimestampLocal": (wake - timedelta(seconds=duration + 600)).isoformat(),
                     "sleepEndTimestampLocal": wake.isoformat()},
                 "heart_rate": {"restingHeartRate": round(58 + 3 * math.cos(i * .8))},
                 "hrv": {"hrvSummary": {"lastNightAvg": round(48 + 8 * math.sin(i * .7))}},
+                "body_battery": [{"date": day, "charged": 60, "drained": 50,
+                    "startTimestampGMT": wake.replace(hour=0).isoformat(),
+                    "endTimestampGMT": wake.replace(hour=23, minute=59).isoformat(),
+                    "bodyBatteryValueDescriptorDTOList": [
+                        {"bodyBatteryValueDescriptorKey": "bodyBatteryLevel", "bodyBatteryValueDescriptorIndex": 0},
+                        {"bodyBatteryValueDescriptorKey": "timestamp", "bodyBatteryValueDescriptorIndex": 1}],
+                    "bodyBatteryValuesArray": [[level, int(wake.replace(hour=hour).timestamp() * 1000)]
+                                               for hour, level in ((0, 25), (7, 85), (18, 40), (23, 30))]}],
             }
             for dataset, payload in data.items():
                 if i == 7:

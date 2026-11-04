@@ -28,6 +28,7 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | Scheduling and rollback | `test_schedule.py` |
 | Catch-up and recovery | `test_catchup.py` |
 | Archive, FIT decoding, sync | `test_archive.py` |
+| Body Battery descriptors, sample order, dates and failed refreshes | `test_body_battery.py` |
 | Sleep summaries, source timestamps and missing stages | `test_sleep.py` |
 | Setup receipts, installed guidance and routine templates | `test_onboarding.py` |
 | Metrics and missingness | `test_queries.py` |
@@ -73,3 +74,5 @@ Registration doesn't prove discovery; discovery doesn't prove a real query. Matc
 `save-key` tests mock authentication and use disposable files. They don't verify a provider's secret-entry facility. Report compatibility through the [setup template](../.github/ISSUE_TEMPLATE/setup-report.md), without private data.
 
 For sleep acceptance, use the generated demo and render `chart sleep` in both chat and wide layouts. Verify stage stacks only for complete/reconciled breakdowns, independent score coverage/axis, masked failed refreshes, source/date notes and actual image delivery. Test empty, single-day and sparse periods. Before claiming live field validation, compare a representative night (including source timestamps and scores) with Garmin Connect. Provider routine creation is separate from observing its first execution.
+
+For Body Battery, use descriptor permutations, missing/duplicate descriptors, out-of-order and conflicting timestamps, invalid samples, partial-day coverage and failed retained data. Compare `body-battery`, `day`, `trend` and MCP fields. Verify source observation times remain distinct from fetch times. Sleep-need tests must distinguish adjusted/baseline minutes, independently dated next-night need, invalid units/types and hour conversion in charts. Installed-wheel smoke checks exercise both new summaries.

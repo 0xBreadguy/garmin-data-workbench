@@ -123,6 +123,40 @@ class SleepTest(unittest.TestCase):
         self.db.rollback()
         self.assertEqual(get_sleep(self.db, "2026-01-01", "2026-01-01")["nights"][0]["status"], "not_checked")
 
+    def test_sleep_need_keeps_dynamic_baseline_minutes_and_next_date_separate(self):
+        data = payload()
+        data["sleepNeed"] = {"calendarDate": "2026-01-01", "actual": 500, "baseline": 470}
+        data["nextSleepNeed"] = {"calendarDate": "2026-01-02", "actual": 480, "baseline": 470}
+        self.archive.save_daily("sleep", "2026-01-01", data)
+        result = get_sleep(self.db, "2026-01-01", "2026-01-01")
+        night = result["nights"][0]
+        self.assertEqual(night["values"]["sleep_need"], 500)
+        self.assertEqual(night["values"]["sleep_need_baseline"], 470)
+        self.assertEqual(result["fields"]["sleep_need"]["unit"], "min")
+        self.assertEqual(night["next_sleep_need"], {"day": "2026-01-02", "actual": 480, "baseline": 470, "unit": "min", "status": "ok"})
+        data["sleepNeed"]["calendarDate"] = "2026-01-02"
+        data["nextSleepNeed"].pop("calendarDate")
+        self.archive.save_daily("sleep", "2026-01-01", data)
+        night = get_sleep(self.db, "2026-01-01", "2026-01-01")["nights"][0]
+        self.assertIsNone(night["values"]["sleep_need"])
+        self.assertEqual(night["next_sleep_need"]["status"], "date_not_returned")
+        self.assertIsNone(night["next_sleep_need"]["actual"])
+
+    def test_sleep_need_rejects_wrong_types_units_and_failed_retained_values(self):
+        for value in (True, "480", -1, 48000, 480.5):
+            with self.subTest(value=value):
+                data = payload()
+                data["sleepNeed"] = {"actual": value, "baseline": 480}
+                data["nextSleepNeed"] = {"calendarDate": "2026-01-02", "actual": value, "baseline": 480}
+                self.archive.save_daily("sleep", "2026-01-01", data)
+                night = get_sleep(self.db, "2026-01-01", "2026-01-01")["nights"][0]
+                self.assertIsNone(night["values"]["sleep_need"])
+                self.assertIsNone(night["next_sleep_need"]["actual"])
+        self.archive.mark_error("sleep", "2026-01-01", "failed")
+        night = get_sleep(self.db, "2026-01-01", "2026-01-01")["nights"][0]
+        self.assertIsNone(night["values"]["sleep_need_baseline"])
+        self.assertEqual(night["next_sleep_need"]["status"], "unavailable")
+
     def test_cli_sleep_and_metadata_are_read_only_and_use_error_contract(self):
         self.archive.save_daily("sleep", "2026-01-01", payload())
         self.archive.mark_error("sleep", "2026-01-01", "failed")

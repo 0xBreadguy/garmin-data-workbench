@@ -5,35 +5,36 @@ are returned. Historical wall times are never assigned today's profile zone.
 """
 from __future__ import annotations
 
-import math
 import sqlite3
-from datetime import UTC, datetime
+from datetime import datetime
 
-from .queries import METRICS, METRIC_TITLES, get_trend
+from .queries import METRICS, METRIC_TITLES, get_trend, parse_day
+from .timestamps import source_timestamp as _timestamp
 
 SLEEP_METRICS = tuple(name for name, spec in METRICS.items() if spec[0] == "sleep")
 TIME_FIELDS = {"start_utc": "sleepStartTimestampGMT", "end_utc": "sleepEndTimestampGMT",
                "start_local": "sleepStartTimestampLocal", "end_local": "sleepEndTimestampLocal"}
 STAGES = ("sleep_deep", "sleep_rem", "sleep_light", "sleep_unmeasurable")
+NEXT_NEED_FIELDS = {"next_day": "nextSleepNeed.calendarDate", "next_actual": "nextSleepNeed.actual",
+                    "next_baseline": "nextSleepNeed.baseline"}
 
 
-def _timestamp(value, *, utc: bool) -> str | None:
+def _next_need(row, *, available: bool) -> dict:
+    result = {"day": None, "actual": None, "baseline": None, "unit": "min", "status": "unavailable"}
+    if not available:
+        return result
     try:
-        if isinstance(value, bool):
-            return None
-        if isinstance(value, (int, float)) and math.isfinite(value):
-            stamp = datetime.fromtimestamp(value / 1000, UTC)
-            if not utc:
-                stamp = stamp.replace(tzinfo=None)
-        elif isinstance(value, str) and len(value) <= 64 and "T" in value:
-            stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            if utc:
-                stamp = stamp.replace(tzinfo=UTC) if stamp.tzinfo is None else stamp.astimezone(UTC)
-        else:
-            return None
-        return stamp.isoformat()
-    except (ValueError, OverflowError, OSError):
-        return None
+        result["day"] = parse_day(row["next_day"]).isoformat()
+    except ValueError:
+        result["status"] = "date_not_returned"
+        return result
+    for name in ("actual", "baseline"):
+        value = row["next_" + name]
+        if row["next_" + name + "_type"] in {"integer", "real"} and 0 <= value <= 1440 and int(value) == value:
+            result[name] = value
+    result["status"] = ("ok" if result["actual"] is not None and result["baseline"] is not None else
+                        "not_returned" if result["actual"] is None and result["baseline"] is None else "partial")
+    return result
 
 
 def complete_stages(values: dict) -> bool:
@@ -70,7 +71,9 @@ def _get_sleep(db: sqlite3.Connection, start: str, end: str) -> dict:
         row = db.execute(
             "SELECT s.status, d.data_json IS NOT NULL AS has_data, " + ", ".join(
                 "CASE WHEN s.status='ok' THEN json_extract(d.data_json, '$." + field + "') END AS " + name
-                for name, field in TIME_FIELDS.items()) +
+                for name, field in {**TIME_FIELDS, **NEXT_NEED_FIELDS}.items()) + ", " + ", ".join(
+                "CASE WHEN s.status='ok' THEN json_type(d.data_json, '$." + field + "') END AS " + name + "_type"
+                for name, field in NEXT_NEED_FIELDS.items() if name != "next_day") +
             " FROM (SELECT 1) LEFT JOIN daily_data d ON d.dataset='sleep' AND d.day=?"
             " LEFT JOIN sync_state s ON s.dataset='sleep' AND s.day=?", (day, day)).fetchone()
         status = row["status"] or "not_checked"
@@ -95,6 +98,7 @@ def _get_sleep(db: sqlite3.Connection, start: str, end: str) -> dict:
             "missing_fields": [name for name, value in values.items() if value is None],
             "fetched_at": point["fetched_at"], "last_attempt": point["last_attempt"],
             "timing": timing, "timing_status": timing_status,
+            "next_sleep_need": _next_need(row, available=status == "ok" and bool(valid_day) and valid_day["day"] in (None, day)),
             "stages_complete": complete_stages(values)})
     statuses = {}
     for night in nights:
@@ -104,6 +108,8 @@ def _get_sleep(db: sqlite3.Connection, start: str, end: str) -> dict:
         "fields": {name: {"field": ".".join(METRICS[name][1]), "unit": METRICS[name][2],
                           "label": METRIC_TITLES[name]} for name in SLEEP_METRICS},
         "timing_fields": TIME_FIELDS,
+        "next_sleep_need_fields": {"day": "nextSleepNeed.calendarDate", "actual": "nextSleepNeed.actual",
+                                   "baseline": "nextSleepNeed.baseline", "unit": "min"},
         "coverage": {"requested_days": len(nights), "statuses": statuses,
                      "fields": {name: {**trend["coverage"],
                           "mean_of_available_days": trend["mean_of_available_days"]} for name, trend in trends.items()}},
@@ -114,5 +120,7 @@ def _get_sleep(db: sqlite3.Connection, start: str, end: str) -> dict:
                   "Total sleep excludes naps and awake time. Missing stages are not zero. "
                   "stages_complete requires all four stages and totals within 60 seconds of total sleep.",
                   "Non-ok refreshes mask retained values and timings. On ok responses, missing_fields are unreturned or invalid metrics.",
+                  "sleep_need is Garmin's dynamic actual recommendation in minutes; sleep_need_baseline is its baseline, not the adjusted recommendation. "
+                  "next_sleep_need retains its own source date and is never shifted onto the associated night's trend. No deficit is inferred.",
                   "Sleep stages and scores are wearable estimates. Separate observations, Garmin assessments and hypotheses; "
                   "a short history does not establish causes or a personal baseline."]}

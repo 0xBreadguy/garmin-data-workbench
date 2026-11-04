@@ -7,11 +7,12 @@ Do not sync, register a client, change a schedule, or create a routine unless th
 
 - `day YYYY-MM-DD` / MCP `get_day`: daily metrics, activities and coverage.
 - `trend METRIC --from YYYY-MM-DD --to YYYY-MM-DD` / `get_trend`: one metric over 1–90 inclusive dates.
-- `sleep --from YYYY-MM-DD --to YYYY-MM-DD` / `get_sleep`: sleep duration, score, stages, stress, naps and source sleep-window times together. Prefer this over extracting raw sleep JSON.
+- `sleep --from YYYY-MM-DD --to YYYY-MM-DD` / `get_sleep`: sleep duration, score, stages, stress, naps, adjusted/baseline sleep need and source sleep-window times together. Prefer this over extracting raw sleep JSON.
+- `body-battery --from YYYY-MM-DD --to YYYY-MM-DD` / `get_body_battery`: reported daily charge/drain and observed min/max/first/last levels, counts and source observation times. No raw readings or events.
 - `status` / `archive_status`: stored coverage and sync failures. Successful status reads do not prove successful syncs.
 - `setup-receipt` / `setup_receipt`: installation provenance, coverage, native schedule state and outstanding verification.
 
-Omitted trend/sleep dates select exactly seven inclusive dates ending today in Garmin's saved profile timezone, with the host date as fallback. For seven completed dates, explicitly end yesterday and start six days before that. The current date can be incomplete. State the actual range and available-day denominator.
+Omitted trend/sleep/body-battery dates select exactly seven inclusive dates ending today in Garmin's saved profile timezone, with the host date as fallback. For seven completed dates, explicitly end yesterday and start six days before that. The current date can be incomplete. State the actual range and available-day denominator.
 
 Place global `--data-dir /absolute/private/archive` before the command. A same-host shell can use the CLI directly; it does not need MCP registration. MCP-only clients need a supported connection to the archive host. A handoff does not establish remote access.
 
@@ -20,6 +21,10 @@ Place global `--data-dir /absolute/private/archive` before the command. A same-h
 Read `brand` before producing a custom chart. Prefer `chart sleep` for a sleep overview (stages, duration and a separate score panel), or `chart METRIC` for a single metric. Both accept `--from`, `--to`, a new `--output file.png`, and `--layout chat` (default) or `wide`. Charts require the optional charts extra. For a source install use `uv tool install --from '.[charts]' garmin-data-workbench`; this changes the installed tool, so coordinate it with the user's setup. Use `--synthetic` for generated examples only; it does not anonymize real data.
 
 Custom charts must use the `brand` colors and supplied logo assets, label dates, units, source, coverage and fetch context, preserve gaps and zero, and mask values after failed refreshes. Primary blue is #0863E8; navy ink is #0B2855. The sleep report uses blue stage shades and separate panels instead of unrelated scales on one axis. Attach the actual PNG through the host's image interface; a path alone may not deliver it. If image delivery is unavailable, say so and provide a small table. Do not use image-generation models to plot measurements.
+
+Sleep need uses **minutes**, not the seconds used for measured sleep. `sleep_need` is Garmin's adjusted actual recommendation; `sleep_need_baseline` is the unadjusted baseline. `next_sleep_need` has its own explicit source date; do not shift it onto the current night or substitute baseline for actual. Built-in charts convert minute durations to hours. Missing need is not zero; do not infer a deficit or a recommended bedtime.
+
+Body Battery levels use a 0–100 scale, not percentages. Charge/drain are reported daily scale-point totals. Observed min/max/first/last use descriptor-identified samples; first/last expose observation times. Missing descriptors mean unavailable levels, not fixed-position guessing. Sparse samples do not establish full-day coverage. Last observed is not current, wake-up or bedtime. Failed refreshes mask old values. Use `trend`/`chart body_battery_last` (or another Body Battery scalar metric) for comparisons; do not invent a recovery score or average irregular samples as if they were time-weighted.
 
 Numerical units are labeled: sleep/stage/nap values are seconds, sleep scores are 0–100, stress uses Garmin's scale. Convert seconds to hours for charts or hours/minutes for prose. Total sleep excludes naps and awake time. Do not infer missing stages as zero or force inconsistent stages to add up. Report incomplete breakdowns.
 

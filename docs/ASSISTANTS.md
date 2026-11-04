@@ -44,9 +44,9 @@ Replace the executable path. For a custom archive, use `args: ["--data-dir", "/a
 
 ### Tool contract
 
-Ten tools read data/status/guidance; `configure_sync` changes the local macOS schedule when requested. Data tools need no Garmin credentials and make no live requests.
+Eleven tools read data/status/guidance; `configure_sync` changes the local macOS schedule when requested. Data tools need no Garmin credentials and make no live requests.
 
-They provide daily summaries, up to 90 days of [trend metrics](USAGE.md#summaries-units-and-dates), detailed [sleep summaries](SLEEP.md), coverage, activities, stored daily responses and paginated FIT records. `agent_guide` returns installed guidance; `setup_receipt` separates setup evidence from outstanding verification. Samples omit coordinates and raw fields. Successful daily responses over 64 KB are rejected; inspect those locally with `health --metadata`. Failed refreshes mask retained response data.
+They provide daily summaries, up to 90 days of [trend metrics](USAGE.md#summaries-units-and-dates), detailed [sleep summaries](SLEEP.md), [Body Battery summaries](BODY_BATTERY.md), coverage, activities, stored daily responses and paginated FIT records. `agent_guide` returns installed guidance; `setup_receipt` separates setup evidence from outstanding verification. Samples omit coordinates and raw fields. Successful daily responses over 64 KB are rejected; inspect those locally with `health --metadata`. Failed refreshes mask retained response data.
 
 Results include dates, units, coverage and freshness. Missing values aren't zeros; failed refreshes don't present stale values as current. Activity names and daily responses may be sensitive, and returned data may reach the selected AI provider.
 

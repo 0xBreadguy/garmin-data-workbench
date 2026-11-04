@@ -1,7 +1,7 @@
 """Bounded archive queries for agent-facing summaries and trends.
 
-Mappings target fields in the Personal API daily summary and heart-rate
-responses; unrecognized shapes remain missing instead of being guessed.
+Mappings target recognized Personal API fields. Body Battery observations use
+source column descriptors; unrecognized shapes remain missing instead of being guessed.
 """
 from __future__ import annotations
 
@@ -30,13 +30,24 @@ METRICS = {
     "sleep_unmeasurable": ("sleep", ("unmeasurableSleepSeconds",), "s"),
     "sleep_stress": ("sleep", ("avgSleepStress",), "Garmin stress"),
     "nap_duration": ("sleep", ("napTimeSeconds",), "s"),
+    "sleep_need": ("sleep", ("sleepNeed", "actual"), "min"),
+    "sleep_need_baseline": ("sleep", ("sleepNeed", "baseline"), "min"),
+    "body_battery_charged": ("body_battery", ("charged",), "points"),
+    "body_battery_drained": ("body_battery", ("drained",), "points"),
+    "body_battery_min": ("body_battery", ("observed_min",), "Body Battery"),
+    "body_battery_max": ("body_battery", ("observed_max",), "Body Battery"),
+    "body_battery_first": ("body_battery", ("observed_first",), "Body Battery"),
+    "body_battery_last": ("body_battery", ("observed_last",), "Body Battery"),
 }
 METRIC_TITLES = {"steps": "Daily steps", "distance": "Daily distance",
     "sleep_duration": "Sleep duration", "resting_heart_rate": "Resting heart rate",
     "overnight_hrv": "Overnight HRV", "sleep_score": "Sleep score", "sleep_deep": "Deep sleep",
     "sleep_light": "Light sleep", "sleep_rem": "REM sleep", "sleep_awake": "Awake during sleep",
     "sleep_unmeasurable": "Unclassified sleep", "sleep_stress": "Overnight stress",
-    "nap_duration": "Nap duration"}
+    "nap_duration": "Nap duration", "sleep_need": "Sleep need", "sleep_need_baseline": "Baseline sleep need",
+    "body_battery_charged": "Body Battery charged", "body_battery_drained": "Body Battery drained",
+    "body_battery_min": "Body Battery minimum", "body_battery_max": "Body Battery maximum",
+    "body_battery_first": "Body Battery first reading", "body_battery_last": "Body Battery last reading"}
 DATASETS = ("daily_summary", "sleep", "hrv", "heart_rate", "body_battery", "activities")
 MAX_TREND_DAYS = 90
 
@@ -89,10 +100,8 @@ def get_day(db: sqlite3.Connection, day: str = "") -> dict:
 
 def get_trend(db: sqlite3.Connection, metric: str, start: str = "", end: str = "") -> dict:
     """Shared CLI/MCP trend, bounded to 90 days by metric_trend."""
-    prefs = profile_preferences(db)
-    today, today_source = local_today(prefs)
-    end_day = parse_day(end) if end else today
-    result = metric_trend(db, metric, start or (end_day - timedelta(days=6)).isoformat(), end_day.isoformat())
+    first, last, prefs, today_source = query_range(db, start, end)
+    result = metric_trend(db, metric, first.isoformat(), last.isoformat())
     if metric == "distance":
         _, unit = display_distance(None, prefs)
         result["display"] = {"unit": unit,
@@ -101,6 +110,16 @@ def get_trend(db: sqlite3.Connection, metric: str, start: str = "", end: str = "
             "mean_of_available_days": display_distance(result["mean_of_available_days"], prefs)[0]}
     result.update({"preferences": prefs, "today_source": today_source})
     return result
+
+
+def query_range(db: sqlite3.Connection, start: str = "", end: str = "") -> tuple:
+    prefs = profile_preferences(db)
+    today, today_source = local_today(prefs)
+    last = parse_day(end) if end else today
+    first = parse_day(start) if start else last - timedelta(days=6)
+    if not 1 <= (last - first).days + 1 <= MAX_TREND_DAYS:
+        raise ValueError(f"Date range must be between 1 and {MAX_TREND_DAYS} days, inclusive")
+    return first, last, prefs, today_source
 
 
 def parse_day(value: str) -> date:
@@ -131,7 +150,18 @@ def _dated_object(raw: Any, dataset: str, day: str) -> dict | None:
     return raw
 
 
-def _point(db: sqlite3.Connection, dataset: str, path: tuple[str, ...], day: str) -> dict:
+def _point(db: sqlite3.Connection, dataset: str, path: tuple[str, ...], day: str, *, body_result: dict | None = None) -> dict:
+    if dataset == "body_battery":
+        from .body_battery import BODY_FIELDS, body_battery_day
+        result = body_result if body_result is not None else body_battery_day(db, day)
+        name = next(name for name in BODY_FIELDS if METRICS[name][1] == path)
+        value = result["values"][name]
+        return {"day": day, "value": value, "status": result["status"] if result["status"] != "ok" else
+                    ("ok" if value is not None else "metric_not_returned"),
+                "observed_at": result["first_observed_at"] if name == "body_battery_first" else
+                               result["last_observed_at"] if name == "body_battery_last" else None,
+                "valid_readings": result["valid_readings"],
+                "fetched_at": result["fetched_at"], "last_attempt": result["last_attempt"], "error": result["error"]}
     # Single-day responses can contain thousands of samples. Extract only the
     # summary scalar in SQLite instead of copying and parsing the full payload
     # in Python on every agent query. Daily summaries need their array checked
@@ -151,6 +181,7 @@ def _point(db: sqlite3.Connection, dataset: str, path: tuple[str, ...], day: str
             "CASE WHEN s.status='ok' THEN json_type(d.data_json, ?) END AS metric_type, "
             "CASE WHEN s.status='ok' THEN json_extract(d.data_json, '$.sleepScores.overall.qualifierKey') END AS score_qualifier, "
             "CASE WHEN s.status='ok' THEN json_extract(d.data_json, '$.calendarDate') END AS root_day, "
+            "CASE WHEN s.status='ok' THEN json_extract(d.data_json, '$.sleepNeed.calendarDate') END AS need_day, "
             "CASE WHEN s.status='ok' THEN json_extract(d.data_json, '$.hrvSummary.calendarDate') END AS hrv_day "
             "FROM (SELECT 1) LEFT JOIN daily_data d ON d.dataset=? AND d.day=? "
             "LEFT JOIN sync_state s ON s.dataset=? AND s.day=?",
@@ -175,9 +206,12 @@ def _point(db: sqlite3.Connection, dataset: str, path: tuple[str, ...], day: str
         obj = row["metric_value"] if matches_day and row["metric_type"] in ("integer", "real") else None
         if path == ("sleepScores", "overall", "value") and row["score_qualifier"] == "INVALID":
             obj = None
+        if path[0] == "sleepNeed" and row["need_day"] not in (None, day):
+            obj = None
     bounded_score = path in (("sleepScores", "overall", "value"), ("avgSleepStress",))
     if (isinstance(obj, bool) or not isinstance(obj, (int, float)) or not math.isfinite(obj) or obj < 0
-            or (bounded_score and obj > 100)):
+            or (bounded_score and obj > 100)
+            or (path[0] == "sleepNeed" and (obj > 1440 or obj != int(obj)))):
         point["status"] = "metric_not_returned"
     else:
         point["value"] = obj
@@ -197,8 +231,12 @@ def metric_trend(db: sqlite3.Connection, metric: str, start: str, end: str) -> d
     counts: dict[str, int] = {}
     for point in points:
         counts[point["status"]] = counts.get(point["status"], 0) + 1
+    field_info = {"field": ".".join(path)}
+    if dataset == "body_battery":
+        from .body_battery import BODY_FIELDS
+        field_info = BODY_FIELDS[metric]
     return {"metric": metric, "unit": unit, "source": "Garmin Personal API via local archive",
-            "dataset": dataset, "field": ".".join(path), "from": start, "to": end,
+            "dataset": dataset, **field_info, "from": start, "to": end,
             "coverage": {"requested_days": days, "days_with_value": len(values), "statuses": counts},
             "mean_of_available_days": round(sum(values) / len(values), 2) if values else None,
             "points": points}
@@ -207,10 +245,15 @@ def metric_trend(db: sqlite3.Connection, metric: str, start: str, end: str) -> d
 def day_overview(db: sqlite3.Connection, day: str) -> dict:
     parse_day(day)
     metrics = {}
+    from .body_battery import BODY_FIELDS, body_battery_day
+    body_result = body_battery_day(db, day)
     for name, (dataset, path, unit) in METRICS.items():
-        point = _point(db, dataset, path, day)
+        point = _point(db, dataset, path, day, body_result=body_result)
         metrics[name] = {"value": point["value"], "unit": unit, "status": point["status"],
                          "dataset": dataset, "field": ".".join(path), "fetched_at": point["fetched_at"]}
+        if dataset == "body_battery":
+            metrics[name].update(BODY_FIELDS[name])
+            metrics[name].update({"observed_at": point["observed_at"], "valid_readings": point["valid_readings"]})
     states = {row["dataset"]: dict(row) for row in db.execute(
         "SELECT dataset, status, error, updated_at FROM sync_state WHERE day=?", (day,))}
     coverage = {dataset: states.get(dataset, {"dataset": dataset, "status": "not_checked",

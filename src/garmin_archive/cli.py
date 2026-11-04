@@ -28,6 +28,7 @@ from .preferences import clean_profile, local_today, profile_preferences
 from .platforms import shell_command
 from .queries import METRICS, get_day, get_trend, health_response, open_archive
 from .sleep import get_sleep
+from .body_battery import get_body_battery
 from .sync import DATASETS, SyncStopped, _call, sync
 from garmin_personal_api.errors import HttpError
 
@@ -125,6 +126,9 @@ def parser() -> argparse.ArgumentParser:
     sleep = commands.add_parser("sleep", help="Read a bounded sleep summary as JSON: stages, score, stress, naps and source times")
     sleep.add_argument("--from", dest="start", type=_date, help="First of 1–90 inclusive dates (default: six days before end)")
     sleep.add_argument("--to", dest="end", type=_date, help="Last date (default: Garmin profile's today, possibly incomplete)")
+    battery = commands.add_parser("body-battery", help="Read daily Body Battery charge/drain and descriptor-aware observed levels as JSON")
+    battery.add_argument("--from", dest="start", type=_date, help="First of 1–90 inclusive dates (default: six days before end)")
+    battery.add_argument("--to", dest="end", type=_date, help="Last date (default: Garmin profile's today, possibly incomplete)")
 
     chart = commands.add_parser("chart", help="Render a branded archive trend as a PNG (requires charts extra)",
         description="Read an existing archive and render a branded PNG without syncing. "
@@ -364,9 +368,10 @@ def _read(args: argparse.Namespace) -> int:
         with open_archive(args.data_dir) as db:
             if args.command == "day":
                 _print_json(get_day(db, args.day.isoformat() if args.day else ""))
-            elif args.command in {"trend", "chart", "sleep"}:
+            elif args.command in {"trend", "chart", "sleep", "body-battery"}:
                 start, end = args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else ""
-                result = (get_sleep(db, start, end) if args.command == "sleep" or args.metric == "sleep" else
+                result = (get_body_battery(db, start, end) if args.command == "body-battery" else
+                          get_sleep(db, start, end) if args.command == "sleep" or args.metric == "sleep" else
                           get_trend(db, args.metric, start, end))
                 if args.command == "chart":
                     from .charts import render_trend
@@ -562,7 +567,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "path":
         print(args.data_dir.expanduser() / "archive.sqlite3")
         return 0
-    if args.command in {"day", "trend", "sleep", "chart", "status", "activities", "records", "health", "export-original"}:
+    if args.command in {"day", "trend", "sleep", "body-battery", "chart", "status", "activities", "records", "health", "export-original"}:
         return _read(args)
     if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
         print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)

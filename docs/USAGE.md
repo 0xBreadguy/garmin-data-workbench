@@ -18,6 +18,7 @@ garmin-archive path
 garmin-archive day 2026-01-01
 garmin-archive trend sleep_duration --from 2026-01-01 --to 2026-01-07
 garmin-archive sleep --from 2026-01-01 --to 2026-01-07
+garmin-archive body-battery --from 2026-01-01 --to 2026-01-07
 garmin-archive chart sleep --from 2026-01-01 --to 2026-01-07 --output sleep.png
 
 # Replace the example ID with one from your activity list.
@@ -34,7 +35,7 @@ Put `--data-dir /absolute/private/archive` before the command to choose an archi
 
 ## Output and automation
 
-`day`, `trend`, `sleep`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
+`day`, `trend`, `sleep`, `body-battery`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
 
 `chart` uses the same read-only trend query and writes a new PNG. It follows the error contract below; a missing chart dependency exits `2` with `dependency_unavailable`. An unwritable or existing PNG destination exits `1` with `output_error`.
 
@@ -79,7 +80,7 @@ Argument-parsing errors use JSON on stderr and exit `2` for every command. Runti
 
 `day`, `trend` and `sleep` share MCP's query definitions. `sleep` returns all supported sleep fields and source window times together; `chart sleep` renders a branded overview with separate duration/stages and score panels.
 
-Supported metrics: `steps`, `distance`, `resting_heart_rate`, `sleep_duration`, `overnight_hrv`, `sleep_score`, `sleep_deep`, `sleep_light`, `sleep_rem`, `sleep_awake`, `sleep_unmeasurable`, `sleep_stress`, `nap_duration`. See [sleep source definitions and time semantics](SLEEP.md). Trends cover 1–90 inclusive days; omitted dates select seven days ending today. Results include dated values, units, freshness and missing/failed days. Means use available values only; failed refreshes mask stale values.
+Supported metrics: `steps`, `distance`, `resting_heart_rate`, `sleep_duration`, `overnight_hrv`, `sleep_score`, `sleep_deep`, `sleep_light`, `sleep_rem`, `sleep_awake`, `sleep_unmeasurable`, `sleep_stress`, `nap_duration`, `sleep_need`, `sleep_need_baseline`, `body_battery_charged`, `body_battery_drained`, `body_battery_min`, `body_battery_max`, `body_battery_first`, `body_battery_last`. See [sleep source definitions and time semantics](SLEEP.md) and [Body Battery aggregation semantics](BODY_BATTERY.md). Sleep-need values use source minutes; stage/nap durations use seconds. Body Battery last/first refer to observed samples, not a live current or bedtime/wake-up level. Trends cover 1–90 inclusive days; omitted dates select seven days ending today. Results include dated values, units, freshness and missing/failed days. Means use available values only; failed refreshes mask stale values.
 
 Sync saves the Garmin profile's measurement system and time zone. Queries use those defaults; today falls back to the host date if needed. Distance includes a preferred miles/kilometers value alongside source meters. Honor explicit unit requests. Cached preferences may be stale, and the current profile zone doesn't establish an older activity's location or time zone.
 

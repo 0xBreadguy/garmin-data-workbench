@@ -24,7 +24,15 @@
     "sleep_unmeasurable": "line",
     "sleep_stress": "line",
     "nap_duration": "line",
-    "sleep": "aligned duration/stages and score panels"
+    "sleep": "aligned duration/stages and score panels",
+    "sleep_need": "line",
+    "sleep_need_baseline": "line",
+    "body_battery_min": "line",
+    "body_battery_max": "line",
+    "body_battery_first": "line",
+    "body_battery_last": "line",
+    "body_battery_charged": "bar",
+    "body_battery_drained": "bar"
   },
   "rules": [
     "Use primary blue for the main data series and navy for titles and summary values across all metrics.",

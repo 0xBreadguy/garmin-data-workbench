@@ -205,3 +205,23 @@ class ChartsTest(unittest.TestCase):
         coverage = next(t for t in figure.texts if t.get_text() == '26/30')
         self.assertFalse(summary.get_window_extent().overlaps(coverage.get_window_extent()))
         self.assertEqual(figure.axes[0].get_ylim(), (0, 100))
+
+    def test_sleep_need_minutes_convert_to_hours_and_body_battery_levels_keep_scale(self):
+        from garmin_archive.charts import build_trend_figure, build_sleep_figure
+        need = self.query('sleep_need')
+        figure = build_trend_figure(need)
+        self.assertEqual(figure.axes[0].lines[0].get_ydata()[0], need['points'][0]['value'] / 60)
+        self.assertIn('hours', [t.get_text() for t in figure.texts])
+        with open_archive(self.data_dir) as db:
+            report = build_sleep_figure(get_sleep(db, '2026-01-01', '2026-01-30'))
+        line = next(line for line in report.axes[0].lines if line.get_label() == 'Garmin need')
+        self.assertEqual(line.get_ydata()[0], need['points'][0]['value'] / 60)
+        self.assertTrue(math.isnan(line.get_ydata()[11]))
+        for metric in ('body_battery_min', 'body_battery_max', 'body_battery_first', 'body_battery_last'):
+            figure = build_trend_figure(self.query(metric))
+            figure.canvas.draw()
+            self.assertEqual(figure.axes[0].get_ylim(), (0, 100))
+            self.assertTrue(math.isnan(figure.axes[0].lines[0].get_ydata()[11]))
+            summary = next(t for t in figure.texts if t.get_fontsize() == 30)
+            coverage = next(t for t in figure.texts if t.get_text() == '26/30')
+            self.assertFalse(summary.get_window_extent().overlaps(coverage.get_window_extent()))

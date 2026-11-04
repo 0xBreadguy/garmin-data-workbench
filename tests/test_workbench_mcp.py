@@ -27,6 +27,7 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
             archive.save_daily("sleep", "2026-01-01", {"calendarDate": "2026-01-01", "sleepTimeSeconds": 27000})
             archive.save_daily("hrv", "2026-01-01", {"hrvSummary": {"calendarDate": "2026-01-01", "lastNightAvg": 42}})
             archive.save_daily("heart_rate", "2026-01-01", {"calendarDate": "2026-01-01", "restingHeartRate": 55})
+            archive.save_daily("body_battery", "2026-01-02", [{"date": "2026-01-02", "charged": 60, "drained": 50}])
             archive.save_daily("daily_summary", "2026-01-02", {"data": [{"calendarDate": "2026-01-02",
                 "movement": {"steps": {"value": 8000}}}]})
             archive.mark_error("daily_summary", "2026-01-02", "HTTP 429")
@@ -40,7 +41,7 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                     self.assertIn("using Garmin profile preferences", initialized.instructions)
                     tools = await client.list_tools()
                     self.assertEqual({t.name for t in tools.tools},
-                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync", "get_sleep", "agent_guide", "setup_receipt"})
+                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync", "get_sleep", "agent_guide", "setup_receipt", "get_body_battery"})
                     self.assertTrue(all(t.annotations.readOnlyHint for t in tools.tools if t.name != 'configure_sync'))
                     self.assertFalse(next(t for t in tools.tools if t.name == 'configure_sync').annotations.readOnlyHint)
                     async def call(name, args):
@@ -74,6 +75,10 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(sleep["nights"][0]["values"]["sleep_duration"], 27000)
                     self.assertFalse(sleep["nights"][0]["stages_complete"])
                     self.assertEqual(sleep["nights"][1]["status"], "not_checked")
+                    battery = await call("get_body_battery", {"start": "2026-01-01", "end": "2026-01-02"})
+                    self.assertEqual(battery["days"][0]["status"], "empty")
+                    self.assertEqual(battery["days"][1]["values"]["body_battery_charged"], 60)
+                    self.assertIsNone(battery["days"][1]["values"]["body_battery_last"])
                     guide = await call("agent_guide", {})
                     self.assertIn("chart sleep", guide["guide"])
                     receipt = await call("setup_receipt", {})

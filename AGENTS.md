@@ -6,6 +6,7 @@ This file is the shared entry point for coding agents and assistants helping a u
 
 - For charts and agent visualization guidance, read [docs/VISUALIZATION.md](docs/VISUALIZATION.md) and the optional [skill](skills/garmin-visualization/SKILL.md).
 - For detailed sleep questions, use the shared `sleep`/`get_sleep` query and `chart sleep`; read [docs/SLEEP.md](docs/SLEEP.md). After installation, run `garmin-archive agent-guide` for query, visualization and interpretation guidance.
+- For Body Battery use `body-battery`/`get_body_battery`; read [docs/BODY_BATTERY.md](docs/BODY_BATTERY.md). Sleep need uses minutes; next-night need retains its own source date.
 - Read [README.md](README.md) for the product and [docs/USAGE.md](docs/USAGE.md) for commands.
 - For a user's installation, follow [docs/SETUP.md](docs/SETUP.md). A request to inspect or test the code does not imply permission to use credentials, sync health data, or create a recurring job.
 - For code changes, read [CONTRIBUTING.md](CONTRIBUTING.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [docs/TESTING.md](docs/TESTING.md).
@@ -35,6 +36,7 @@ These checks need no Garmin account, key, live archive, client registration, or 
 | `src/garmin_archive/fit.py` | Original activity ZIP handling and FIT decoding |
 | `src/garmin_archive/queries.py` | Shared metric definitions, daily summaries and trends |
 | `src/garmin_archive/sleep.py` | Bounded sleep fields, source window times and stage completeness |
+| `src/garmin_archive/body_battery.py` | Descriptor-aware daily charge/drain and observed level summaries |
 | `src/garmin_archive/onboarding.py` | Read-only setup receipts and printable routine templates |
 | `src/garmin_archive/preferences.py` | Profile units, time zone and presentation helpers |
 | `src/garmin_archive/platforms.py` | Native entry points and copyable shell commands |
