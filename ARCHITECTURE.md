@@ -44,3 +44,9 @@ uv run python scripts/benchmark_archive.py
 These measure local database work. A live seven-day sync made 35 health calls plus activity pagination/downloads; requests and pacing dominated initial collection.
 
 Profile representative workloads before adding typed tables, DuckDB, another language or API batching. Any batching must preserve per-day checkpoints, empty responses, partial failures and rate-limit behavior. Validate metric meaning against Connect before expanding analysis. Preserve overlapping recordings and source timestamps; don't silently merge them or assume the current profile time zone applies to historical activities.
+
+## Archive provenance and chart delivery
+
+The additive `archive_provenance` table stores explicitly generated corpus version, seed and creation time. Unmarked archives remain unknown; readers recognize legacy `SYNTHETIC.txt` markers without migration or filesystem timestamp inference. Copying a marked database retains provenance. No durability settings change.
+
+CLI and MCP share query definitions, deterministic chart metadata and an in-memory PNG renderer. MCP returns image content and structured metadata without filesystem output; CLI exports use exclusive private creation. Brand resources are fixed packaged PNG/SVG assets. Host image display remains a separate acceptance check.

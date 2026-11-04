@@ -44,7 +44,9 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | All 25 JSON sources through SDK collection and complete paged query round trips; empty/error recovery | `test_contract_corpus.py` |
 | Metrics and missingness | `test_queries.py` |
 | Read-only CLI queries | `test_cli_queries.py` |
-| Chart semantics, branding and demo archive | `test_charts.py` |
+| Chart semantics and branding | `test_charts.py` |
+| Versioned demo answers, DST and archive provenance | `test_demo_provenance.py` |
+| MCP image/brand resource transport and chart failures | `test_chart_delivery.py` |
 | Units and time zones | `test_preferences.py` |
 | Entry points and POSIX/PowerShell command examples | `test_platforms.py` |
 | Stdio MCP handshake and responses | `test_workbench_mcp.py` |
@@ -102,3 +104,7 @@ Personal API contract coverage is checked offline using all documented paths thr
 The JSON corpus goes through fake HTTP responses and the official SDK into a temporary archive. Tests reconstruct entire responses using bounded native query pages, following pagination and expanding large children; exact JSON comparison checks every generated value and preserves type distinctions such as false versus zero. All daily and snapshot sources also exercise unchecked, empty, failed-retained and recovered states. The FIT corpus goes through sync, decoding, storage and CLI queries. Query checks leave archive bytes unchanged.
 
 These transport fixtures complement the hand-written domain cases in `test_sleep.py`, `test_body_battery.py`, `test_queries.py` and `test_api_data.py`. The chart demo checks every named interpreted metric and coverage gaps. Contract-derived values do not establish physiological validity, vendor-pattern compliance, cross-field consistency, every enum combination or live availability. Device-specific FIT messages/developer fields and Garmin Connect comparisons remain separate coverage; no test corpus proves every possible recording.
+
+The v2 demo generator emits `known-answers.json` independently of production queries. `test_demo_provenance.py` compares full selected series, masking, means and coverage and pins the default manifest fingerprint; changing expected answers requires deliberate corpus-version review. It exercises 90/91-day boundaries, empty/all-missing archives, independently failed datasets, nap consistency/detail gaps, stage/score/need gaps, Body Battery ambiguity and a separate metric/DST profile. The contract corpus tests transport shapes, not physiological realism.
+
+`test_chart_delivery.py` exercises real stdio PNG/JSON transport and typed brand resources, with read-only file/database checks. Installed-wheel smoke checks cover chart-enabled and chart-unavailable MCP behavior. These do not prove that a host displays image content. Key dry-run tests require no authenticator or writes; timeout tests use synthetic exceptions and verify progress/error redaction. Native Windows ACL validation and a real provider secret facility remain separate live-host checks.

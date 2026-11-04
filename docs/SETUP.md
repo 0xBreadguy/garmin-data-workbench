@@ -31,7 +31,7 @@ garmin-archive-mcp --help
 
 Ask whether the user wants charts during setup. If so, replace the install command with `uv tool install --from '.[charts]' garmin-data-workbench`. This installs the optional plotting dependencies; it does not access Garmin. See [sleep reports](SLEEP.md) and [visualization](VISUALIZATION.md).
 
-Agents should run `garmin-archive agent-guide` after installation. This installed guide covers queries, sleep interpretation, branded charts, delivery and setup verification even when the repository docs are no longer in context.
+Agents should run `garmin-archive agent-guide` after installation; `agent-guide --client muse` also appends the Muse handoff (other supported client names work too). This installed guide covers queries, sleep interpretation, branded charts, delivery and setup verification even when the repository docs are no longer in context.
 
 Find the executable directory with `uv tool dir --bin`; add it to `PATH` if needed. Use absolute paths in client configuration and jobs. A tool install is a snapshot. After updating the checkout:
 
@@ -69,10 +69,13 @@ Alternatively, after secure key setup, `garmin-archive install --manual --client
 Have the host's **verified private secret facility** deliver a file, then:
 
 ```sh
+/absolute/path/to/garmin-archive save-key --from-file /absolute/private/provider-secret --dry-run
 /absolute/path/to/garmin-archive save-key --from-file /absolute/private/provider-secret
 ```
 
-This makes live authentication/profile requests and saves the key, but doesn't sync, connect a client or schedule anything. Replace both paths; the second is a file, never a key value. On POSIX, it must be a regular file owned by the current user with no group/other permissions, usually `0600`. Symlinks are rejected where `O_NOFOLLOW` is supported. Existing key files aren't overwritten. Dispose of the source through the provider's facility afterward.
+The dry run checks a bounded single-value UTF-8 source, local file privacy where supported, destination absence and parent access. It makes no network requests, creates no key/token cache and does not test actual destination writes or certify the provider secret facility. On Windows it explicitly reports that ACL privacy remains unverified.
+
+The second command makes live authentication/profile requests and saves the key, but doesn't sync, connect a client or schedule anything. Replace both paths; the second is a file, never a key value. On POSIX, it must be a regular file owned by the current user with no group/other permissions, usually `0600`. Symlink sources are rejected; POSIX also opens with `O_NOFOLLOW` where available and checks the opened file identity. Existing key files aren't overwritten. Live validation prints its authentication/profile phase and uses a 15-second timeout per request; `--timeout` accepts 1–120 seconds. A timeout reports failure instead of a saved key. Dispose of the source through the provider's facility afterward.
 
 File import doesn't provide private entry. If no tested secret facility exists, stop before requesting a key. A pseudo-terminal alone doesn't solve this; the installer also refuses echoed key entry.
 

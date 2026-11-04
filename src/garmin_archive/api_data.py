@@ -12,6 +12,7 @@ from datetime import timedelta
 from functools import lru_cache
 from importlib.resources import files
 
+from .provenance import archive_provenance
 from .queries import parse_day, query_range
 from .sources import SOURCES
 
@@ -240,6 +241,7 @@ def source_data(db, dataset, day="", activity_id=0, pointer="", *, limit=100, of
     _bounds(limit, offset)
     tokens = _tokens(pointer)
     result = _stored(db, dataset, day, activity_id)
+    result["archive_provenance"] = archive_provenance(db)
     data = result.pop("data")
     result.update(pointer=pointer, field_status="unavailable", next_offset=None,
                   location_policy="included" if include_location else "coordinate fields omitted; opt in with include_location")
@@ -319,7 +321,7 @@ def source_series(db, dataset, pointer, start="", end=""):
         points.append({"requested_day": day, "status": result["status"], "field_status": state,
                        "value": value, "fetched_at": result["fetched_at"], "last_attempt": result["last_attempt"],
                        "error": result.get("error")})
-    return {"source": "Garmin Personal API via local archive", "dataset": dataset, "pointer": pointer,
+    return {"archive_provenance": archive_provenance(db), "source": "Garmin Personal API via local archive", "dataset": dataset, "pointer": pointer,
             "field": _description(field_schema(dataset, pointer)), "from": first.isoformat(), "to": last.isoformat(),
             "preferences": prefs, "today_source": today_source,
             "coverage": {"requested_days": len(points), "values_returned": sum(p["field_status"] == "available" for p in points)},

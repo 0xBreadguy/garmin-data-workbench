@@ -106,7 +106,9 @@ def parser() -> argparse.ArgumentParser:
 
     guide = commands.add_parser("assistant-guide", help="Print a handoff for your assistant")
     guide.add_argument("--client", choices=("dot", "codex", "claude", "muse", "other"), default="dot")
-    commands.add_parser("agent-guide", help="Read installed query, visualization and interpretation guidance; no archive needed")
+    agent = commands.add_parser("agent-guide", help="Read installed query, visualization and interpretation guidance; no archive needed")
+    agent.add_argument('--client', choices=('dot', 'codex', 'claude', 'muse', 'other'),
+                       help='Append the assistant-guide handoff for this client; the generic guide is always included')
     commands.add_parser("setup-receipt", help="Read installation, archive and schedule evidence as JSON without syncing")
     routine = commands.add_parser("routine-template", help="Print a provider-neutral sync routine template as JSON; schedules nothing")
     routine.add_argument("--lookback-days", type=_positive, default=2)
@@ -118,6 +120,9 @@ def parser() -> argparse.ArgumentParser:
                     "Does not sync, connect a client or schedule anything.",
     )
     key.add_argument("--from-file", type=Path, required=True, help="Private file supplied through the host's secure secret facility (never a key value)")
+
+    key.add_argument('--dry-run', action='store_true', help='Check local source shape/privacy and destination only; no authentication, cache or key writes')
+    key.add_argument('--timeout', type=float, default=15, help='Live validation timeout per request in seconds (1–120; default 15)')
 
     day = commands.add_parser("day", help="Read a day overview as JSON without syncing (default: Garmin profile's today)")
     day.add_argument("day", nargs="?", type=_date)
@@ -333,7 +338,8 @@ def _status(db: sqlite3.Connection, path: Path) -> int:
         "SELECT activity_id, fit_error AS error FROM activities WHERE fit_status='error' ORDER BY activity_id"
     )]
     catchup = db.execute("SELECT * FROM catchup_state WHERE id=1").fetchone()
-    _print_json({"database": str(path), "catch_up": dict(catchup) if catchup else None, "coverage": states,
+    from .provenance import archive_provenance
+    _print_json({"archive_provenance": archive_provenance(db), "database": str(path), "catch_up": dict(catchup) if catchup else None, "coverage": states,
                  "source_snapshots": snapshot_coverage(db), "activity_files": fit, "errors": errors, "fit_errors": fit_errors})
     return 0
 
@@ -574,6 +580,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "agent-guide":
         from .guidance import agent_guide
         print(agent_guide())
+        if args.client:
+            from .install import assistant_guide
+            print(assistant_guide(args.client, data_dir=args.data_dir, include_guide=False))
         return 0
     if args.command == "setup-receipt":
         from .onboarding import setup_receipt
@@ -597,12 +606,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "save-key":
         from .install import save_key_from_file
         try:
-            save_key_from_file(args.from_file)
+            preflight = save_key_from_file(args.from_file, dry_run=args.dry_run, timeout=args.timeout)
         except (OSError, RuntimeError, KeyboardInterrupt) as error:
             # Never print file contents, paths from OS errors, or response bodies.
             detail = str(error) if isinstance(error, RuntimeError) else type(error).__name__
             print(f"Could not save Garmin key: {detail}", file=sys.stderr)
             return 1
+        if args.dry_run:
+            _print_json(preflight)
+            return 0
         print("Validated key saved to ~/.config/garmin/connect-personal-api-key with owner-only permissions.")
         if "GARMIN_PERSONAL_API_KEY" in os.environ:
             print("GARMIN_PERSONAL_API_KEY is set and takes precedence over the saved file during sync.")

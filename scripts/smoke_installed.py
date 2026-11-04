@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import json
 import os
 import subprocess
@@ -20,14 +21,29 @@ from mcp.client.stdio import stdio_client
 from garmin_archive.onboarding import installation_info
 
 
-async def check_mcp(executable: Path, archive: Path, workdir: Path, env: dict[str, str]) -> None:
+async def check_mcp(executable: Path, archive: Path, workdir: Path, env: dict[str, str], charts: bool) -> None:
     params = StdioServerParameters(command=str(executable), args=["--data-dir", str(archive)],
                                   cwd=str(workdir), env=env)
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as client:
             await client.initialize()
             tools = await client.list_tools()
-            assert {"archive_status", "get_day"}.issubset({tool.name for tool in tools.tools})
+            assert {"archive_status", "get_day", "chart", "brand"}.issubset({tool.name for tool in tools.tools})
+            branding = await client.call_tool('brand', {})
+            assert not branding.isError
+            resource = await client.read_resource('garmin-brand://assets/icon_png')
+            assert resource.contents[0].mimeType == 'image/png'
+            image = await client.call_tool('chart', {'metric': 'sleep', 'start': '2026-01-01', 'end': '2026-01-03'})
+            if charts:
+                assert not image.isError
+                assert image.structuredContent['synthetic'] is True
+                assert image.structuredContent['units']['sleep_duration'] == 'hours'
+                png = next(c for c in image.content if c.type == 'image')
+                assert base64.b64decode(png.data).startswith(b'\x89PNG\r\n\x1a\n')
+            else:
+                assert image.isError
+                assert image.structuredContent['error']['code'] == 'dependency_unavailable'
+                assert not any(c.type == 'image' for c in image.content)
             result = await client.call_tool("get_day", {"day": "2026-01-01"})
             assert not result.isError, result.content
             data = result.structuredContent or json.loads(result.content[0].text)
@@ -117,6 +133,7 @@ from garmin_archive.archive import Archive
 assert Path(garmin_archive.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 archive = Archive(Path(sys.argv[1]))
 try:
+    archive.mark_synthetic('wheel-smoke', 42, '2026-01-01T00:00:00Z')
     archive.save_daily('hydration', '2026-01-01', [{'calendarDate': '2026-01-01', 'valueInML': 0}])
     archive.save_daily('daily_summary', '2026-01-01', {'data': [
         {'calendarDate': '2026-01-01', 'movement': {'steps': {'value': 1234}}}
@@ -148,7 +165,7 @@ finally:
         assert sleep["nights"][0]["next_sleep_need"]["day"] == "2026-01-02", sleep
         battery = json.loads(run([str(cli), "--data-dir", str(archive), "body-battery", "--from", "2026-01-01", "--to", "2026-01-01"]))
         assert battery["days"][0]["values"]["body_battery_last"] == 20, battery
-        asyncio.run(asyncio.wait_for(check_mcp(mcp, archive, workdir, env), timeout=30))
+        asyncio.run(asyncio.wait_for(check_mcp(mcp, archive, workdir, env, args.charts), timeout=30))
         if args.charts:
             chart = workdir / "steps.png"
             run([str(cli), "--data-dir", str(archive), "chart", "steps", "--from", "2026-01-01",
