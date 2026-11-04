@@ -9,6 +9,8 @@
 
 # Garmin Data Workbench
 
+<img src="assets/logo.svg" alt="Two conversation bubbles joined by a data line" width="180">
+
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-4B6F92?style=flat-square)](https://www.python.org/)
 [![SQLite archive](https://img.shields.io/badge/archive-SQLite-5C7D70?style=flat-square)](https://www.sqlite.org/)
 [![MIT license](https://img.shields.io/badge/license-MIT-777777?style=flat-square)](LICENSE)
