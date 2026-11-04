@@ -10,7 +10,7 @@ Install the optional chart dependencies from the repository:
 uv tool install --from '.[charts]' garmin-data-workbench
 ```
 
-For development, use `uv sync --locked --extra charts` and prefix commands with `uv run --locked --extra charts`.
+For development, use `uv sync --locked --extra charts` and prefix commands with `uv run --quiet --locked --extra charts`. Quiet mode keeps uv's setup messages out of machine-parsed stderr; launcher/setup failures can still be non-JSON. See the [automation output contract](USAGE.md#output-and-automation).
 
 ```sh
 garmin-archive --data-dir /absolute/private/archive chart sleep_duration --from 2026-01-01 --to 2026-01-30 --output sleep.png
@@ -18,7 +18,7 @@ garmin-archive --data-dir /absolute/private/archive chart sleep_duration --from 
 
 The global `--data-dir` option goes **before** `chart`. Omit it to use the default archive. Output must be a new PNG; existing files are never overwritten. The default `--layout chat` is sized for conversations and phones; `--layout wide` gives a wider report figure. Both include the same data, branding and coverage details.
 
-The five [shared metrics](USAGE.md#summaries-units-and-dates) and 90-day limit apply. Dates default to the same seven-day window as `trend`. Charts show sleep in **hours**, and the summary average in hours/minutes; structured `trend` output retains **seconds**. Distance follows saved profile preferences; other units come from the query. Averages use available values only and state their denominator.
+The five [shared metrics](USAGE.md#summaries-units-and-dates) and 90-day limit apply. Dates default to the same seven-day window as `trend`. Charts divide sleep seconds by 3,600 to display **hours**, with the summary average in hours/minutes; structured `trend` output retains **seconds** without changing stored data. Distance follows saved profile preferences; other units come from the query. Averages use available values only and state their denominator.
 
 Steps and distance use bars starting at zero. Sleep, resting heart rate and HRV use unsmoothed lines. Line scales can focus on the observed range; read the labeled axis. Zero stays a value. Unavailable days are gaps, with a dated coverage strip and notes distinguishing failed, empty, unchecked and unreturned values. Retained data from a failed refresh stays masked. Fetch-time ranges describe available values, not a live connection or a freshness guarantee. Sparse data does not establish a trend, and movement up or down is not inherently good or bad.
 

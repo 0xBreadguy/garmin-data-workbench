@@ -37,6 +37,14 @@ Put `--data-dir /absolute/private/archive` before the command to choose an archi
 
 Successful reads write JSON to stdout by default; no `--json` flag is needed. `records --format csv` writes CSV instead. `path` prints a plain path; `chart` and `export-original` print a confirmation. Help remains plain text.
 
+For automation, call the installed `garmin-archive` executable directly. When running from a source checkout, use `uv run --quiet --locked` so uv's environment creation, build and installation messages don't precede the CLI's JSON errors on stderr:
+
+```sh
+uv run --quiet --locked garmin-archive --data-dir /absolute/private/archive status
+```
+
+Keep stdout and stderr separate when parsing results. `--quiet` suppresses uv's setup chatter; it does not turn uv's own failures (such as a dependency installation failure or an out-of-date lockfile) into CLI JSON errors. Check the exit code and handle non-JSON stderr as a launcher/setup failure. The JSON contract below applies once `garmin-archive` runs.
+
 Read and export failures leave stdout empty and write one JSON object to stderr:
 
 ```json
