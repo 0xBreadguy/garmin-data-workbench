@@ -8,11 +8,16 @@ archive between machines.
 ## What is checked
 
 [CI](../.github/workflows/tests.yml) targets `macos-latest`, `windows-latest` and
-`ubuntu-latest` with Python 3.12. Each job runs the offline suite, builds a wheel,
+`ubuntu-latest` with Python 3.12 on PRs. Each OS job runs the offline suite, builds a wheel,
 installs it into a disposable environment and checks the installed commands and
 synthetic CLI/MCP queries. The smoke check uses paths containing spaces,
 non-ASCII characters, apostrophes and a `#`, and checks that queries leave the
 archive unchanged. It needs no Garmin account or assistant account.
+
+Ubuntu also verifies installation without the optional chart dependencies.
+After merging, only the Ubuntu build and installed-wheel smoke checks run;
+the full three-OS validation is required before merging. See [testing](TESTING.md)
+for the GitHub merge requirements and cancellation behavior.
 
 These are automated test targets, not a claim that every OS version, CPU
 architecture, assistant or live setup has been verified. Use the results for
