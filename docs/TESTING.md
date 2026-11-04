@@ -22,6 +22,8 @@ Pushes to `main` run only an Ubuntu package build and installed-wheel smoke chec
 
 CI enables the optional `charts` extra so rendering tests run on every OS. To match locally, add `--extra charts` to both `uv sync --locked` and `uv run --locked`.
 
+CI also passes `--durations 10` to unittest to report the slowest tests. Chart and CLI-query tests seed a closed synthetic archive once per class and copy it into a fresh temporary directory for each test. This avoids repeated database commits during fixture setup while preserving independent archives. Demo generation, archive writes and sync behavior still have dedicated tests using real writes; database durability settings are unchanged.
+
 ## Focused checks
 
 Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
