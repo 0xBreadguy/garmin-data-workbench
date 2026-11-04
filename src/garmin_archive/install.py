@@ -166,8 +166,10 @@ def register_claude(data_dir: Path, *, executable: Path | None = None) -> str:
 def assistant_guide(client: str, *, data_dir: Path | None = None) -> str:
     """Build a copyable handoff; it contains no health data or credentials."""
     computer = socket.gethostname()
+    from .guidance import agent_guide
     common = ("Use the archive's status and freshness when answering, include missing-data caveats, "
-              "and never ask me for my Garmin key. If access fails, tell me which connection or computer is unavailable.")
+              "and never ask me for my Garmin key. If access fails, tell me which connection or computer is unavailable.\n\n"
+              + agent_guide())
     if client == "dot":
         return (f"Please remember: my Garmin Data Workbench is on my connected computer {computer}. "
                 "When I ask about my Garmin health or activity data, use a local Codex task on that computer "
@@ -175,7 +177,7 @@ def assistant_guide(client: str, *, data_dir: Path | None = None) -> str:
     if client in {"codex", "claude"}:
         return ("My Garmin data is in the local Garmin Data Workbench. Use its garmin-workbench MCP tools "
                 "for questions about my health and activities. " + common)
-    if client == "muse":
+    if client in {"muse", "other"}:
         from .archive import default_data_dir
         executable = installed_executable("garmin-archive")
         command = shell_command([str(executable), "--data-dir", str((data_dir or default_data_dir()).expanduser().resolve())])

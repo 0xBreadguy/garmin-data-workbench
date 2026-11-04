@@ -13,7 +13,7 @@ from mcp.client.stdio import stdio_client
 from garmin_archive.archive import Archive
 from test_archive import FakeClient
 from garmin_archive.sync import sync
-from datetime import date
+from datetime import date, timedelta
 
 
 class MCPTest(unittest.IsolatedAsyncioTestCase):
@@ -27,6 +27,7 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
             archive.save_daily("sleep", "2026-01-01", {"calendarDate": "2026-01-01", "sleepTimeSeconds": 27000})
             archive.save_daily("hrv", "2026-01-01", {"hrvSummary": {"calendarDate": "2026-01-01", "lastNightAvg": 42}})
             archive.save_daily("heart_rate", "2026-01-01", {"calendarDate": "2026-01-01", "restingHeartRate": 55})
+            archive.save_daily("body_battery", "2026-01-02", [{"date": "2026-01-02", "charged": 60, "drained": 50}])
             archive.save_daily("daily_summary", "2026-01-02", {"data": [{"calendarDate": "2026-01-02",
                 "movement": {"steps": {"value": 8000}}}]})
             archive.mark_error("daily_summary", "2026-01-02", "HTTP 429")
@@ -35,18 +36,26 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
             params = StdioServerParameters(command=sys.executable,
                 args=["-m", "garmin_archive.mcp_server", "--data-dir", temp])
             async with stdio_client(params) as (read, write):
-                async with ClientSession(read, write) as client:
+                async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as client:
                     initialized = await client.initialize()
                     self.assertIn("using Garmin profile preferences", initialized.instructions)
                     tools = await client.list_tools()
                     self.assertEqual({t.name for t in tools.tools},
-                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync"})
+                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync", "get_sleep", "agent_guide", "setup_receipt", "get_body_battery", "api_catalog", "source_data", "source_series"})
                     self.assertTrue(all(t.annotations.readOnlyHint for t in tools.tools if t.name != 'configure_sync'))
                     self.assertFalse(next(t for t in tools.tools if t.name == 'configure_sync').annotations.readOnlyHint)
                     async def call(name, args):
                         result = await client.call_tool(name, args)
                         self.assertFalse(result.isError, result.content)
                         return result.structuredContent or json.loads(result.content[0].text)
+                    catalog = await call("api_catalog", {})
+                    self.assertEqual(len(catalog["sources"]), 26)
+                    fields = await call("api_catalog", {"dataset": "sleep", "pointer": "/dailyNapDTOS/*"})
+                    self.assertIn("/dailyNapDTOS/*/napTimeSec", {field["pointer"] for field in fields["fields"]})
+                    native = await call("source_data", {"dataset": "sleep", "day": "2026-01-01", "pointer": "/sleepTimeSeconds"})
+                    self.assertEqual(native["value"], 27000)
+                    native_series = await call("source_series", {"dataset": "sleep", "pointer": "/sleepTimeSeconds", "start": "2026-01-01", "end": "2026-01-02"})
+                    self.assertEqual([p["value"] for p in native_series["points"]], [27000, None])
                     first = await call("activity_records", {"activity_id": 42, "limit": 1})
                     self.assertEqual(first["records"][0]["heart_rate_bpm"], 123)
                     self.assertEqual(first["next_offset"], 1)
@@ -70,6 +79,19 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(overview["metrics"]["distance"]["display_unit"], "mi")
                     self.assertEqual(overview["metrics"]["sleep_duration"]["value"], 27000)
                     self.assertEqual(overview["metrics"]["overnight_hrv"]["value"], 42)
+                    sleep = await call("get_sleep", {"start": "2026-01-01", "end": "2026-01-02"})
+                    self.assertEqual(sleep["nights"][0]["values"]["sleep_duration"], 27000)
+                    self.assertFalse(sleep["nights"][0]["stages_complete"])
+                    self.assertEqual(sleep["nights"][1]["status"], "not_checked")
+                    battery = await call("get_body_battery", {"start": "2026-01-01", "end": "2026-01-02"})
+                    self.assertEqual(battery["days"][0]["status"], "empty")
+                    self.assertEqual(battery["days"][1]["values"]["body_battery_charged"], 60)
+                    self.assertIsNone(battery["days"][1]["values"]["body_battery_last"])
+                    guide = await call("agent_guide", {})
+                    self.assertIn("chart sleep", guide["guide"])
+                    receipt = await call("setup_receipt", {})
+                    self.assertEqual(receipt["archive"]["status"], "readable")
+                    self.assertEqual(receipt["verification"]["recurring_execution"], "not_verified")
                     self.assertEqual(overview["activities"][0]["activity_id"], 42)
                     today = await call("get_day", {})
                     from datetime import datetime
@@ -98,8 +120,10 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
             params = StdioServerParameters(command=sys.executable,
                 args=["-m", "garmin_archive.mcp_server", "--data-dir", str(target)])
             async with stdio_client(params) as (read, write):
-                async with ClientSession(read, write) as client:
+                async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as client:
                     await client.initialize()
+                    catalog = await client.call_tool("api_catalog", {})
+                    self.assertFalse(catalog.isError)
                     result = await client.call_tool("archive_status", {})
                     self.assertTrue(result.isError)
             self.assertFalse(target.exists())

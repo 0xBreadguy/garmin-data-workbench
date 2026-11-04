@@ -14,14 +14,10 @@ from garmin_personal_api.errors import HttpError
 
 from .archive import Archive
 from .fit import UnsupportedActivity, decode_activity
+from .preferences import clean_profile
+from .sources import DAILY_SOURCES, SOURCES, search_activities
 
-DATASETS: dict[str, Callable[[Any, date], Any]] = {
-    "daily_summary": lambda client, day: client.get_daily_summaries(day, day),
-    "sleep": lambda client, day: client.get_daily_sleep(day),
-    "hrv": lambda client, day: client.get_daily_hrv(day),
-    "heart_rate": lambda client, day: client.get_daily_heart_rate(day),
-    "body_battery": lambda client, day: client.get_daily_body_battery(day, day),
-}
+DATASETS = DAILY_SOURCES
 PAGE_SIZE = 50
 MAX_PAGES_PER_DAY = 500
 
@@ -37,6 +33,7 @@ class SyncReport:
     activities: int = 0
     decoded: int = 0
     unsupported: int = 0
+    snapshots: int = 0
     errors: list[str] = field(default_factory=list)
     stopped: bool = False
 
@@ -78,9 +75,7 @@ def _list_activities(client: Any, day: date, call: Callable[[Callable[[], Any]],
     seen: set[int] = set()
     offset = 0
     for _ in range(MAX_PAGES_PER_DAY):
-        page = call(lambda offset=offset: client.search_activities(
-            start=offset, limit=PAGE_SIZE, start_date=day, end_date=day
-        ))
+        page = call(lambda offset=offset: search_activities(client, day, offset, PAGE_SIZE))
         if not isinstance(page, list):
             raise TypeError("Activity search returned an unexpected response")
         if not page:
@@ -112,6 +107,7 @@ def sync(
     today: date | None = None,
     pause: float = 0.3,
     sleep: Callable[[float], None] = time.sleep,
+    profile_checked: bool = False,
 ) -> SyncReport:
     if start > end:
         raise ValueError("Start date must not be after end date")
@@ -121,15 +117,41 @@ def sync(
     recent = today - timedelta(days=7)
     report = SyncReport()
     call = lambda operation: _call(operation, pause, sleep)
+
+    def collect_snapshot(dataset, resource_id, key):
+        try:
+            data = call(lambda: SOURCES[dataset].fetch(client, key, today))
+        except (SyncStopped, HttpError, ValueError, TypeError) as error:
+            label = str(error) if isinstance(error, SyncStopped) else _error_label(error)
+            archive.mark_snapshot_error(dataset, resource_id, label)
+            report.errors.append(f"{dataset} {resource_id}: {label}")
+            report.stopped = isinstance(error, SyncStopped)
+        else:
+            archive.save_snapshot(dataset, resource_id, data)
+            if dataset == "profile":
+                try:
+                    archive.save_preferences(*clean_profile(data))
+                except ValueError:
+                    # A response can still contain useful native profile fields
+                    # even when neither presentation default is usable.
+                    pass
+            report.snapshots += 1
+
+    for dataset in ("profile", "heart_rate_zones"):
+        if dataset == "profile" and profile_checked:
+            continue
+        collect_snapshot(dataset, "current", None)
+        if report.stopped:
+            return report
     day = start
     while day <= end:
         day_text = day.isoformat()
-        for dataset, fetch in DATASETS.items():
+        for dataset in DATASETS:
             if not refresh and day < recent and archive.state(dataset, day_text) in ("ok", "empty"):
                 report.skipped += 1
                 continue
             try:
-                data = call(lambda fetch=fetch, day=day: fetch(client, day))
+                data = call(lambda dataset=dataset, day=day: SOURCES[dataset].fetch(client, day, today))
             except SyncStopped as error:
                 archive.mark_error(dataset, day_text, str(error))
                 report.errors.append(f"{dataset} {day_text}: {error}")
@@ -160,6 +182,20 @@ def sync(
                 archive.save_activities(day_text, activities)
                 report.activities += len(activities)
         day += timedelta(days=1)
+
+    # Activity details/workouts have independent checkpoints from both search
+    # and original-file decoding. An old archive gains them on the next sync.
+    for activity in archive.connection.execute(
+        "SELECT activity_id, day FROM activities WHERE day BETWEEN ? AND ? ORDER BY day, activity_id",
+        (start.isoformat(), end.isoformat())).fetchall():
+        for dataset in ("activity", "activity_workouts"):
+            key = str(activity["activity_id"])
+            if (not refresh and activity["day"] < recent.isoformat()
+                    and archive.snapshot_state(dataset, key) in ("ok", "empty")):
+                continue
+            collect_snapshot(dataset, key, activity["activity_id"])
+            if report.stopped:
+                return report
 
     for activity_id in archive.activities_needing_fit(start.isoformat(), end.isoformat()):
         row = archive.connection.execute(

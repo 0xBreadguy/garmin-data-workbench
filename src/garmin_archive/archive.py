@@ -38,6 +38,16 @@ CREATE TABLE IF NOT EXISTS profile_preferences (
     time_zone TEXT,
     fetched_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS source_snapshots (
+    dataset TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    data_json TEXT,
+    fetched_at TEXT,
+    status TEXT NOT NULL CHECK (status IN ('ok', 'empty', 'error')),
+    error TEXT,
+    last_attempt TEXT NOT NULL,
+    PRIMARY KEY (dataset, resource_id)
+);
 CREATE TABLE IF NOT EXISTS activities (
     activity_id INTEGER PRIMARY KEY,
     day TEXT NOT NULL,
@@ -130,6 +140,28 @@ class Archive:
                    time_zone=excluded.time_zone, fetched_at=excluded.fetched_at""",
                 (measurement_system, time_zone, now()),
             )
+
+    def snapshot_state(self, dataset: str, resource_id: str) -> str | None:
+        row = self.connection.execute(
+            "SELECT status FROM source_snapshots WHERE dataset=? AND resource_id=?", (dataset, resource_id)).fetchone()
+        return row["status"] if row else None
+
+    def save_snapshot(self, dataset: str, resource_id: str, data: Any) -> None:
+        stamp = now()
+        empty = data is None or data == {} or data == []
+        with self.connection:
+            self.connection.execute(
+                """INSERT INTO source_snapshots VALUES (?, ?, ?, ?, ?, NULL, ?)
+                   ON CONFLICT(dataset, resource_id) DO UPDATE SET data_json=excluded.data_json,
+                   fetched_at=excluded.fetched_at, status=excluded.status, error=NULL, last_attempt=excluded.last_attempt""",
+                (dataset, resource_id, json_text(data), stamp, "empty" if empty else "ok", stamp))
+
+    def mark_snapshot_error(self, dataset: str, resource_id: str, error: str) -> None:
+        with self.connection:
+            self.connection.execute(
+                """INSERT INTO source_snapshots VALUES (?, ?, NULL, NULL, 'error', ?, ?)
+                   ON CONFLICT(dataset, resource_id) DO UPDATE SET status='error',
+                   error=excluded.error, last_attempt=excluded.last_attempt""", (dataset, resource_id, error, now()))
 
     def set_state(self, dataset: str, day: str, status: str, error: str | None = None) -> None:
         self.connection.execute(

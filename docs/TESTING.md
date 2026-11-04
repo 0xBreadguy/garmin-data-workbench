@@ -28,6 +28,10 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | Scheduling and rollback | `test_schedule.py` |
 | Catch-up and recovery | `test_catchup.py` |
 | Archive, FIT decoding, sync | `test_archive.py` |
+| Body Battery descriptors, sample order, dates and failed refreshes | `test_body_battery.py` |
+| Sleep summaries, source timestamps and missing stages | `test_sleep.py` |
+| Setup receipts, installed guidance and routine templates | `test_onboarding.py` |
+| All 26 Personal API routes, field catalog, native pagination/series, source snapshots and older archives | `test_api_data.py` |
 | Metrics and missingness | `test_queries.py` |
 | Read-only CLI queries | `test_cli_queries.py` |
 | Chart semantics, branding and demo archive | `test_charts.py` |
@@ -69,3 +73,9 @@ Record each stage separately:
 Registration doesn't prove discovery; discovery doesn't prove a real query. Matching payload shapes don't prove metric meaning. Current field mappings were checked against one account's seven-day archive; values still need comparison with Connect.
 
 `save-key` tests mock authentication and use disposable files. They don't verify a provider's secret-entry facility. Report compatibility through the [setup template](../.github/ISSUE_TEMPLATE/setup-report.md), without private data.
+
+For sleep acceptance, use the generated demo and render `chart sleep` in both chat and wide layouts. Verify stage stacks only for complete/reconciled breakdowns, independent score coverage/axis, masked failed refreshes, source/date notes and actual image delivery. Test empty, single-day and sparse periods. Before claiming live field validation, compare a representative night (including source timestamps and scores) with Garmin Connect. Provider routine creation is separate from observing its first execution.
+
+For Body Battery, use descriptor permutations, missing/duplicate descriptors, out-of-order and conflicting timestamps, invalid samples, partial-day coverage and failed retained data. Compare `body-battery`, `day`, `trend` and MCP fields. Verify source observation times remain distinct from fetch times. Sleep-need tests must distinguish adjusted/baseline minutes, independently dated next-night need, invalid units/types and hour conversion in charts. Installed-wheel smoke checks exercise both new summaries.
+
+Personal API contract coverage is checked offline using all documented paths through the official SDK and a fake HTTP session. The catalog contains the reviewed response definitions; count assertions and traversal detect accidental omissions. Pagination tests include large arrays, escaped keys, long Unicode strings, unknown fields, and explicit coordinate opt-in. This does not establish live field availability. See [coverage and maintenance](API_COVERAGE.md).

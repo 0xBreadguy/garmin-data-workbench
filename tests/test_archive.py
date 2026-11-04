@@ -17,6 +17,7 @@ from unittest.mock import patch
 
 from garmin_fit_sdk import CrcCalculator
 from garmin_personal_api.errors import HttpError
+from garmin_personal_api import GarminPersonalApiClient
 
 from garmin_archive.archive import Archive
 from garmin_archive.cli import main
@@ -51,10 +52,20 @@ def activity_zip(content: bytes | None = None, *, name: str = "activity.fit") ->
     return result.getvalue()
 
 
-class FakeClient:
+class FakeClient(GarminPersonalApiClient):
     def __init__(self) -> None:
         self.downloads = 0
         self.requests = 0
+
+    def get(self, path, *, params=None):
+        if path == "/userprofile-service/userprofile/settings":
+            return {"measurementSystem": "metric", "timeZone": "UTC"}
+        if path == "/activitylist-service/activities/search/activities":
+            return self.search_activities(start=params["start"], limit=params["limit"],
+                start_date=date.fromisoformat(params["startDate"]), end_date=date.fromisoformat(params["endDate"]))
+        if path == "/activity-service/activity/42":
+            return {"activityId": 42, "summaryDTO": {"distance": 1000}}
+        return []
 
     def get_daily_summaries(self, start, end):
         self.requests += 1
@@ -98,7 +109,7 @@ class ArchiveTest(unittest.TestCase):
 
     def test_sync_keeps_source_and_decodes_records_without_duplicates(self):
         result = self.run_sync()
-        self.assertEqual((result.checked, result.activities, result.decoded), (5, 1, 1))
+        self.assertEqual((result.checked, result.activities, result.decoded), (20, 1, 1))
         self.assertFalse(result.errors)
         self.assertEqual(self.archive.state("hrv", "2026-01-01"), "empty")
         rows = self.archive.connection.execute(
@@ -113,7 +124,7 @@ class ArchiveTest(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(self.archive.path.stat().st_mode), 0o600)
 
         second = self.run_sync()
-        self.assertEqual(second.skipped, 6)
+        self.assertEqual(second.skipped, 21)
         self.assertEqual(self.client.downloads, 1)
         self.assertEqual(self.archive.connection.execute("SELECT COUNT(*) FROM activity_records").fetchone()[0], 2)
 
