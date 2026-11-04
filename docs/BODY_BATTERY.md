@@ -33,6 +33,6 @@ Sample timestamps are epoch milliseconds or ISO instants with an explicit offset
 
 The parser processes at most 100,000 sample rows per stored daily report. Larger reports keep source totals but explicitly mark derived readings unavailable; no truncated min/max/last is reported. Raw readings, free-form event text, IDs and coordinates are not returned by these summaries.
 
-Failed refreshes mask retained data. Empty, unchecked, response-missing, unknown shapes, missing fields and zero remain distinct. The built-in scalar charts use fixed 0–100 level axes; charge/drain bars start at zero and can exceed 100 points. All retain branding, date gaps and fetch context. Use the [generated demo](VISUALIZATION.md#try-generated-demo-data) with `--synthetic` to test without personal data.
+Failed refreshes mask retained data. Empty, unchecked, response-missing, unknown shapes, missing fields and zero remain distinct. The built-in scalar charts use fixed 0–100 level axes; charge/drain bars start at zero and can exceed 100 points. All retain branding and date gaps; use the query results to explain relevant fetch context alongside the image. Use the [generated demo](VISUALIZATION.md#try-generated-demo-data) with `--synthetic` to test without personal data.
 
 Schema-based and synthetic verification is complete. Representative values still need comparison with Garmin Connect for a user's device; installed commands and offline tests alone do not establish live measurement accuracy.

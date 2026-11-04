@@ -20,7 +20,7 @@ The global `--data-dir` option goes **before** `chart`. Omit it to use the defau
 
 The [shared metrics](USAGE.md#summaries-units-and-dates) and 90-day limit apply. Dates default to the same seven-day window as `trend`. Charts divide sleep/stage/nap seconds by 3,600 and sleep-need minutes by 60 to display **hours**, with the summary average in hours/minutes; structured `trend` output retains **seconds** without changing stored data. Distance follows saved profile preferences; other units come from the query. Averages use available values only and state their denominator.
 
-Steps and distance use bars starting at zero. Sleep, resting heart rate and HRV use unsmoothed lines. Line scales can focus on the observed range; read the labeled axis. Zero stays a value. Unavailable days are gaps, with a dated coverage strip and notes distinguishing failed, empty, unchecked and unreturned values. Retained data from a failed refresh stays masked. Fetch-time ranges describe available values, not a live connection or a freshness guarantee. Sparse data does not establish a trend, and movement up or down is not inherently good or bad.
+Steps and distance use bars starting at zero. Sleep, resting heart rate and HRV use unsmoothed lines. Line scales can focus on the observed range; read the labeled axis. Zero stays a value. Unavailable days are gaps, with a dated coverage strip and notes distinguishing failed, empty, unchecked and unreturned values. Retained data from a failed refresh stays masked. Fetch times are available in query results; explain freshness in the accompanying response when relevant. Sparse data does not establish a trend, and movement up or down is not inherently good or bad.
 
 For a detailed sleep question, use `chart sleep --from 2026-01-01 --to 2026-01-30 --output sleep-overview.png`. It combines total duration and complete stage bars with a separate score panel. See [sleep report semantics](SLEEP.md); stages and scores are estimates, and incomplete breakdowns are never filled with zeros. Scalar score/stress charts use a 0–100 axis.
 
@@ -54,6 +54,10 @@ The script creates generated values for all supported numeric metrics, including
 The same demo works with `chart sleep` for a multi-panel report.
 
 Always pass `--synthetic` for demo charts. It places a compact visible label on the chart and identifies the source as a synthetic demo archive. The flag labels the input you supplied; it does not anonymize real data or detect whether values are synthetic.
+
+## Keep images concise
+
+Lead with the measurements. Keep dates, units, denominators, legends and meaningful missing-data indicators on the image; omit repeated explanations and routine source or fetch-time paragraphs. Explain relevant freshness, estimates, limitations and interpretation in the accompanying response. For custom charts, apply the same approach and preserve the distinction between missing values and zero.
 
 ## Agent delivery
 

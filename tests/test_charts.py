@@ -88,10 +88,12 @@ class ChartsTest(unittest.TestCase):
         for i in (3,7,11,16):
             self.assertTrue(math.isnan(plotted[i]))
         text = '\n'.join(t.get_text() for t in figure.texts)
-        for expected in ('hours', 'SYNTHETIC DATA', 'synthetic demo archive', '26 of 30 nights',
+        for expected in ('hours', 'SYNTHETIC DATA', '26/30',
                          'Failed refresh [×]: Jan 12', 'Empty response [□]: Jan 8', 'Not checked [|]: Jan 4',
-                         'Metric not returned [◇]: Jan 17', 'Values fetched:'):
+                         'Metric not returned [◇]: Jan 17'):
             self.assertIn(expected, text)
+        self.assertNotIn('Values fetched:', text)
+        self.assertNotIn('Gaps are not zero', text)
         self.assertNotIn('retained values must be masked', text)
         strip = figure.axes[1]
         failures = [line.get_xdata()[0] for line in strip.lines if line.get_marker() == 'x']
