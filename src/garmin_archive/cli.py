@@ -118,11 +118,18 @@ def parser() -> argparse.ArgumentParser:
     trend.add_argument("--from", dest="start", type=_date, help="Start date (default: six days before end)")
     trend.add_argument("--to", dest="end", type=_date, help="End date (default: Garmin profile's today)")
 
-    chart = commands.add_parser("chart", help="Render an archive trend as a PNG (requires charts extra)")
+    chart = commands.add_parser("chart", help="Render a branded archive trend as a PNG (requires charts extra)",
+        description="Read an existing archive and render a branded PNG without syncing. "
+                    "Example: garmin-archive --data-dir /private/archive chart sleep_duration "
+                    "--from 2026-01-01 --to 2026-01-30 --output sleep.png. "
+                    "The global --data-dir option goes before chart. Sleep seconds are displayed as hours.")
     chart.add_argument("metric", choices=sorted(METRICS))
     chart.add_argument("--from", dest="start", type=_date)
     chart.add_argument("--to", dest="end", type=_date)
     chart.add_argument("--output", required=True, type=Path, help="New PNG file; existing files are not overwritten")
+    chart.add_argument("--synthetic", action="store_true", help="Label generated/demo data visibly and identify its source as synthetic")
+    chart.add_argument("--layout", choices=("chat", "wide"), default="chat", help="Readable chat/phone layout or wide report layout (default: chat)")
+    commands.add_parser("brand", help="Print shared brand colors, rules and local logo paths as JSON; no archive needed")
 
     commands.add_parser("status", help="Show archive coverage and sync errors as JSON",
                         description="Read existing archive coverage and sync errors as JSON without syncing or modifying it.")
@@ -354,7 +361,7 @@ def _read(args: argparse.Namespace) -> int:
                 if args.command == "chart":
                     from .charts import render_trend
                     try:
-                        render_trend(result, args.output)
+                        render_trend(result, args.output, synthetic=args.synthetic, layout=args.layout)
                     except ImportError:
                         return _error("dependency_unavailable", "Charts require the optional charts extra; see docs/VISUALIZATION.md.", 2)
                     except OSError:
@@ -491,6 +498,10 @@ def _connect(archive: Archive, client: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "brand":
+        from .brand import get_brand
+        _print_json(get_brand())
+        return 0
     if args.command == "assistant-guide":
         from .install import assistant_guide
         print(assistant_guide(args.client, data_dir=args.data_dir))

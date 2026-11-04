@@ -72,6 +72,12 @@ def main() -> None:
         mcp = binary_dir / f"garmin-archive-mcp{suffix}"
         assert "usage:" in run([str(cli), "--help"])
         assert "usage:" in run([str(mcp), "--help"])
+        brand = json.loads(run([str(cli), "brand"]))
+        assert brand["colors"]["primary"] == "#0863E8", brand
+        for asset in brand["assets"].values():
+            path = Path(asset)
+            assert path.is_file() and path.is_relative_to(environment), asset
+        run([str(python), "-c", "import sys; from garmin_archive.brand import get_brand; get_brand(); assert 'matplotlib' not in sys.modules"])
         archive = workdir / "archive #1"
         run([str(python), "-c", """
 import sys
@@ -95,8 +101,9 @@ finally:
         if args.charts:
             chart = workdir / "steps.png"
             run([str(cli), "--data-dir", str(archive), "chart", "steps", "--from", "2026-01-01",
-                 "--to", "2026-01-03", "--output", str(chart)])
+                 "--to", "2026-01-03", "--synthetic", "--layout", "wide", "--output", str(chart)])
             assert chart.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"), "Installed chart command did not write a PNG"
+            run([str(python), "-c", "from PIL import Image; import sys; image=Image.open(sys.argv[1]); assert 'Synthetic data' in image.info['Description']; image.verify()", str(chart)])
         assert database.read_bytes() == original, "Queries changed the archive"
     print("Installed wheel: CLI help, synthetic CLI/MCP queries and read-only archive checks passed.")
 
