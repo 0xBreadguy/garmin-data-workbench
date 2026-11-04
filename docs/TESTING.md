@@ -32,6 +32,7 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | Sleep summaries, source timestamps and missing stages | `test_sleep.py` |
 | Setup receipts, installed guidance and routine templates | `test_onboarding.py` |
 | All 26 Personal API routes, field catalog, native pagination/series, source snapshots and older archives | `test_api_data.py` |
+| Contract-shaped synthetic responses and archive round trips | `test_contract_corpus.py` |
 | Metrics and missingness | `test_queries.py` |
 | Read-only CLI queries | `test_cli_queries.py` |
 | Chart semantics, branding and demo archive | `test_charts.py` |
@@ -79,3 +80,5 @@ For sleep acceptance, use the generated demo and render `chart sleep` in both ch
 For Body Battery, use descriptor permutations, missing/duplicate descriptors, out-of-order and conflicting timestamps, invalid samples, partial-day coverage and failed retained data. Compare `body-battery`, `day`, `trend` and MCP fields. Verify source observation times remain distinct from fetch times. Sleep-need tests must distinguish adjusted/baseline minutes, independently dated next-night need, invalid units/types and hour conversion in charts. Installed-wheel smoke checks exercise both new summaries.
 
 Personal API contract coverage is checked offline using all documented paths through the official SDK and a fake HTTP session. The catalog contains the reviewed response definitions; count assertions and traversal detect accidental omissions. Pagination tests include large arrays, escaped keys, long Unicode strings, unknown fields, and explicit coordinate opt-in. This does not establish live field availability. See [coverage and maintenance](API_COVERAGE.md).
+
+The contract corpus generates nested values for declared fields in daily, current and activity-detail JSON schemas. Recursive references stop at cycles. These are transport fixtures, not realistic health histories or proof of live field availability; activity lists and original FIT files are covered separately. Add hand-crafted cases for meaningful values, interpretation and failure states.
