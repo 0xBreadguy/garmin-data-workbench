@@ -31,6 +31,17 @@ from .sync import DATASETS, SyncStopped, _call, sync
 from garmin_personal_api.errors import HttpError
 
 
+def _error(code: str, message: str, exit_code: int = 1) -> int:
+    """Keep diagnostics separate from successful command output."""
+    print(json.dumps({"error": {"code": code, "message": message}}, ensure_ascii=False), file=sys.stderr)
+    return exit_code
+
+
+class CLIArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        self.exit(_error("invalid_argument", message, 2))
+
+
 def _date(value: str) -> date:
     try:
         return date.fromisoformat(value)
@@ -59,7 +70,7 @@ def _nonnegative(value: str) -> int:
 
 
 def parser() -> argparse.ArgumentParser:
-    result = argparse.ArgumentParser(description="Download and query your own Garmin data locally.")
+    result = CLIArgumentParser(description="Download and query your own Garmin data locally.")
     result.add_argument(
         "--data-dir", type=Path, default=default_data_dir(),
         help="Private archive directory (default: XDG_DATA_HOME/garmin-extraction or ~/.local/share/garmin-extraction)",
@@ -107,9 +118,17 @@ def parser() -> argparse.ArgumentParser:
     trend.add_argument("--from", dest="start", type=_date, help="Start date (default: six days before end)")
     trend.add_argument("--to", dest="end", type=_date, help="End date (default: Garmin profile's today)")
 
-    commands.add_parser("status", help="Show archive coverage and sync errors")
-    commands.add_parser("path", help="Print the SQLite database path")
-    activities = commands.add_parser("activities", help="List stored activity summaries")
+    chart = commands.add_parser("chart", help="Render an archive trend as a PNG (requires charts extra)")
+    chart.add_argument("metric", choices=sorted(METRICS))
+    chart.add_argument("--from", dest="start", type=_date)
+    chart.add_argument("--to", dest="end", type=_date)
+    chart.add_argument("--output", required=True, type=Path, help="New PNG file; existing files are not overwritten")
+
+    commands.add_parser("status", help="Show archive coverage and sync errors as JSON",
+                        description="Read existing archive coverage and sync errors as JSON without syncing or modifying it.")
+    commands.add_parser("path", help="Print the SQLite database path without opening or creating it")
+    activities = commands.add_parser("activities", help="List stored activity summaries as JSON",
+                                    description="List stored activity summaries as JSON without syncing or modifying the archive.")
     activities.add_argument("--limit", type=_positive, default=20)
     activities.add_argument("--offset", type=_nonnegative, default=0)
 
@@ -117,11 +136,12 @@ def parser() -> argparse.ArgumentParser:
     health.add_argument("dataset", choices=sorted(DATASETS))
     health.add_argument("day", type=_date)
 
-    records = commands.add_parser("records", help="Show decoded time-series records for one activity")
+    records = commands.add_parser("records", help="Show decoded time-series records as JSON (or CSV with --format csv)",
+                                 description="Read decoded time-series records as JSON, or CSV with --format csv, without modifying the archive.")
     records.add_argument("activity_id", type=_positive)
     records.add_argument("--limit", type=_positive, default=100)
     records.add_argument("--offset", type=_nonnegative, default=0)
-    records.add_argument("--format", choices=("json", "csv"), default="json")
+    records.add_argument("--format", choices=("json", "csv"), default="json", help="Output format (default: json)")
     records.add_argument("--full", action="store_true", help="Include complete decoded fields, including location when recorded")
 
     original = commands.add_parser("export-original", help="Save the original downloaded activity ZIP")
@@ -247,28 +267,28 @@ def _sync_locked(archive: Archive, args: argparse.Namespace, start: date, end: d
     return 1 if report.errors else 0
 
 
-def _status(archive: Archive) -> int:
-    states = [dict(row) for row in archive.connection.execute(
+def _status(db: sqlite3.Connection, path: Path) -> int:
+    states = [dict(row) for row in db.execute(
         """SELECT dataset, status, COUNT(*) AS days, MIN(day) AS first_day,
                   MAX(day) AS last_day, MAX(updated_at) AS last_attempt
            FROM sync_state GROUP BY dataset, status ORDER BY dataset, status"""
     )]
-    fit = [dict(row) for row in archive.connection.execute(
+    fit = [dict(row) for row in db.execute(
         "SELECT fit_status, COUNT(*) AS activities FROM activities GROUP BY fit_status ORDER BY fit_status"
     )]
-    errors = [dict(row) for row in archive.connection.execute(
+    errors = [dict(row) for row in db.execute(
         "SELECT dataset, day, error FROM sync_state WHERE status='error' ORDER BY day, dataset"
     )]
-    fit_errors = [dict(row) for row in archive.connection.execute(
+    fit_errors = [dict(row) for row in db.execute(
         "SELECT activity_id, fit_error AS error FROM activities WHERE fit_status='error' ORDER BY activity_id"
     )]
-    catchup = archive.connection.execute("SELECT * FROM catchup_state WHERE id=1").fetchone()
-    _print_json({"database": str(archive.path), "catch_up": dict(catchup) if catchup else None, "coverage": states, "activity_files": fit, "errors": errors, "fit_errors": fit_errors})
+    catchup = db.execute("SELECT * FROM catchup_state WHERE id=1").fetchone()
+    _print_json({"database": str(path), "catch_up": dict(catchup) if catchup else None, "coverage": states, "activity_files": fit, "errors": errors, "fit_errors": fit_errors})
     return 0
 
 
-def _activities(archive: Archive, args: argparse.Namespace) -> int:
-    rows = archive.connection.execute(
+def _activities(db: sqlite3.Connection, args: argparse.Namespace) -> int:
+    rows = db.execute(
         """SELECT activity_id, day, json_extract(summary_json, '$.activityType.typeKey') AS type,
                   json_extract(summary_json, '$.activityName') AS name, fit_status
            FROM activities ORDER BY day DESC, activity_id DESC LIMIT ? OFFSET ?""",
@@ -278,20 +298,18 @@ def _activities(archive: Archive, args: argparse.Namespace) -> int:
     return 0
 
 
-def _records(archive: Archive, args: argparse.Namespace) -> int:
-    row = archive.connection.execute(
+def _records(db: sqlite3.Connection, args: argparse.Namespace) -> int:
+    row = db.execute(
         "SELECT fit_status FROM activities WHERE activity_id=?", (args.activity_id,)
     ).fetchone()
     if row is None:
-        print("Activity not found in this archive.", file=sys.stderr)
-        return 1
+        return _error("not_found", "Activity not found in this archive.", 3)
     if row["fit_status"] != "ok":
-        print(f"Activity has no decoded FIT records (status: {row['fit_status']}).", file=sys.stderr)
-        return 1
+        return _error("records_unavailable", "Activity has no decoded FIT records; inspect status for sync or decoding failures.")
     columns = "activity_id, record_index, timestamp, heart_rate_bpm, power_w, cadence_rpm, distance_m, enhanced_speed_mps"
     if args.full:
         columns += ", data_json"
-    rows = [dict(row) for row in archive.connection.execute(
+    rows = [dict(row) for row in db.execute(
         f"SELECT {columns} FROM activity_records WHERE activity_id=? ORDER BY record_index LIMIT ? OFFSET ?",
         (args.activity_id, args.limit, args.offset),
     )]
@@ -305,6 +323,70 @@ def _records(archive: Archive, args: argparse.Namespace) -> int:
                 record["data"] = json.loads(record.pop("data_json"))
         _print_json(rows)
     return 0
+
+
+def _export_original(db: sqlite3.Connection, args: argparse.Namespace) -> int:
+    row = db.execute(
+        "SELECT original_zip FROM activities WHERE activity_id=?", (args.activity_id,)
+    ).fetchone()
+    if row is None or row["original_zip"] is None:
+        return _error("not_found", "No original file found for that activity.", 3)
+    try:
+        # The archive is read-only; protect the exported copy without changing
+        # the caller's umask. Exclusive creation preserves existing files.
+        with open(args.path, "xb", opener=lambda path, flags: os.open(path, flags, 0o600)) as output:
+            output.write(row["original_zip"])
+    except OSError:
+        return _error("output_error", "Could not write original file; check the destination and permissions. Existing files are not overwritten.")
+    print(f"Saved original activity ZIP to {args.path}.")
+    return 0
+
+
+def _read(args: argparse.Namespace) -> int:
+    """Query an existing archive without creating, migrating or syncing it."""
+    try:
+        with open_archive(args.data_dir) as db:
+            if args.command == "day":
+                _print_json(get_day(db, args.day.isoformat() if args.day else ""))
+            elif args.command in {"trend", "chart"}:
+                result = get_trend(db, args.metric, args.start.isoformat() if args.start else "",
+                                   args.end.isoformat() if args.end else "")
+                if args.command == "chart":
+                    from .charts import render_trend
+                    try:
+                        render_trend(result, args.output)
+                    except ImportError:
+                        return _error("dependency_unavailable", "Charts require the optional charts extra; see docs/VISUALIZATION.md.", 2)
+                    except OSError:
+                        return _error("output_error", "Could not write chart; choose a new writable PNG path. Existing files are not overwritten.")
+                    print(f"Chart saved to {args.output}")
+                else:
+                    _print_json(result)
+            elif args.command == "status":
+                return _status(db, args.data_dir.expanduser() / "archive.sqlite3")
+            elif args.command == "activities":
+                return _activities(db, args)
+            elif args.command == "records":
+                return _records(db, args)
+            elif args.command == "export-original":
+                return _export_original(db, args)
+            elif args.command == "health":
+                row = db.execute(
+                    "SELECT data_json FROM daily_data WHERE dataset=? AND day=?",
+                    (args.dataset, args.day.isoformat()),
+                ).fetchone()
+                if row is None:
+                    return _error("not_found", "No stored response for that dataset and date.", 3)
+                _print_json(json.loads(row["data_json"]))
+            else:
+                raise AssertionError("Unknown read command")
+        return 0
+    except json.JSONDecodeError:
+        return _error("invalid_data", "Stored response is not valid JSON; check the archive and sync status.")
+    except ValueError as error:
+        return _error("invalid_argument", str(error), 2)
+    except (OSError, sqlite3.Error):
+        return _error("archive_unavailable", "Cannot read existing archive; check --data-dir, permissions and archive compatibility, and sync first if needed.")
 
 
 def _install(archive: Archive, args: argparse.Namespace) -> int:
@@ -426,22 +508,11 @@ def main(argv: list[str] | None = None) -> int:
         if "GARMIN_PERSONAL_API_KEY" in os.environ:
             print("GARMIN_PERSONAL_API_KEY is set and takes precedence over the saved file during sync.")
         return 0
-    if args.command in {"day", "trend"}:
-        try:
-            with open_archive(args.data_dir) as db:
-                if args.command == "day":
-                    result = get_day(db, args.day.isoformat() if args.day else "")
-                else:
-                    result = get_trend(db, args.metric, args.start.isoformat() if args.start else "",
-                                       args.end.isoformat() if args.end else "")
-            _print_json(result)
-            return 0
-        except ValueError as error:
-            print(str(error), file=sys.stderr)
-            return 2
-        except (OSError, sqlite3.Error) as error:
-            print(f"Cannot read existing archive ({type(error).__name__}); check --data-dir and sync first.", file=sys.stderr)
-            return 1
+    if args.command == "path":
+        print(args.data_dir.expanduser() / "archive.sqlite3")
+        return 0
+    if args.command in {"day", "trend", "chart", "status", "activities", "records", "health", "export-original"}:
+        return _read(args)
     if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
         print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)
         return 1
@@ -479,40 +550,6 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "sync":
             return _sync(archive, args)
-        if args.command == "status":
-            return _status(archive)
-        if args.command == "path":
-            print(archive.path)
-            return 0
-        if args.command == "activities":
-            return _activities(archive, args)
-        if args.command == "records":
-            return _records(archive, args)
-        if args.command == "health":
-            row = archive.connection.execute(
-                "SELECT data_json FROM daily_data WHERE dataset=? AND day=?",
-                (args.dataset, args.day.isoformat()),
-            ).fetchone()
-            if row is None:
-                print("No stored response for that dataset and date.", file=sys.stderr)
-                return 1
-            _print_json(json.loads(row["data_json"]))
-            return 0
-        if args.command == "export-original":
-            row = archive.connection.execute(
-                "SELECT original_zip FROM activities WHERE activity_id=?", (args.activity_id,)
-            ).fetchone()
-            if row is None or row["original_zip"] is None:
-                print("No original file found for that activity.", file=sys.stderr)
-                return 1
-            try:
-                with args.path.open("xb") as output:
-                    output.write(row["original_zip"])
-            except OSError as error:
-                print(f"Could not write original file ({type(error).__name__}).", file=sys.stderr)
-                return 1
-            print(f"Saved original activity ZIP to {args.path}.")
-            return 0
         raise AssertionError("Unknown command")
     finally:
         archive.close()
