@@ -1,0 +1,27 @@
+{
+  "name": "Garmin Data Workbench",
+  "colors": {
+    "primary": "#0863E8",
+    "ink": "#0B2855",
+    "background": "#FFFFFF",
+    "secondary": "#5B6980",
+    "rule": "#E2E8F1",
+    "tint": "#EFF5FF"
+  },
+  "font": "DejaVu Sans",
+  "logo_placement": "Small footer signature; preserve logo proportions and colors.",
+  "charts": {
+    "steps": "bar",
+    "distance": "bar",
+    "sleep_duration": "line",
+    "resting_heart_rate": "line",
+    "overnight_hrv": "line"
+  },
+  "rules": [
+    "Use primary blue for the main data series and navy for titles and summary values across all metrics.",
+    "Keep unavailable values as gaps, preserve zero, and identify unavailable dates and statuses.",
+    "Bars start at zero. Keep line scales labeled; do not smooth or interpolate measurements.",
+    "Label averages with their available-day denominator, dates, units, source and fetch freshness.",
+    "Label synthetic data visibly. Do not imply rising or falling values are inherently good or bad."
+  ]
+}

@@ -30,6 +30,7 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | Archive, FIT decoding, sync | `test_archive.py` |
 | Metrics and missingness | `test_queries.py` |
 | Read-only CLI queries | `test_cli_queries.py` |
+| Chart semantics, branding and demo archive | `test_charts.py` |
 | Units and time zones | `test_preferences.py` |
 | Entry points and POSIX/PowerShell command examples | `test_platforms.py` |
 | Stdio MCP handshake and responses | `test_workbench_mcp.py` |

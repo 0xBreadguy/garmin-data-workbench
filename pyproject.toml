@@ -27,3 +27,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/garmin_archive"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"assets/logo.svg" = "garmin_archive/brand_assets/logo.svg"
+"assets/icon.svg" = "garmin_archive/brand_assets/icon.svg"
+"assets/icon.png" = "garmin_archive/brand_assets/icon.png"
