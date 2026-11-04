@@ -28,11 +28,12 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | Scheduling and rollback | `test_schedule.py` |
 | Catch-up and recovery | `test_catchup.py` |
 | Archive, FIT decoding, sync | `test_archive.py` |
+| Scaled FIT sensors, zero/invalid readings, session/lap/event messages and multiple FIT files | `test_fit_corpus.py` |
 | Body Battery descriptors, sample order, dates and failed refreshes | `test_body_battery.py` |
 | Sleep summaries, source timestamps and missing stages | `test_sleep.py` |
 | Setup receipts, installed guidance and routine templates | `test_onboarding.py` |
 | All 26 Personal API routes, field catalog, native pagination/series, source snapshots and older archives | `test_api_data.py` |
-| Contract-shaped synthetic responses and archive round trips | `test_contract_corpus.py` |
+| All 25 JSON sources through SDK collection and complete paged query round trips; empty/error recovery | `test_contract_corpus.py` |
 | Metrics and missingness | `test_queries.py` |
 | Read-only CLI queries | `test_cli_queries.py` |
 | Chart semantics, branding and demo archive | `test_charts.py` |
@@ -81,4 +82,13 @@ For Body Battery, use descriptor permutations, missing/duplicate descriptors, ou
 
 Personal API contract coverage is checked offline using all documented paths through the official SDK and a fake HTTP session. The catalog contains the reviewed response definitions; count assertions and traversal detect accidental omissions. Pagination tests include large arrays, escaped keys, long Unicode strings, unknown fields, and explicit coordinate opt-in. This does not establish live field availability. See [coverage and maintenance](API_COVERAGE.md).
 
-The contract corpus generates nested values for declared fields in daily, current and activity-detail JSON schemas. Recursive references stop at cycles. These are transport fixtures, not realistic health histories or proof of live field availability; activity lists and original FIT files are covered separately. Add hand-crafted cases for meaningful values, interpretation and failure states.
+### Synthetic corpus
+
+`tests/corpus.py` holds reusable, deterministic fixtures generated without account data:
+
+- Contract-derived responses populate declared properties, nested arrays and typed open maps for all 25 JSON sources, including activity search results. Date/time formats get parseable example strings. Unknown extensions exercise signed numbers, zero, both booleans, null, empty containers/strings, large integer IDs, Unicode and escaped/empty JSON Pointer keys. Unsupported schema shapes fail explicitly; recursive object references stop at cycles.
+- FIT bytes include heart rate, power, cadence, distance, enhanced speed/altitude, temperature and invented coordinates, plus session/lap/event messages. Independent expectations verify decoding scales, zeroes, invalid sentinels, original-byte retention, full-field access and coordinate omission from default records. Multiple FIT files exercise overlapping timestamps and running/cycling sessions without silently combining records.
+
+The JSON corpus goes through fake HTTP responses and the official SDK into a temporary archive. Tests reconstruct entire responses using bounded native query pages, following pagination and expanding large children; exact JSON comparison checks every generated value and preserves type distinctions such as false versus zero. All daily and snapshot sources also exercise unchecked, empty, failed-retained and recovered states. The FIT corpus goes through sync, decoding, storage and CLI queries. Query checks leave archive bytes unchanged.
+
+These transport fixtures complement the hand-written domain cases in `test_sleep.py`, `test_body_battery.py`, `test_queries.py` and `test_api_data.py`. The chart demo checks every named interpreted metric and coverage gaps. Contract-derived values do not establish physiological validity, vendor-pattern compliance, cross-field consistency, every enum combination or live availability. Device-specific FIT messages/developer fields and Garmin Connect comparisons remain separate coverage; no test corpus proves every possible recording.
