@@ -118,7 +118,8 @@ class CLIQueryTest(unittest.TestCase):
             self.assert_error((code, output, errors), 2, "invalid_argument")
 
     def archive_commands(self):
-        return (("day",), ("trend", "steps"), ("status",), ("activities",),
+        return (("day",), ("trend", "steps"),
+                ("chart", "steps", "--output", str(self.root / "chart.png")), ("status",), ("activities",),
                 ("health", "hrv", "2026-01-01"), ("records", "42"),
                 ("export-original", "42", str(self.root / "export.zip")))
 
@@ -289,9 +290,20 @@ class CLIQueryTest(unittest.TestCase):
         self.assertEqual((code, errors), (0, ""))
         self.assertTrue(target.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"))
         original = target.read_bytes()
-        code, _, _ = self.run_query(*args)
-        self.assertEqual(code, 1)
+        self.assert_error(self.run_query(*args), 1, "output_error")
         self.assertEqual(target.read_bytes(), original)
+
+    def test_chart_reports_dependency_and_output_errors_without_private_details(self):
+        target = self.root / "chart.png"
+        args = ("chart", "steps", "--output", str(target))
+        for error, exit_code, error_code in (
+            (ImportError("PRIVATE"), 2, "dependency_unavailable"),
+            (PermissionError("PRIVATE"), 1, "output_error"),
+        ):
+            with self.subTest(error=type(error).__name__):
+                with patch("garmin_archive.charts.render_trend", side_effect=error):
+                    self.assert_error(self.run_query(*args), exit_code, error_code)
+                self.assertFalse(target.exists())
 
     def test_shared_query_connection_rejects_writes(self):
         with open_archive(self.data_dir) as db:

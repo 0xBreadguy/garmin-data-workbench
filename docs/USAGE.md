@@ -33,7 +33,9 @@ Put `--data-dir /absolute/private/archive` before the command to choose an archi
 
 `day`, `trend`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
 
-Successful reads write JSON to stdout by default; no `--json` flag is needed. `records --format csv` writes CSV instead. `path` prints a plain path, and `export-original` prints a confirmation. Help remains plain text.
+`chart` uses the same read-only trend query and writes a new PNG. It follows the error contract below; a missing chart dependency exits `2` with `dependency_unavailable`. An unwritable or existing PNG destination exits `1` with `output_error`.
+
+Successful reads write JSON to stdout by default; no `--json` flag is needed. `records --format csv` writes CSV instead. `path` prints a plain path; `chart` and `export-original` print a confirmation. Help remains plain text.
 
 Read and export failures leave stdout empty and write one JSON object to stderr:
 
@@ -47,7 +49,7 @@ Branch on `error.code`, not the human-readable message. Exit codes for read and 
 | --- | --- | --- |
 | `0` | Query or export succeeded, including an empty result | None |
 | `1` | Operational failure | `archive_unavailable`, `records_unavailable`, `invalid_data`, `output_error` |
-| `2` | Invalid arguments, including a reversed or overlong trend range | `invalid_argument` |
+| `2` | Invalid arguments or missing chart dependencies | `invalid_argument`, `dependency_unavailable` |
 | `3` | Requested health response, activity or original file isn't stored | `not_found` |
 
 `archive_unavailable` covers missing, unreadable, corrupt or incompatible archives; queries don't initialize or repair them. `records_unavailable` means the activity exists but has no successfully decoded FIT records; inspect `status`. `invalid_data` means a stored response couldn't be parsed as JSON. `output_error` means the export destination couldn't be written, including when it already exists. CSV requests use the same JSON errors on stderr.

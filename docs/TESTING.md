@@ -16,6 +16,8 @@ git diff --check
 
 [CI](../.github/workflows/tests.yml) runs the locked offline suite on macOS, Windows and Ubuntu with Python 3.12 for PRs and pushes to `main`. Each job also builds and smoke-tests an installed wheel. There is no separate lint, format or type-check gate. See [compatibility boundaries](COMPATIBILITY.md) before treating offline results as live-host support.
 
+CI enables the optional `charts` extra so rendering tests run on every OS. To match locally, add `--extra charts` to both `uv sync --locked` and `uv run --locked`.
+
 ## Focused checks
 
 Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
@@ -38,9 +40,12 @@ For packaging, run `uv build` and inspect artifacts, then:
 
 ```sh
 uv run --locked python scripts/smoke_installed.py
+uv run --locked --extra charts python scripts/smoke_installed.py --charts
 ```
 
 The smoke check expects exactly one wheel in `dist/`. It installs that wheel and locked runtime dependencies into a temporary environment, runs both installed help commands, seeds a synthetic archive using the installed package and queries it through CLI and stdio MCP from outside the checkout. It checks that queries leave the database unchanged. Installation may need network access. No credentials, live sync, client registration or scheduler are used.
+
+The `--charts` mode also installs the locked chart dependencies and renders a synthetic PNG with the installed command.
 
 On Windows, POSIX mode-bit assertions do not apply; shared behavior still runs. macOS schedule tests use fake `launchctl` and user IDs on every OS. The command-example test executes the native shell (PowerShell on Windows, `sh` elsewhere).
 

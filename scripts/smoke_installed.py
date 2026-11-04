@@ -5,6 +5,7 @@ Dependency installation may use the network; no Garmin account is used.
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
@@ -32,6 +33,9 @@ async def check_mcp(executable: Path, archive: Path, workdir: Path, env: dict[st
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--charts", action="store_true", help="Also install and verify the optional chart extra")
+    args = parser.parse_args()
     project = Path(__file__).resolve().parents[1]
     wheels = list((project / "dist").glob("*.whl"))
     if len(wheels) != 1:
@@ -54,6 +58,7 @@ def main() -> None:
 
         requirements = workdir / "requirements.txt"
         run(["uv", "export", "--locked", "--no-dev", "--no-emit-project", "--no-hashes",
+             *(["--extra", "charts"] if args.charts else []),
              "--output-file", str(requirements)], cwd=project)
         environment = workdir / "environment"
         run(["uv", "venv", "--python", sys.executable, str(environment)])
@@ -87,6 +92,11 @@ finally:
         day = json.loads(run([str(cli), "--data-dir", str(archive), "day", "2026-01-01"]))
         assert day["metrics"]["steps"]["value"] == 1234, day
         asyncio.run(asyncio.wait_for(check_mcp(mcp, archive, workdir, env), timeout=30))
+        if args.charts:
+            chart = workdir / "steps.png"
+            run([str(cli), "--data-dir", str(archive), "chart", "steps", "--from", "2026-01-01",
+                 "--to", "2026-01-03", "--output", str(chart)])
+            assert chart.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"), "Installed chart command did not write a PNG"
         assert database.read_bytes() == original, "Queries changed the archive"
     print("Installed wheel: CLI help, synthetic CLI/MCP queries and read-only archive checks passed.")
 

@@ -8,7 +8,7 @@ Install the optional chart dependencies from the repository:
 uv tool install --from '.[charts]' garmin-data-workbench
 ```
 
-For development, use `uv sync --locked --extra charts` and prefix commands with `uv run`.
+For development, use `uv sync --locked --extra charts` and prefix commands with `uv run --locked --extra charts`.
 
 ```sh
 garmin-archive chart sleep_duration --from 2026-01-01 --to 2026-01-30 --output sleep.png
