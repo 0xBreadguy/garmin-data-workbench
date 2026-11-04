@@ -203,8 +203,9 @@ class CLIQueryTest(unittest.TestCase):
             target.mkdir()
             database = target / "archive.sqlite3"
             if kind == "uninitialized":
-                with sqlite3.connect(database) as db:
+                with contextlib.closing(sqlite3.connect(database)) as db:
                     db.execute("CREATE TABLE old_schema (id INTEGER)")
+                    db.commit()
             else:
                 database.write_bytes(b"PRIVATE corrupt archive")
             before = database.read_bytes()
