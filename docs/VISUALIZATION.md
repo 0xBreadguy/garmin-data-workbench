@@ -8,13 +8,13 @@ Install the optional chart dependencies from the repository:
 uv tool install --from '.[charts]' garmin-data-workbench
 ```
 
-For development, use `uv sync --locked --extra charts` and prefix commands with `uv run --locked --extra charts`.
+For development, use `uv sync --locked --extra charts` and prefix commands with `uv run --quiet --locked --extra charts`. Quiet mode keeps uv's setup messages out of machine-parsed stderr; launcher/setup failures can still be non-JSON. See the [automation output contract](USAGE.md#output-and-automation).
 
 ```sh
 garmin-archive chart sleep_duration --from 2026-01-01 --to 2026-01-30 --output sleep.png
 ```
 
-`--data-dir` precedes `chart` when selecting a different archive. The output must be a new PNG file; existing files are never overwritten. Dates default to the same seven-day window as `trend`. The same five metrics and 90-day limit apply. Distance follows saved profile preferences; sleep is shown in hours. Other units come from the shared query. Gaps represent unavailable values, including failed refreshes; coverage and status counts are printed on the chart. Zero is a value. Do not infer a trend from sparse coverage or treat a chart as medical advice.
+`--data-dir` precedes `chart` when selecting a different archive. The output must be a new PNG file; existing files are never overwritten. Dates default to the same seven-day window as `trend`. The same five metrics and 90-day limit apply. Distance follows saved profile preferences. `trend sleep_duration` returns JSON values in seconds (`s`); the chart divides those values by 3,600 and labels them in hours, without changing stored data or JSON units. Other units come from the shared query. Gaps represent unavailable values, including failed refreshes; coverage and status counts are printed on the chart. Zero is a value. Do not infer a trend from sparse coverage or treat a chart as medical advice.
 
 Agents: when a visual helps, create it in a private location and deliver it through the host's supported attachment or image interface. A local path alone may not be visible to the user; if delivery is unavailable, explain that and provide a concise table using `garmin-archive trend`. Query results and images can reach the AI provider; do not publish or upload them elsewhere without authorization. Avoid routes and precise coordinates by default. This command does not draw routes.
 
