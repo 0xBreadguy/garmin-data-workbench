@@ -28,10 +28,11 @@ DAY = "2026-01-01"
 
 
 class OfflineSession:
-    def __init__(self):
+    def __init__(self, source_payloads=None):
         self.calls = []
         self.payloads = {}
         self.fail = None
+        self.source_payloads = source_payloads or {}
 
     def get(self, url, *, params=None, headers=None, timeout=None):
         path = urlparse(url).path
@@ -58,6 +59,10 @@ class OfflineSession:
             schema = contract()["responses"][template].get("application/json", {}).get("schema", {})
             if schema.get("type") == "array":
                 payload = [payload]
+        if template in self.source_payloads:
+            payload = self.source_payloads[template]
+            if template == SOURCES["activities"].path and params["start"]:
+                payload = []
         self.payloads[path] = payload
         response._content = json.dumps(payload).encode()
         return response

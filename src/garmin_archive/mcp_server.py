@@ -102,6 +102,8 @@ def create_server(data_dir: Path) -> FastMCP:
 
         YYYY-MM-DD dates default to seven dates ending today (which may be incomplete).
         Missing/failed values remain null; local times never use the current profile zone.
+        Normally accompany a multi-day sleep overview with chart sleep when available;
+        see agent_guide for exceptions and image delivery.
         """
         with open_archive(data_dir) as db:
             return query_sleep(db, start, end)
@@ -112,6 +114,7 @@ def create_server(data_dir: Path) -> FastMCP:
 
         Uses stored reports and source column descriptors; no raw readings or events.
         Defaults to seven dates ending today; last reading is not a live current value.
+        Normally chart multi-day comparisons; agent_guide defines presentation exceptions.
         """
         with open_archive(data_dir) as db:
             return query_body_battery(db, start, end)
@@ -156,6 +159,8 @@ def create_server(data_dir: Path) -> FastMCP:
         Garmin's profile timezone (or host timezone if unavailable); start
         defaults to six days before end.
         Means use only days with values, never missing days.
+        Normally accompany a multi-day trend with chart METRIC when available;
+        see agent_guide for exceptions and image delivery.
         """
         with open_archive(data_dir) as db:
             return query_trend(db, metric, start, end)

@@ -1,6 +1,6 @@
 # Visualizing your archive
 
-Use a chart to show change over time; use a table or prose when it answers the question better. Charts read the existing archive without syncing or requiring Garmin credentials.
+Follow the canonical [presentation policy](../src/garmin_archive/agent_guide.md#present-and-visualize), also available through installed `agent-guide`: normally deliver a chart for multi-day trends, sleep and Body Battery, followed by a short interpretation and coverage/freshness line. The policy enumerates text-only, single-day, sparse-data and unavailable-delivery exceptions. Charts read the existing archive without syncing or requiring Garmin credentials.
 
 ## Render a chart
 
