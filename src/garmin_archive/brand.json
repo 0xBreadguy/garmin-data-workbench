@@ -38,7 +38,7 @@
     "Use primary blue for the main data series and navy for titles and summary values across all metrics.",
     "Keep unavailable values as gaps, preserve zero, and identify unavailable dates and statuses.",
     "Bars start at zero. Keep line scales labeled; do not smooth or interpolate measurements.",
-    "Label averages with their available-day denominator, dates, units, source and fetch freshness.",
+    "Label dates, units and available-day denominators on charts; explain relevant source and freshness in the accompanying response.",
     "Label synthetic data visibly. Do not imply rising or falling values are inherently good or bad."
   ]
 }
