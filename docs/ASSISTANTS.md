@@ -2,7 +2,9 @@
 
 Run [setup](SETUP.md) on the archive host first. Agents can query through a shell or local stdio MCP. An agent coordinating from elsewhere also needs a supported connection to that host.
 
-Before setup, say where commands and the archive will run: a desktop chat app may execute in a separate VM, and a fresh conversation may share prior installations. For mock requests, use the [isolated mock-only route](SETUP.md#mock-only-setup-stop-before-credentials), preserving existing tools and state. Finish with the [compact host/query handoff](SETUP.md#hand-off), distinguishing expected persistence from an actual new-session test.
+Before setup commands, tell the user where commands and the archive will run. For example: “Commands and the new synthetic archive will run in this assistant's Linux VM, separate from your Mac chat app.” Substitute the actual host/OS; a fresh conversation may share prior installations. For mock requests, follow the [isolated mock-only route and existing-install decision](SETUP.md#mock-only-setup-stop-before-credentials), preserving existing tools and state.
+
+Finish with the [compact host/query handoff](SETUP.md#hand-off): selected revision, absolute executable/archive paths on that same host, and expected versus tested persistence. This guidance addresses an observed discovery/adherence gap; whether it improves assistant behavior still needs an authorized retest.
 
 ## Shell access on the workstation
 
