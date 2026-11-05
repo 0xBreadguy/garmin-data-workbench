@@ -65,6 +65,8 @@ Find the executable directory with `uv tool dir --bin`; if it isn't on `PATH`, i
 uv tool install --force --no-cache --from . garmin-data-workbench
 ```
 
+If you installed charts, use `--from '.[charts]'` in the upgrade command too; installing the base package replaces the tool environment without its optional plotting dependencies.
+
 ## 3. Supply a key and run a first sync
 
 Create your own key on [Garmin Connect's Personal API page](https://connect.garmin.com/app/settings/personalApiToken). Review the terms, choose an expiration and save it securely: Garmin shows it once. Never put the value in chat, command arguments, logs or Git. See [Garmin's key FAQ](https://developer.garmin.com/gc-developer-program/personal/personal-faq/) for expiration and revocation.

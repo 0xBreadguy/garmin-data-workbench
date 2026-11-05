@@ -65,7 +65,7 @@ Use paths on the execution host. `--data-dir` after the command is rejected with
 
 ## Output and automation
 
-`day`, `trend`, `sleep`, `body-battery`, `source-data`, `source-series`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
+`day`, `trend`, `compare`, `workout-summary`, `sleep`, `body-battery`, `source-data`, `source-series`, `status`, `activities`, `health` and `records` read an existing archive without creating, migrating or syncing it. They need no Garmin key. `export-original` also opens the archive read-only and writes only the requested destination, with owner-only permissions on POSIX; existing files are never overwritten. `path` prints the configured database location even if it doesn't exist, without opening or creating it.
 
 `chart` uses the same read-only trend query and writes a new PNG. By default it prints `Chart saved to PATH`. Add `--json` to receive one JSON object on stdout after saving, with `output_path` (the supplied destination) and the shared chart metadata: `caption`, `alt_text`, `coverage`, `units`, `freshness`, `archive_provenance`, `synthetic` and `explanations`. The `delivery` field describes a saved CLI file; attaching and displaying it in the host remains a separate step.
 
@@ -117,6 +117,22 @@ Argument-parsing errors use JSON on stderr and exit `2` for every command. Runti
 `agent-guide` prints installed guidance without opening an archive; optional `--client muse` appends the corresponding `assistant-guide` handoff. `routine-template` emits JSON with an absolute command and provider-neutral instructions; it schedules nothing. `setup-receipt` emits read-only installation/coverage/native-schedule evidence, returning an unavailable archive in its report rather than creating one. Successful receipt output does not mean setup is verified.
 
 ## Summaries, units and dates
+
+### Compare periods and summarize workouts
+
+```sh
+garmin-archive compare steps --from 2026-01-08 --to 2026-01-14 --baseline-from 2026-01-01 --baseline-to 2026-01-07
+garmin-archive activities --from 2026-01-01 --to 2026-01-31 --type running --limit 20
+garmin-archive workout-summary --from 2026-01-01 --to 2026-01-31 --type running
+```
+
+`compare` / MCP `compare_periods` requires two explicit periods of 1–90 inclusive dates each; the baseline must end before the comparison period starts. It returns both existing trend envelopes (dated points, fetch/attempt times, source units and coverage), plus period-minus-baseline differences between their available-day means. Calculations use unrounded observations and round changes to two decimals. Each period uses its own available-value denominator; unequal lengths, incomplete coverage and periods including today/future dates are flagged. Missing or failed data is never substituted with zero. Percentage changes are null with a reason for zero baselines, missing means, scores, Garmin stress, Body Battery scales/points and percentage-valued metrics. Differences use source units even when the underlying distance trends also contain preferred display units. These descriptive comparisons do not establish causes, significance or a personal baseline.
+
+`activities` / MCP `list_activities` accepts optional inclusive `--from`/`--to` (`start`/`end` in MCP) and `--type` (`activity_type`) filters. Type matches Garmin's native `activityType.typeKey` exactly; `running` does not silently include `trail_running`. Omitted bounds leave that side open. Pagination is applied after filtering. CLI retains its existing bare-list fields; MCP reports refresh status and masks numeric measurements after unsuccessful refreshes. The list includes parent and child activities for inspection.
+
+`workout-summary` / MCP `get_workout_summary` covers 1–90 dates (default: seven ending today), returning distance in meters, Garmin's summary duration in seconds, activity counts, per-field available-activity counts, daily coverage/attempt times and Monday-based weekly buckets clipped to the request. It uses stored search summaries and does not decode laps or infer effort. Source activity dates remain unchanged; today's profile zone is not applied to historical timestamps. Available field totals can be partial; counts disclose missing distance/duration. Known empty/filtered-out available days have zero activity volume; unchecked/failed days remain null. An all-missing measurement is null, not zero. A successful empty search does not prove complete Garmin history.
+
+Parents with stored child activities are excluded from volume totals **before** date/type filtering, including children outside the requested window. Missing children can leave multisport volume incomplete. Other overlapping recordings remain separate: summed duration is not deduplicated elapsed time. The archive retains activity rows rather than tracking deletion history; refreshing cannot establish that every retained row still exists at Garmin. These queries are read-only and need no key or network request.
 
 `day`, `trend` and `sleep` share MCP's query definitions. `sleep` returns all supported sleep fields and source window times together; `chart sleep` renders a branded overview with separate duration/stages and score panels.
 

@@ -25,6 +25,8 @@ from .preferences import display_distance, local_today, profile_preferences
 from .queries import get_day as query_day, get_trend as query_trend, health_response, open_archive
 from .sleep import get_sleep as query_sleep
 from .body_battery import get_body_battery as query_body_battery
+from .comparisons import compare_periods as query_comparison
+from .workouts import get_workout_summary as query_workouts, list_activities as query_activities
 from .guidance import agent_guide as read_agent_guide
 from .schedule import configure_schedule, schedule_status
 
@@ -244,27 +246,41 @@ def create_server(data_dir: Path) -> FastMCP:
                     "catch_up": dict(catchup) if catchup else None}
 
     @server.tool(annotations=READ_ONLY)
+    def compare_periods(metric: str, start: str, end: str, baseline_start: str, baseline_end: str) -> dict:
+        """Compare available-day metric means over two explicit periods of 1–90 inclusive dates each.
+
+        Baseline must end before start. Changes are period minus baseline, in source
+        units. Read warnings and each period's coverage/fetch times before interpreting.
+        Percent changes are unavailable for scores/bounded scales or a zero baseline.
+        """
+        with open_archive(data_dir) as db:
+            return query_comparison(db, metric, start, end, baseline_start, baseline_end)
+
+    @server.tool(annotations=READ_ONLY)
+    def get_workout_summary(start: str = "", end: str = "", activity_type: str = "") -> dict:
+        """Get distance/duration totals and Monday-based weekly buckets over 1–90 inclusive dates.
+
+        Defaults to seven dates ending today. activity_type is an exact native typeKey,
+        not a sport family. Parents with stored children are excluded before filtering.
+        Failed dates are masked; totals use available summaries and report field counts.
+        Duration is the source summary duration; overlapping recordings remain separate.
+        """
+        with open_archive(data_dir) as db:
+            return query_workouts(db, start, end, activity_type)
+
+    @server.tool(annotations=READ_ONLY)
     def list_activities(
         limit: Annotated[int, Field(ge=1, le=100)] = 20,
         offset: Annotated[int, Field(ge=0)] = 0,
+        start: str = "", end: str = "", activity_type: str = "",
     ) -> dict:
-        """List activity summaries, newest first. Page with offset and limit."""
+        """List activity summaries, newest first. Optional inclusive date bounds and exact typeKey.
+
+        Page with offset and limit. Includes parent/child recordings; use
+        get_workout_summary for totals. Failed refreshes mask numeric measurements.
+        """
         with open_archive(data_dir) as db:
-            prefs = profile_preferences(db)
-            provenance = archive_provenance(db)
-            rows = [dict(row) for row in db.execute(
-                "SELECT activity_id, day, json_extract(summary_json, '$.activityType.typeKey') AS type, "
-                "json_extract(summary_json, '$.activityName') AS name, "
-                "json_extract(summary_json, '$.distance') AS distance_m, "
-                "json_extract(summary_json, '$.duration') AS duration_s, "
-                "json_extract(summary_json, '$.averageHR') AS average_heart_rate_bpm, fit_status, updated_at "
-                "FROM activities ORDER BY day DESC, activity_id DESC LIMIT ? OFFSET ?", (limit + 1, offset)
-            )]
-        for activity in rows:
-            activity["display_distance"], activity["display_distance_unit"] = display_distance(activity["distance_m"], prefs)
-        return {"archive_provenance": provenance, "source": "local archive", "preferences": prefs, "activities": rows[:limit],
-                "units": {"distance_m": "m", "duration_s": "s", "average_heart_rate_bpm": "bpm"},
-                "next_offset": offset + limit if len(rows) > limit else None}
+            return query_activities(db, start, end, activity_type, limit=limit, offset=offset)
 
     @server.tool(annotations=READ_ONLY)
     def daily_health(dataset: str, day: str) -> dict:
