@@ -28,15 +28,15 @@ Sync health data and activities into a SQLite archive on your computer or a pers
 
 This is the early **[v0.1.0 release](https://github.com/0xBreadguy/garmin-data-workbench/releases/tag/v0.1.0)**. Read the [release notes](CHANGELOG.md), start with the synthetic demo or a short sync, and check the [tested hosts and assistant paths](docs/COMPATIBILITY.md) before relying on an integration.
 
-![Muse answers a sleep question for April 24–30, 2026, with a concise summary and an attached sleep overview. The conversation is labeled as a synthetic demo.](assets/muse-sleep-demo.png)
+![A real exchange in Grok Health Buddy: a question about sleeping longer while receiving a lower sleep score, followed by an answer comparing the night with the rest of the week.](assets/grok-sleep-conversation.png)
 
-A captured Muse conversation using generated demo data. The assistant reported using the CLI; this capture demonstrates visible answers and chart delivery. Appearance and connection options depend on your assistant. [Image provenance](assets/README.md).
+A real question in Grok's Health Buddy, answered from my Garmin archive. [Capture details](assets/README.md).
 
 ## Get started
 
 **Working with an agent?** Give it this repository and ask:
 
-> Read AGENTS.md, then help me follow docs/SETUP.md on the workstation I choose.
+> Can you help me set this up? Read AGENTS.md and walk me through docs/SETUP.md on the computer I choose.
 
 **Setting it up yourself?** Install Python 3.12+ and [uv](https://docs.astral.sh/uv/), then:
 
@@ -58,11 +58,11 @@ Keep your key out of chat. On a remote workstation, processes sharing your OS us
 
 Follow the [isolated demo setup](docs/SETUP.md#mock-only-setup-stop-before-credentials) to generate synthetic data in a new archive, with its own checkout and environment. It makes no Garmin requests and preserves existing installations. An agent can start with:
 
-> Read AGENTS.md and follow the mock-only route in docs/SETUP.md. Use a new checkout, environment and synthetic archive. Leave my existing installation, credentials, data and schedules unchanged. Show me the sleep overview for April 24–30, 2026.
+> Can we try this with demo data first? Leave my existing setup alone, and don't connect to Garmin or set up a schedule.
 
 ## Use your archive
 
-Ask your agent: “How did my sleep and resting heart rate change over the last week?” Or query it yourself:
+Ask your agent: “I slept over nine hours last night, but my score went down. Can you show me how that compares with the rest of the week?” Or query it yourself:
 
 ```sh
 garmin-archive status
@@ -73,9 +73,9 @@ garmin-archive trend sleep_duration --from 2026-01-01 --to 2026-01-07
 
 Queries use stored data. Available history and fields depend on Garmin, your devices and what was recorded.
 
-![Synthetic sleep overview for April 24–30, 2026, showing sleep duration, stages, Garmin sleep need and a separate sleep score panel.](assets/sleep-example.png)
+![Sleep overview from an existing Garmin archive for October 30–November 5, 2026, showing nightly duration and stages, Garmin sleep need, and sleep scores.](assets/grok-sleep-week.png)
 
-Example output from the [generated demo](docs/VISUALIZATION.md#try-generated-demo-data), not personal health data. Collection timestamps are simulated; wearable scores and stages are estimates.
+The same week, plotted with `garmin-archive chart sleep`. Sleep duration and score tell different parts of the story. Stages, scores and sleep need are Garmin estimates. You can [try the same queries with demo data](docs/VISUALIZATION.md#try-generated-demo-data).
 
 ## What works where
 
