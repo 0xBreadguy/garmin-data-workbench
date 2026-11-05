@@ -294,7 +294,7 @@ def metric_trend(db: sqlite3.Connection, metric: str, start: str, end: str) -> d
     return {"archive_provenance": archive_provenance(db), "metric": metric, "unit": unit, "source": "Garmin Personal API via local archive",
             "dataset": dataset, **field_info, "from": start, "to": end,
             "coverage": {"requested_days": days, "days_with_value": len(values), "statuses": counts},
-            "mean_of_available_days": round(sum(values) / len(values), 2) if values else None,
+            "mean_of_available_days": round(math.fsum(value / len(values) for value in values), 2) if values else None,
             "points": points}
 
 

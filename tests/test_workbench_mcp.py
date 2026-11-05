@@ -41,7 +41,7 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                     self.assertIn("using Garmin profile preferences", initialized.instructions)
                     tools = await client.list_tools()
                     self.assertEqual({t.name for t in tools.tools},
-                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync", "get_sleep", "agent_guide", "setup_receipt", "get_body_battery", "api_catalog", "source_data", "source_series", "chart", "brand"})
+                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync", "get_sleep", "agent_guide", "setup_receipt", "get_body_battery", "api_catalog", "source_data", "source_series", "chart", "brand", "compare_periods", "get_workout_summary"})
                     self.assertTrue(all(t.annotations.readOnlyHint for t in tools.tools if t.name != 'configure_sync'))
                     self.assertFalse(next(t for t in tools.tools if t.name == 'configure_sync').annotations.readOnlyHint)
                     async def call(name, args):
@@ -49,6 +49,13 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                         self.assertFalse(result.isError, result.content)
                         return result.structuredContent or json.loads(result.content[0].text)
                     catalog = await call("api_catalog", {})
+                    comparison = await call("compare_periods", {"metric": "steps", "start": "2026-01-02", "end": "2026-01-02",
+                                                               "baseline_start": "2026-01-01", "baseline_end": "2026-01-01"})
+                    self.assertEqual(comparison["change"]["status"], "unavailable")
+                    workouts = await call("get_workout_summary", {"start": "2026-01-01", "end": "2026-01-01"})
+                    self.assertEqual(workouts["totals"]["activity_count"], 1)
+                    filtered = await call("list_activities", {"start": "2026-01-01", "end": "2026-01-01", "activity_type": "absent"})
+                    self.assertEqual(filtered["activities"], [])
                     self.assertEqual(len(catalog["sources"]), 26)
                     fields = await call("api_catalog", {"dataset": "sleep", "pointer": "/dailyNapDTOS/*"})
                     self.assertIn("/dailyNapDTOS/*/napTimeSec", {field["pointer"] for field in fields["fields"]})

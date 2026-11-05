@@ -31,6 +31,8 @@ from .api_data import api_catalog, source_data, source_series, snapshot_coverage
 from .sources import SOURCES
 from .sleep import get_sleep
 from .body_battery import get_body_battery
+from .comparisons import compare_periods, validate_periods
+from .workouts import activity_filter, get_workout_summary, list_activities
 from .sync import DATASETS, SyncStopped, _call, sync
 from garmin_personal_api.errors import HttpError
 
@@ -106,7 +108,7 @@ def parser() -> argparse.ArgumentParser:
   garmin-archive version               Package/build revision, OS and chart availability
 
 Archive selection: put --data-dir DIRECTORY before the command.
-Read-only queries: day, trend, sleep, body-battery, status, activities, health,
+Read-only queries: day, trend, compare, workout-summary, sleep, body-battery, status, activities, health,
 records, source-data, source-series. They never sync or create an archive.
 Exports: chart and export-original write new files and never overwrite.
 Live/configuration: sync uses credentials/network; install also connects clients
@@ -179,6 +181,16 @@ JSON on stderr (exit 2 invalid input, 1 operational failure, 3 not found).
     trend.add_argument("metric", choices=sorted(METRICS))
     trend.add_argument("--from", dest="start", type=_date, help="Start date (default: six days before end)")
     trend.add_argument("--to", dest="end", type=_date, help="End date (default: Garmin profile's today)")
+    compare = commands.add_parser("compare", help="Compare available-day means over two explicit periods as JSON")
+    compare.add_argument("metric", choices=sorted(METRICS))
+    compare.add_argument("--from", dest="start", type=_date, required=True)
+    compare.add_argument("--to", dest="end", type=_date, required=True)
+    compare.add_argument("--baseline-from", type=_date, required=True)
+    compare.add_argument("--baseline-to", type=_date, required=True)
+    workouts = commands.add_parser("workout-summary", help="Read covered activity distance/duration totals and Monday-based weeks as JSON")
+    workouts.add_argument("--from", dest="start", type=_date, help="First of 1–90 inclusive dates (default: six days before end)")
+    workouts.add_argument("--to", dest="end", type=_date, help="Last date (default: Garmin profile's today)")
+    workouts.add_argument("--type", dest="activity_type", default="", help="Exact native activity typeKey, e.g. running or cycling")
     sleep = commands.add_parser("sleep", help="Read a bounded sleep summary as JSON: stages, score, stress, naps and source times")
     sleep.add_argument("--from", dest="start", type=_date, help="First of 1–90 inclusive dates (default: six days before end)")
     sleep.add_argument("--to", dest="end", type=_date, help="Last date (default: Garmin profile's today, possibly incomplete)")
@@ -207,6 +219,9 @@ JSON on stderr (exit 2 invalid input, 1 operational failure, 3 not found).
                                     description="List stored activity summaries as JSON without syncing or modifying the archive.")
     activities.add_argument("--limit", type=_positive, default=20, help="Page size, 1–10000 (default: 20); continue with --offset")
     activities.add_argument("--offset", type=_nonnegative, default=0)
+    activities.add_argument("--from", dest="start", type=_date, help="Optional inclusive first stored activity date")
+    activities.add_argument("--to", dest="end", type=_date, help="Optional inclusive last stored activity date")
+    activities.add_argument("--type", dest="activity_type", default="", help="Exact native activity typeKey; subtypes are not inferred")
 
     health = commands.add_parser("health", help="Print raw stored daily JSON; use --metadata to mask failed-refresh values")
     health.add_argument("dataset", choices=sorted(DATASETS))
@@ -403,13 +418,11 @@ def _status(db: sqlite3.Connection, path: Path) -> int:
 
 
 def _activities(db: sqlite3.Connection, args: argparse.Namespace) -> int:
-    rows = db.execute(
-        """SELECT activity_id, day, json_extract(summary_json, '$.activityType.typeKey') AS type,
-                  json_extract(summary_json, '$.activityName') AS name, fit_status
-           FROM activities ORDER BY day DESC, activity_id DESC LIMIT ? OFFSET ?""",
-        (args.limit, args.offset),
-    )
-    _print_json([dict(row) for row in rows])
+    result = list_activities(db, args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else "",
+                             args.activity_type, limit=args.limit, offset=args.offset)
+    # Preserve the existing bare-list CLI contract and its fields.
+    _print_json([{key: row[key] for key in ("activity_id", "day", "type", "name", "fit_status")}
+                 for row in result["activities"]])
     return 0
 
 
@@ -461,7 +474,13 @@ def _read(args: argparse.Namespace) -> int:
     """Query an existing archive without creating, migrating or syncing it."""
     try:
         with open_archive(args.data_dir) as db:
-            if args.command == "source-data":
+            if args.command == "compare":
+                _print_json(compare_periods(db, args.metric, args.start.isoformat(), args.end.isoformat(),
+                                           args.baseline_from.isoformat(), args.baseline_to.isoformat()))
+            elif args.command == "workout-summary":
+                _print_json(get_workout_summary(db, args.start.isoformat() if args.start else "",
+                                               args.end.isoformat() if args.end else "", args.activity_type))
+            elif args.command == "source-data":
                 _print_json(source_data(db, args.dataset, args.day.isoformat() if args.day else "", args.activity_id,
                     args.pointer, limit=args.limit, offset=args.offset, include_location=args.include_location))
             elif args.command == "source-series":
@@ -652,12 +671,16 @@ def _validate_args(args: argparse.Namespace) -> None:
     if args.command == "save-key" and (not math.isfinite(args.timeout) or not 1 <= args.timeout <= 120):
         raise ValueError("--timeout must be between 1 and 120 seconds")
     start, end = getattr(args, "start", None), getattr(args, "end", None)
+    if args.command == "compare":
+        validate_periods(start.isoformat(), end.isoformat(), args.baseline_from.isoformat(), args.baseline_to.isoformat())
+    if args.command in {"activities", "workout-summary"}:
+        activity_filter(start.isoformat() if start else "", end.isoformat() if end else "", args.activity_type)
     if start is not None and end is not None:
         if start > end:
             raise ValueError("Date range must be between 1 and 90 days, inclusive" if args.command != "sync" else "--from must not be after --to")
-        if args.command != "sync" and (end - start).days >= 90:
+        if args.command not in {"sync", "activities"} and (end - start).days >= 90:
             raise ValueError("Date range must be between 1 and 90 days, inclusive")
-    if start is None and end is not None and end < date.min + timedelta(days=6):
+    if args.command != "activities" and start is None and end is not None and end < date.min + timedelta(days=6):
         raise ValueError("Default seven-day range precedes year 1; supply --from explicitly")
     if hasattr(args, "limit"):
         maximum = 100 if args.command in {"api-catalog", "source-data"} else 10000
@@ -742,7 +765,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "path":
         print(args.data_dir.expanduser() / "archive.sqlite3")
         return 0
-    if args.command in {"day", "trend", "sleep", "body-battery", "chart", "status", "activities", "records", "health", "export-original", "source-data", "source-series"}:
+    if args.command in {"day", "trend", "compare", "workout-summary", "sleep", "body-battery", "chart", "status", "activities", "records", "health", "export-original", "source-data", "source-series"}:
         return _read(args)
     if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
         print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)

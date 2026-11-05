@@ -43,6 +43,7 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | All 26 Personal API routes, field catalog, native pagination/series, source snapshots and older archives | `test_api_data.py` |
 | All 25 JSON sources through SDK collection and complete paged query round trips; empty/error recovery | `test_contract_corpus.py` |
 | Metrics and missingness | `test_queries.py` |
+| Period comparisons, workout coverage, field missingness and multisport totals | `test_comparisons_workouts.py` |
 | Read-only CLI queries | `test_cli_queries.py` |
 | CLI PNG exports, structured captions and save failures | `test_cli_chart_metadata.py` |
 | Chart semantics and branding | `test_charts.py` |
@@ -66,6 +67,19 @@ uv run --locked --extra charts python scripts/smoke_installed.py --charts
 The smoke check expects exactly one wheel in `dist/`. It installs that wheel and locked runtime dependencies into a temporary environment, runs both installed help commands, seeds a synthetic archive using the installed package and queries it through CLI and stdio MCP from outside the checkout. It checks that queries leave the database unchanged. Installation may need network access. No credentials, live sync, client registration or scheduler are used.
 
 The `--charts` mode also installs the locked chart dependencies and renders a synthetic PNG with the installed command.
+
+## Dependency advisories
+
+Review the full locked runtime set, including charts, before a release and after dependency changes. These optional checks use package/advisory services over the network, not Garmin credentials or health data. Use a temporary directory outside the checkout for the exported requirements:
+
+```sh
+uv export --locked --extra charts --no-dev --no-emit-project --format requirements-txt --output-file /absolute/temporary/requirements.txt
+uvx pip-audit --requirement /absolute/temporary/requirements.txt --no-deps --disable-pip
+```
+
+The export includes transitive dependencies; `--no-deps` prevents a second resolver from choosing a different set. Review results against upstream advisories, the actual lock APIs used and host permissions. A clean result means no known advisories were returned for that package set at that time. It doesn't prove the code or host is secure. See [releasing](RELEASING.md).
+
+## Additional host and corpus checks
 
 On Windows, POSIX mode-bit assertions do not apply; shared behavior still runs. macOS schedule tests use fake `launchctl` and user IDs on every OS. The command-example test executes the native shell (PowerShell on Windows, `sh` elsewhere).
 

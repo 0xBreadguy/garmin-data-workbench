@@ -21,7 +21,7 @@ from mcp.client.stdio import stdio_client
 from garmin_archive.onboarding import installation_info
 
 
-async def check_mcp(executable: Path, archive: Path, workdir: Path, env: dict[str, str], charts: bool) -> None:
+async def check_mcp(executable: Path, archive: Path, workdir: Path, env: dict[str, str], charts: bool) -> dict:
     params = StdioServerParameters(command=str(executable), args=["--data-dir", str(archive)],
                                   cwd=str(workdir), env=env)
     async with stdio_client(params) as (read, write):
@@ -65,6 +65,17 @@ async def check_mcp(executable: Path, archive: Path, workdir: Path, env: dict[st
             assert not native.isError, native.content
             data = native.structuredContent or json.loads(native.content[0].text)
             assert data["value"] == 0, data
+            comparison = await client.call_tool("compare_periods", {"metric": "steps", "start": "2026-01-02", "end": "2026-01-02",
+                "baseline_start": "2026-01-01", "baseline_end": "2026-01-01"})
+            assert not comparison.isError, comparison.content
+            workouts = await client.call_tool("get_workout_summary", {"start": "2026-01-01", "end": "2026-01-02", "activity_type": "running"})
+            assert not workouts.isError, workouts.content
+            activities = await client.call_tool("list_activities", {"start": "2026-01-01", "end": "2026-01-02", "activity_type": "running", "limit": 1})
+            assert not activities.isError, activities.content
+            data = activities.structuredContent or json.loads(activities.content[0].text)
+            assert data["activities"][0]["activity_id"] == 42
+            return {"comparison": comparison.structuredContent or json.loads(comparison.content[0].text),
+                    "workouts": workouts.structuredContent or json.loads(workouts.content[0].text)}
 
 
 def main() -> None:
@@ -143,6 +154,11 @@ try:
     archive.save_daily('daily_summary', '2026-01-01', {'data': [
         {'calendarDate': '2026-01-01', 'movement': {'steps': {'value': 1234}}}
     ]})
+    archive.save_daily('daily_summary', '2026-01-02', {'data': [
+        {'calendarDate': '2026-01-02', 'movement': {'steps': {'value': 2468}}}]})
+    archive.save_activities('2026-01-01', [{'activityId': 42, 'activityType': {'typeKey': 'running'},
+        'distance': 5000, 'duration': 1800}])
+    archive.save_activities('2026-01-02', [])
     archive.save_daily('sleep', '2026-01-01', {'sleepTimeSeconds': 27000,
         'deepSleepSeconds': 5000, 'remSleepSeconds': 6000, 'lightSleepSeconds': 16000,
         'unmeasurableSleepSeconds': 0, 'sleepScores': {'overall': {'value': 80}},
@@ -170,7 +186,15 @@ finally:
         assert sleep["nights"][0]["next_sleep_need"]["day"] == "2026-01-02", sleep
         battery = json.loads(run([str(cli), "--data-dir", str(archive), "body-battery", "--from", "2026-01-01", "--to", "2026-01-01"]))
         assert battery["days"][0]["values"]["body_battery_last"] == 20, battery
-        asyncio.run(asyncio.wait_for(check_mcp(mcp, archive, workdir, env, args.charts), timeout=30))
+        comparison = json.loads(run([str(cli), "--data-dir", str(archive), "compare", "steps", "--from", "2026-01-02", "--to", "2026-01-02",
+                                     "--baseline-from", "2026-01-01", "--baseline-to", "2026-01-01"]))
+        assert comparison["change"]["mean_difference"] == 1234 and comparison["change"]["mean_percent_change"] == 100, comparison
+        workouts = json.loads(run([str(cli), "--data-dir", str(archive), "workout-summary", "--from", "2026-01-01", "--to", "2026-01-02", "--type", "running"]))
+        assert workouts["totals"]["distance_m"] == 5000 and workouts["totals"]["duration_s"] == 1800, workouts
+        activities = json.loads(run([str(cli), "--data-dir", str(archive), "activities", "--from", "2026-01-01", "--to", "2026-01-02", "--type", "running"]))
+        assert [row["activity_id"] for row in activities] == [42], activities
+        mcp_results = asyncio.run(asyncio.wait_for(check_mcp(mcp, archive, workdir, env, args.charts), timeout=30))
+        assert mcp_results == {"comparison": comparison, "workouts": workouts}, "Installed CLI and MCP disagree"
         if args.charts:
             chart = workdir / "steps.png"
             metadata = json.loads(run([str(cli), "--data-dir", str(archive), "chart", "steps", "--from", "2026-01-01",
