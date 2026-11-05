@@ -26,6 +26,10 @@ Sync health data and activities into a SQLite archive on your computer or a pers
 
 This is an early **0.1.0** workbench. Start with the synthetic demo or a short sync, and check the [tested hosts and assistant paths](docs/COMPATIBILITY.md) before relying on an integration.
 
+![Muse answers a sleep question for April 24–30, 2026, with a concise summary and an attached sleep overview. The conversation is labeled as a synthetic demo.](assets/muse-sleep-demo.png)
+
+A captured Muse conversation using generated demo data. The assistant reported using the CLI; this capture demonstrates visible answers and chart delivery. Appearance and connection options depend on your assistant. [Image provenance](assets/README.md).
+
 ## Get started
 
 **Working with an agent?** Give it this repository and ask:
