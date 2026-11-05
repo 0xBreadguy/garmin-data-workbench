@@ -2,6 +2,8 @@
 
 Reviewed public `main` at `47dcd68`, then prepared the local launch-review changes described below. This is a repository/code/offline review, not a new live Garmin installation or an independent security audit.
 
+Security follow-through: [PR #18](https://github.com/0xBreadguy/garmin-data-workbench/pull/18) merged as `f2e2312` after all three required platform checks passed on `b1a31ff`. The filelock update and package metadata are now on public main; the README/contributor presentation work remains separate.
+
 The repository is a sound base for an early public release after the dependency fix is merged and the required platform checks pass. Keep live Windows and assistant-connection limits explicit. There is no reason to reorganize the Python package or add a new service before launch.
 
 ## Findings and disposition
@@ -38,7 +40,7 @@ As the project grows, split code when a concrete feature needs it. `cli.py` is t
 - Both documented `uv tool install` selectors (`.[charts]` and `.`) passed in isolated disposable tool/bin directories. Replacing the chart-enabled install with the base package removed chart availability, confirming the need for the corrected upgrade guidance. Existing installed tools were untouched.
 - Local documentation targets/heading anchors and `git diff --check` checked. The GitHub-rendered revised README has not been inspected because these changes are local.
 
-The dependency update still needs the required Windows/Linux/macOS PR matrix. Prior cross-platform CI covers the baseline, not this new dependency revision. Live Windows ACL/credential handling, a fresh end-to-end assistant connection on the final revision, restart persistence and actual recurring execution remain separate checks. Existing acceptance reports document their specific paths and limitations; do not broaden those claims.
+The dependency update passed the required Windows/Linux/macOS PR matrix before merging. Live Windows ACL/credential handling, a fresh end-to-end assistant connection on the final revision, restart persistence and actual recurring execution remain separate checks. Existing acceptance reports document their specific paths and limitations; do not broaden those claims.
 
 ## Rollout priorities
 
