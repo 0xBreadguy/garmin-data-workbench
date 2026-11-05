@@ -14,7 +14,7 @@ distribution. The package is not published to PyPI.
 1. Reconcile the intended changes and preserve concurrent work. Check the diff for credentials, real health data, routes, archives and unrelated/generated files.
 2. Update `project.version` in `pyproject.toml` when cutting a new version, run `uv lock` and review both files. Keep README version wording aligned. For the first `v0.1.0` release, confirm the existing version matches the tag.
 3. Review dependency advisories and the resolved lockfile. Upgrade vulnerable direct/transitive dependencies deliberately; don't equate a clean advisory scan with a security audit. See the [dependency audit commands](TESTING.md#dependency-advisories).
-4. Check setup, CLI/MCP guidance, compatibility claims and example output against the candidate. Use only generated data for public screenshots. Keep dates, coverage and synthetic labels visible.
+4. Check setup, CLI/MCP guidance, compatibility claims and example output against the candidate. Use generated data for public screenshots by default. A selected real-data example needs its owner's explicit approval for that exact public image. Keep dates, coverage and provenance visible, and retain synthetic labels on generated examples.
 5. Write release notes describing capabilities, breaking behavior, upgrade instructions and known limits. For 0.1.0, call out macOS-only built-in scheduling, incomplete Windows live privacy validation and separately tested assistant connections.
 
 ## Verify before merging
