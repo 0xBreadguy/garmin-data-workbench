@@ -84,6 +84,8 @@ Demo charts are labeled synthetic automatically, including legacy archives with 
 
 ## Keep images concise
 
+The [README sleep preview](../assets/sleep-example.png) uses the default v2 demo (seed 42), April 24–30, 2026, and the `wide` layout. To refresh it, generate a new default demo outside the checkout, then render `garmin-archive --data-dir /absolute/new/demo chart sleep --from 2026-04-24 --to 2026-04-30 --layout wide --output /absolute/new/sleep-example.png`, replacing the demo and output paths. Inspect the image and synthetic label before replacing the documentation asset; keep the archive and metadata outside Git.
+
 Lead with the measurements. Keep dates, units, denominators, legends and meaningful missing-data indicators on the image; omit repeated explanations and routine source or fetch-time paragraphs. Explain relevant freshness, estimates, limitations and interpretation in the accompanying response. For custom charts, apply the same approach and preserve the distinction between missing values and zero.
 
 ## Agent delivery
