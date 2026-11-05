@@ -2,6 +2,13 @@
 
 Use a reviewed PR and the protected default branch. This checklist covers a source release; there is no automatic PyPI upload, deployment or release-publishing workflow.
 
+Version history and user-facing notes live in [CHANGELOG.md](../CHANGELOG.md).
+The first release is `v0.1.0`, matching the existing package version; its
+preparation changes documentation only. GitHub release assets include the wheel,
+source distribution and `SHA256SUMS`, built from the clean tagged revision.
+GitHub's automatic source archives are separate from the built source
+distribution. The package is not published to PyPI.
+
 ## Prepare the candidate
 
 1. Reconcile the intended changes and preserve concurrent work. Check the diff for credentials, real health data, routes, archives and unrelated/generated files.

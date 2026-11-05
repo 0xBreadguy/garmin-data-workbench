@@ -30,6 +30,28 @@ the exact revision being installed. macOS has prior local/live usage; Windows
 and Linux live setup need separate reports. See [testing](TESTING.md) and the
 [setup report](../.github/ISSUE_TEMPLATE/setup-report.md).
 
+## Release acceptance — November 5, 2026
+
+The `v0.1.0` release includes the following synthetic acceptance reports at
+product source revision `2377478a9aded1951f917e32754e44e8c6ddaab5`.
+The release preparation adds documentation only. These are bounded observations,
+not certification of every assistant or live host setup.
+
+| Surface and path | Result and limits |
+| --- | --- |
+| [Muse native app, CLI](acceptance/2026-11-05-muse-release-verification.md) | Reported isolated current setup in its Ubuntu VM without setup coaching; two actual sleep images opened. Comparisons, workout totals and missing-data answers passed. Some first statistical wording needed correction; host disclosure and complete path handoff arrived late. VM revision, import and preservation receipts remain assistant-reported. |
+| [Grok Bot native app, CLI](acceptance/2026-11-05-grok-release-verification.md) | Fresh bot blocked before installation by a reported authenticated-checkout requirement. An authorized older-session recovery reported an isolated current setup in its Debian VM and delivered an opened sleep image and correct synthetic answers. It calculated initial comparisons itself; shared `compare` output matched only on a post-hoc check. VM claims remain assistant-reported; this is not a fresh-bot pass. |
+| [Claude Code 2.1.318, local MCP](acceptance/2026-11-05-mcp-client-release-verification.md) | Real print-mode client discovered a session-only synthetic server and made model-selected sleep, comparison, workout and chart calls. PNG/caption transport and read-only archive hashes passed. Clean-stdin recovery and narrow test permissions are recorded separately. Visible graphical image display was not run. |
+
+Default-demo workout gaps were recorded before separately requested synthetic
+workout scenarios exercised positive totals. No personal archive or live Garmin
+request was used. Controlled restart persistence, live setup, recurring execution
+and graphical MCP image display remain unverified in this round. CLI attachment
+success does not establish MCP display. Some assistant answers omitted available
+caption/freshness details or qualified statistics only after clarification;
+guidance cannot guarantee adherence. Earlier Dot access remains blocked as
+recorded below; no new Dot run was performed.
+
 ## Assistant acceptance snapshot
 
 November 4, 2026 synthetic checks at source revision `28e2aa9`; reports:

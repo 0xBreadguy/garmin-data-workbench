@@ -12,6 +12,7 @@
 <img src="assets/logo.svg" alt="Two conversation bubbles joined by a data line" width="180">
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-4B6F92?style=flat-square)](https://www.python.org/)
+[![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-0863E8?style=flat-square)](https://github.com/0xBreadguy/garmin-data-workbench/releases/tag/v0.1.0)
 [![Main package smoke](https://github.com/0xBreadguy/garmin-data-workbench/actions/workflows/tests.yml/badge.svg?branch=main&event=push)](https://github.com/0xBreadguy/garmin-data-workbench/actions/workflows/tests.yml)
 [![SQLite archive](https://img.shields.io/badge/archive-SQLite-5C7D70?style=flat-square)](https://www.sqlite.org/)
 [![MIT license](https://img.shields.io/badge/license-MIT-777777?style=flat-square)](LICENSE)
@@ -25,7 +26,7 @@ Sync health data and activities into a SQLite archive on your computer or a pers
 - Generate charts from the same stored data your agent queries.
 - Explore native fields from all 26 documented Personal API endpoints and retain original activity files for your own analysis.
 
-This is an early **0.1.0** workbench. Start with the synthetic demo or a short sync, and check the [tested hosts and assistant paths](docs/COMPATIBILITY.md) before relying on an integration.
+This is the early **[v0.1.0 release](https://github.com/0xBreadguy/garmin-data-workbench/releases/tag/v0.1.0)**. Read the [release notes](CHANGELOG.md), start with the synthetic demo or a short sync, and check the [tested hosts and assistant paths](docs/COMPATIBILITY.md) before relying on an integration.
 
 ![Muse answers a sleep question for April 24–30, 2026, with a concise summary and an attached sleep overview. The conversation is labeled as a synthetic demo.](assets/muse-sleep-demo.png)
 
@@ -40,7 +41,7 @@ A captured Muse conversation using generated demo data. The assistant reported u
 **Setting it up yourself?** Install Python 3.12+ and [uv](https://docs.astral.sh/uv/), then:
 
 ```sh
-git clone https://github.com/0xBreadguy/garmin-data-workbench.git
+git clone --branch v0.1.0 --depth 1 https://github.com/0xBreadguy/garmin-data-workbench.git
 cd garmin-data-workbench
 uv tool install --from . garmin-data-workbench
 ```
@@ -48,6 +49,8 @@ uv tool install --from . garmin-data-workbench
 Follow the [setup guide](docs/SETUP.md) to create your Garmin Personal API key and run a first sync. Guided setup supports Codex and Claude Code; other agents can use local MCP or shell commands. Built-in scheduling supports macOS; remote workstations can use an OS scheduler or provider routine.
 
 For charts, replace the install command with `uv tool install --from '.[charts]' garmin-data-workbench`.
+
+This checks out the release tag. Contributors can clone the default branch using [CONTRIBUTING.md](CONTRIBUTING.md). Existing users should follow the [upgrade instructions](CHANGELOG.md#install-or-upgrade) and preserve their archive, configuration and schedules.
 
 Keep your key out of chat. On a remote workstation, processes sharing your OS user can read credentials and health data. Query results may reach your agent's AI provider. Choose the host before syncing.
 
