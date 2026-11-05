@@ -2,6 +2,8 @@
 
 Reviewed public `main` at `47dcd68`, then prepared the local launch-review changes described below. This is a repository/code/offline review, not a new live Garmin installation or an independent security audit.
 
+This review records that branch's evidence. The combined comparisons, assistant-insights and launch-presentation candidate is tracked in [PR #21](https://github.com/0xBreadguy/garmin-data-workbench/pull/21), whose final revision needs its own release checks.
+
 Security follow-through: [PR #18](https://github.com/0xBreadguy/garmin-data-workbench/pull/18) merged as `f2e2312` after all three required platform checks passed on `b1a31ff`. The filelock update and package metadata are now on public main; the README/contributor presentation work remains separate.
 
 The repository is a sound base for an early public release after the dependency fix is merged and the required platform checks pass. Keep live Windows and assistant-connection limits explicit. There is no reason to reorganize the Python package or add a new service before launch.

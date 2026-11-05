@@ -21,6 +21,7 @@
 Sync health data and activities into a SQLite archive on your computer or a persistent remote workstation. Keep the source JSON and original activity files. Ask your agent questions through MCP or the CLI, or work directly with SQL, scripts, notebooks and CSV.
 
 - Review sleep, Body Battery, heart rate, steps and activities with dates, units and coverage.
+- Compare two metric periods and review workout distance/duration totals by date and sport.
 - Generate charts from the same stored data your agent queries.
 - Explore native fields from all 26 documented Personal API endpoints and retain original activity files for your own analysis.
 

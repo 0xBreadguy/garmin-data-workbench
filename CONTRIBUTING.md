@@ -30,6 +30,7 @@ The installable Python package lives in `src/garmin_archive/`. CLI and MCP are a
 | Collection, retries or resumability | `sources.py`, `sync.py`, `cli.py` sync orchestration | `test_archive.py`, `test_catchup.py`, `test_contract_corpus.py` |
 | Archive/schema or FIT decoding | `archive.py`, `fit.py` | `test_archive.py`, `test_fit_corpus.py`; older synthetic archive compatibility |
 | A named metric or its meaning | `queries.py`, `sleep.py`, `body_battery.py` | Domain tests and matching CLI/MCP results |
+| Period comparisons or workout filtering/totals | `comparisons.py`, `workouts.py` | `test_comparisons_workouts.py`, CLI/MCP parity and installed-wheel smoke |
 | Native API fields or pagination | `api_data.py`, `sources.py`, `personal_api_contract.json` | `test_api_data.py`, `test_contract_corpus.py`; [contract maintenance](docs/API_COVERAGE.md#verification-and-contract-maintenance) |
 | Charts and delivery | `charts.py`, `chart_delivery.py`, `brand.json`, `assets/` | `test_charts.py`, `test_chart_delivery.py`, `test_cli_chart_metadata.py`; inspect a synthetic render |
 | Commands or tool surfaces | `cli.py`, `mcp_server.py` | `test_cli_queries.py`, `test_workbench_mcp.py`; installed-wheel smoke for entry-point changes |

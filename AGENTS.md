@@ -37,6 +37,8 @@ These checks need no Garmin account, key, live archive, client registration, or 
 | `src/garmin_archive/archive.py` | SQLite schema, stored source data and archive writes |
 | `src/garmin_archive/fit.py` | Original activity ZIP handling and FIT decoding |
 | `src/garmin_archive/queries.py` | Shared metric definitions, daily summaries and trends |
+| `src/garmin_archive/comparisons.py` | Covered comparisons of two explicit metric periods |
+| `src/garmin_archive/workouts.py` | Activity filtering and covered daily/weekly distance and duration totals |
 | `src/garmin_archive/sources.py` | Documented Personal API endpoints and collection scopes |
 | `src/garmin_archive/api_data.py` | Native field catalog, bounded response browsing and scalar series |
 | `src/garmin_archive/sleep.py` | Bounded sleep fields, source window times and stage completeness |
