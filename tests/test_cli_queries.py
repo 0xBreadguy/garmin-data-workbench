@@ -108,6 +108,29 @@ class CLIQueryTest(unittest.TestCase):
         self.assertEqual(result["coverage"]["days_with_value"], 1)
         self.assertEqual(result["mean_of_available_days"], 27000)
 
+    def test_comparison_and_workout_commands_are_read_only_and_share_query_behavior(self):
+        code, output, errors = self.run_query("compare", "sleep_duration", "--from", "2026-01-02", "--to", "2026-01-02",
+                                             "--baseline-from", "2026-01-01", "--baseline-to", "2026-01-01")
+        self.assertEqual((code, errors), (0, ""))
+        self.assertIsNone(json.loads(output)["change"]["mean_difference"])
+        code, output, errors = self.run_query("workout-summary", "--from", "2026-01-01", "--to", "2026-01-01", "--type", "cycling")
+        self.assertEqual((code, errors), (0, ""))
+        result = json.loads(output)
+        self.assertEqual(result["totals"]["activity_count"], 4)
+        self.assertIsNone(result["totals"]["distance_m"])
+        code, output, errors = self.run_query("activities", "--from", "2026-01-01", "--to", "2026-01-01", "--type", "running")
+        self.assertEqual((code, errors, json.loads(output)), (0, "", []))
+        target = self.root / "missing"
+        cases = (("compare", "steps", "--from", "2026-01-01", "--to", "2026-01-02",
+                  "--baseline-from", "2025-12-01", "--baseline-to", "2026-01-01"),
+                 ("workout-summary", "--from", "2026-01-01", "--to", "2026-04-01"),
+                 ("activities", "--type", "x" * 101))
+        with patch("garmin_archive.cli.open_archive") as opened:
+            for args in cases:
+                self.assert_error(self.run_query(*args, data_dir=target), 2, "invalid_argument")
+            opened.assert_not_called()
+        self.assertFalse(target.exists())
+
     def test_default_dates_use_profile_and_default_trend_is_seven_days(self):
         with patch("garmin_archive.queries.local_today", return_value=(date(2026, 1, 7), "Garmin profile")):
             code, output, _ = self.run_query("day")

@@ -25,6 +25,8 @@ The MVP uses only Garmin's official Personal API. [The coverage contract](docs/A
 
 `sources.py` owns collection routes; the packaged response contract owns schema discovery. `api_data.py` provides shared bounded native field access and scalar series. Native access preserves source values, flags and sentinels; interpreted daily metrics in `queries.py` apply documented mappings and validity rules. Every field is accessible without requiring a separate tool or invented daily aggregate. Coordinates are omitted from default MCP responses and require an explicit native-source opt-in.
 
+`comparisons.py` compares existing metric trends using two explicit periods and available-day denominators. `workouts.py` owns shared activity filtering and daily/weekly volume totals from search summaries. Failed activity refreshes mask measurements; stored multisport parent IDs prevent counting parents alongside their children. These are read-only interpretations over the existing schema, with no collector, scheduler or dependency additions. Provider-specific automation remains with the assistant; native schedule configuration is not proof of unattended execution.
+
 [Schema and SQL](docs/USAGE.md#sql-and-source-data) · [Sync behavior](docs/USAGE.md#sync-and-recovery)
 
 ## Concurrency and durability
