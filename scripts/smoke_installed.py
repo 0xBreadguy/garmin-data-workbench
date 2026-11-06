@@ -28,7 +28,15 @@ async def check_mcp(executable: Path, archive: Path, workdir: Path, env: dict[st
         async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as client:
             await client.initialize()
             tools = await client.list_tools()
-            assert {"archive_status", "get_day", "chart", "brand"}.issubset({tool.name for tool in tools.tools})
+            assert {"archive_status", "get_day", "chart", "brand", "explore_sleep_recovery"}.issubset({tool.name for tool in tools.tools})
+            recovery_ui = await client.read_resource('ui://garmin-workbench/sleep-recovery-v1.html')
+            assert recovery_ui.contents[0].mimeType == 'text/html;profile=mcp-app'
+            assert 'ui/initialize' in recovery_ui.contents[0].text
+            assert '/*__' not in recovery_ui.contents[0].text
+            recovery = await client.call_tool('explore_sleep_recovery', {'start': '2026-01-01', 'end': '2026-01-03'})
+            assert not recovery.isError
+            assert recovery.structuredContent['archive_provenance']['synthetic'] is True
+            assert recovery.structuredContent['sleep']['nights'][0]['values']['sleep_need'] == 500
             branding = await client.call_tool('brand', {})
             assert not branding.isError
             resource = await client.read_resource('garmin-brand://assets/icon_png')
