@@ -14,6 +14,8 @@ import os
 import re
 from pathlib import Path
 
+from .grok_transport import grok_template
+
 MAX_ARGUMENT_BYTES = 12_000
 MAX_CANVAS_ID_JSON_BYTES = 512
 MAX_SOURCE_BYTES = 1_048_576
@@ -29,6 +31,55 @@ PLACEHOLDER = (
 )
 _INITIALIZER = "const snapshot = decodeTransport(/*__RECOVERY_SNAPSHOT__*/);"
 _PART = re.compile(r'const transportPart([0-9]+) = ("(?:[^"\\\n]|\\.)*");\n')
+
+
+_FIX_STEP = r'''#!/usr/bin/env python3
+"""Print the minimal EditCanvas arguments that restore a step's exact expected source.
+
+usage: fix_step.py PLAN.json STEP_NUMBER SAVED_SOURCE
+SAVED_SOURCE holds the Page source from a saved ReadCanvas response, wrapper removed.
+"""
+import hashlib
+import json
+import sys
+
+plan = json.load(open(sys.argv[1], encoding="utf-8"))
+number = int(sys.argv[2])
+saved = open(sys.argv[3], encoding="utf-8", newline="").read()
+expected = None
+for step in plan["steps"][:number]:
+    arguments = step["arguments"]
+    expected = arguments["contents"] if step["tool"] == "WriteCanvas" else expected.replace(arguments["old_string"], arguments["new_string"], 1)
+wanted = plan["steps"][number - 1]["after_sha256"]
+if hashlib.sha256(expected.encode()).hexdigest() != wanted:
+    sys.exit("The plan does not reconstruct this step's after_sha256.")
+if saved == expected:
+    print(json.dumps({"match": True}))
+    sys.exit(0)
+limit = min(len(saved), len(expected))
+start = 0
+while start < limit and saved[start] == expected[start]:
+    start += 1
+tail = 0
+while tail < limit - start and saved[-1 - tail] == expected[-1 - tail]:
+    tail += 1
+saved_end, expected_end = len(saved) - tail, len(expected) - tail
+# Widen until the old string occurs exactly once.
+while saved.count(saved[start:saved_end]) != 1 or start == saved_end:
+    grow_left = min(16, start)
+    grow_right = min(16, tail)
+    if not grow_left and not grow_right:
+        sys.exit("Cannot build a unique correction.")
+    start -= grow_left
+    saved_end += grow_right
+    expected_end += grow_right
+    tail -= grow_right
+corrected = saved[:start] + expected[start:expected_end] + saved[saved_end:]
+if corrected != expected:
+    sys.exit("Correction does not reproduce the expected source.")
+print(json.dumps({"offset_characters": start, "old_string": saved[start:saved_end],
+                  "new_string": expected[start:expected_end], "replace_all": False}, ensure_ascii=True))
+'''
 
 
 def _json(value: object) -> str:
@@ -57,7 +108,7 @@ def _source_sections(source: str) -> tuple[str, list[tuple[str, str]], str]:
         raise ValueError("Handoff requires a nonempty exported source within the 1 MiB project bound.")
     if ANCHOR in source or VERIFY_MARKER_PREFIX in source or "\r" in source or "\x00" in source:
         raise ValueError("Handoff source contains an unexpected anchor or line encoding.")
-    template = (Path(__file__).with_name("ui") / "recovery.canvas.tsx").read_text(encoding="utf-8")
+    template = grok_template()
     if template.count(_INITIALIZER) != 1:
         raise ValueError("Packaged Grok renderer has an unsupported snapshot initializer.")
     before, after = template.split(_INITIALIZER)
@@ -86,8 +137,9 @@ def _source_sections(source: str) -> tuple[str, list[tuple[str, str]], str]:
         raise ValueError("Handoff transport uses an unsupported snapshot version.")
 
     starts = ["type Metric = ", "const transportPart0 = ", "const snapshot = ",
-              "function format(", "function Lane(", "function StageDetail(",
-              "function Explorer()", "export default function App()"]
+              "function format(", "function laneMarks(", "function Scrubber(", "function StageDetail(",
+              "function TrendsPanel(", "function NightPanel(", "function Explorer()",
+              "export default function App()"]
     positions = []
     for start in starts:
         matches = list(re.finditer(r"^" + re.escape(start), source, re.M))
@@ -99,7 +151,8 @@ def _source_sections(source: str) -> tuple[str, list[tuple[str, str]], str]:
     prefix = source[:positions[0]]
     sections = [("types-and-decoder", source[positions[0]:positions[1]])]
     sections.extend((f"transport-{i:03d}", declaration) for i, declaration in enumerate(declarations))
-    labels = ["snapshot-and-constants", "format-and-helpers", "lane", "stage-and-comparison", "explorer"]
+    labels = ["snapshot-and-constants", "format-and-helpers", "lane", "scrubber-and-hero",
+              "stage-and-comparison", "trends", "night-and-footer", "explorer"]
     sections.extend((label, source[positions[i + 2]:positions[i + 3]]) for i, label in enumerate(labels))
     final = source[positions[-1]:]
     if prefix + "".join(section for _, section in sections) + final != source:
@@ -165,8 +218,10 @@ def build_handoff_plan(source: str, title: str) -> dict:
     """Build exact sequential calls; replace only the canvas-id argument at delivery.
 
     Stop after any failed tool call. A failed compile rolls back its edit, so the
-    next step is valid only after the current step succeeds. These local steps do
-    not establish native compilation or delivery, and are not resumable blindly.
+    next step is valid only after the current step succeeds. A compiled edit stays,
+    so a mistyped one is corrected to the plan's bytes rather than retried. These
+    local steps do not establish native compilation or delivery, and are not
+    resumable blindly.
     """
     if not isinstance(title, str) or not title.strip() or len(_json(title)) > 1024:
         raise ValueError("Handoff title must be nonempty and at most 1024 serialized JSON bytes.")
@@ -195,7 +250,8 @@ def build_handoff_plan(source: str, title: str) -> dict:
             "argument_budget_bytes": MAX_ARGUMENT_BYTES,
             "argument_budget_meaning": "Conservative project guardrail; not a documented Grok host limit.",
             "canvas_id_placeholder": CANVAS_ID, "max_canvas_id_json_bytes": MAX_CANVAS_ID_JSON_BYTES,
-            "execution": "Execute in order. Bind the returned canvas_id without changing source. Stop on any failure; failed compilation preserves the published revision. Reconcile ReadCanvas with the expected pre-step source before explicitly retrying the exact failed call. Never skip a failed step or silently repair a failed draft.",
+            "execution": "Execute in order. Bind the returned canvas_id without changing source. Stop on any compiler or transport failure; failed compilation preserves the published revision. Reconcile ReadCanvas with the expected pre-step source before explicitly retrying the exact failed call. Never skip a failed step or silently repair a failed draft.",
+            "step_verification": "Compilation does not check text, so a mistyped step can compile and publish. After every step, when the bridge can save ReadCanvas response bytes, hash the source excluding only the identified wrapper and compare it with that step's after_sha256. If it differs, report the step, offset, expected and actual text, then apply the smallest EditCanvas that restores exactly the plan's bytes and nothing else, and check again. Get the correction from fix_step.py in the handoff directory (python3 fix_step.py plan.json STEP_NUMBER SAVED_SOURCE_FILE) and pass exactly what it prints, never a correction written from memory. Stop if it exits with an error, a correction fails, or the same step needs a second one. Never change anything except to match the plan.",
             "verification_strategy": "Prefer ReadCanvas through a supported native tool bridge that saves its actual response to a file (the observed bridge exposes write_to_file: true beside arguments, not inside ReadCanvas arguments). Compare the complete extracted source bytes with source.canvas.tsx, excluding only the identified response wrapper without trimming source whitespace. This can replace the fallback verification_steps. Never substitute a model-reproduced file for actual returned bytes.",
             "verification_meaning": "Fallback when actual readback bytes are unavailable: atomic edits round-trip each unique expected fragment and update only a temporary trailing comment; overlapping fragments cover every expected source byte. The final edit removes the comment. Local hashes are not remote hashes; exact full ReadCanvas comparison is still required to exclude extra or reordered source.",
             "steps": steps, "verification_steps": verification,
@@ -276,6 +332,7 @@ def write_handoff(new_dir: Path, source: str, title: str) -> dict:
 
     try:
         write_file("source.canvas.tsx", source)
+        write_file("fix_step.py", _FIX_STEP)
         for step in [*plan["steps"], *plan["verification_steps"]]:
             name = f'{step["number"]:03d}-{step["label"]}.json'
             write_file(name, _json(step["arguments"]))

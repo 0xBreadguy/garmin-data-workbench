@@ -59,7 +59,8 @@ The experimental MCP Apps sleep/recovery explorer packages a static, self-contai
 
 `widget sleep-recovery --host grok` embeds a compact projection of that snapshot in the packaged
 `ui/recovery.canvas.tsx` renderer. It uses only the host's `grok/canvas` exports,
-local React state and inline SVG. No production dependency, collector, database
+local React state, inline styles and SVG, with colors and logo applied from the
+shared brand at export. No production dependency, collector, database
 schema or harness extension is added. Rendering differs by host; metric and
 comparison definitions remain shared. The optional development React shim tests
 the exported component without claiming to implement Grok's compiler or sandbox.

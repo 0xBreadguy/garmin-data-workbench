@@ -3,6 +3,8 @@ import hashlib
 import json
 import os
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
 from datetime import date, timedelta
@@ -170,6 +172,52 @@ class GrokHandoffTest(unittest.TestCase):
             apply_exact(current, step)
         self.assertEqual(current, before)
 
+    def test_compiled_slip_is_detectable_and_correctable_back_to_plan_bytes(self):
+        # The native trial's real slip: this compiles, and only a byte check catches it.
+        plan = handoff.build_handoff_plan(self.sources[14], "Recovery")
+        self.assertIn("after_sha256", plan["step_verification"])
+        self.assertIn("compile", plan["step_verification"])
+        current, right = None, "{swatch(p.stages[i])}{stageNames[i]}"
+        wrong = "{swatch(p.secondary)}{stageNames[i]}"
+        for step in plan["steps"]:
+            mistyped = json.loads(json.dumps(step))
+            if right in step["arguments"].get("new_string", ""):
+                mistyped["arguments"]["new_string"] = step["arguments"]["new_string"].replace(right, wrong)
+                current = apply_exact(current, mistyped)
+                self.assertNotEqual(sha(current), step["after_sha256"])
+                current = apply_exact(current, {"tool": "EditCanvas", "arguments": {"old_string": wrong, "new_string": right}})
+            else:
+                current = apply_exact(current, step)
+            self.assertEqual(sha(current), step["after_sha256"])
+        self.assertEqual(current, self.sources[14])
+
+    def test_packaged_fix_step_prints_the_edit_that_restores_plan_bytes(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as folder:
+            target = Path(folder) / "handoff"
+            handoff.write_handoff(target, self.sources[14], "Recovery")
+            plan = json.loads((target / "plan.json").read_text())
+            number = next(s["number"] for s in plan["steps"] if s["label"] == "lane")
+            expected = None
+            for step in plan["steps"][:number]:
+                expected = apply_exact(expected, step)
+            saved = target / "saved.txt"
+
+            def run(source):
+                saved.write_bytes(source.encode("utf-8"))
+                return subprocess.run([sys.executable, str(target / "fix_step.py"), str(target / "plan.json"),
+                                       str(number), str(saved)], capture_output=True, text=True, check=True)
+
+            self.assertEqual(json.loads(run(expected).stdout), {"match": True})
+            at = expected.index("function Lane(")
+            # Each observed kind of slip: a wrong identifier, a dropped span and stray text.
+            for slip in (expected.replace("function Lane(", "function Lan(", 1),
+                         expected[:at - 400] + expected[at - 200:],
+                         expected[:at] + "stray" + expected[at:]):
+                fix = json.loads(run(slip).stdout)
+                self.assertEqual(slip.count(fix["old_string"]), 1)
+                self.assertEqual(slip.replace(fix["old_string"], fix["new_string"], 1), expected)
+                self.assertFalse(fix["replace_all"])
+
     def test_invalid_source_and_unexpected_anchors_fail_closed(self):
         source = self.sources[14]
         invalid = ["", "export default function App() {}", source + "// added\n",
@@ -198,11 +246,11 @@ class GrokHandoffTest(unittest.TestCase):
         oversized = source[:declaration.start(1)] + json.dumps("x" * 2049) + source[declaration.end(1):]
         with self.assertRaisesRegex(ValueError, "2048 ASCII"):
             handoff.build_handoff_plan(oversized, "Recovery")
-        template = (Path(handoff.__file__).with_name("ui") / "recovery.canvas.tsx").read_text()
+        template = handoff.grok_template()
         expansion = "function Explorer() {\n  // " + "x" * 12000 + "\n"
         future_source = source.replace("function Explorer() {", expansion)
         future_template = template.replace("function Explorer() {", expansion)
-        with patch.object(Path, "read_text", return_value=future_template):
+        with patch.object(handoff, "grok_template", return_value=future_template):
             with self.assertRaisesRegex(ValueError, "explorer.*argument bound"):
                 handoff.build_handoff_plan(future_source, "Recovery")
 

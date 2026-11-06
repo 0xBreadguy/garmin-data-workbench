@@ -6,13 +6,26 @@ Nulls, zeroes, status strings and timestamps are retained without interpretation
 """
 from __future__ import annotations
 
+from pathlib import Path
+
+from .brand import brand_tokens_canvas
+
 CODEC_VERSION = 1
+BRAND_MARKER = "/*__BRAND_TOKENS__*/"
 SLEEP_FIELDS = ("sleep_duration", "sleep_need", "sleep_awake", "sleep_score",
                 "sleep_deep", "sleep_light", "sleep_rem", "sleep_unmeasurable")
 TIME_FIELDS = ("start_utc", "end_utc", "start_local", "end_local")
 TREND_METRICS = ("overnight_hrv", "resting_heart_rate", "body_battery_charged")
 COMPARISON_METRICS = ("sleep_duration", "overnight_hrv", "resting_heart_rate",
                       "sleep_score", "body_battery_charged")
+
+
+def grok_template() -> str:
+    """The packaged renderer with brand tokens applied; only the snapshot still varies."""
+    template = (Path(__file__).with_name("ui") / "recovery.canvas.tsx").read_text(encoding="utf-8")
+    if template.count(BRAND_MARKER) != 1:
+        raise ValueError("Grok Page template must contain exactly one brand marker.")
+    return template.replace(BRAND_MARKER, brand_tokens_canvas())
 
 
 def project_grok_snapshot(snapshot: dict) -> dict:

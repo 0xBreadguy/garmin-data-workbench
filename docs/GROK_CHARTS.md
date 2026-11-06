@@ -6,12 +6,11 @@ view over the workbench's shared query results, separate from the
 a native TSX renderer so the layout and behavior can stay consistent between
 requests. The HTML export is not interchangeable with a Grok Page.
 
-**Status:** bounded native edits delivered the packaged explorer in the Mac Grok
-Bot app. The shortened source-verification sequence passed, and linked selection,
-keyboard navigation, Last 7, night details, comparisons and independent missing
-observations responded visibly. See the [bounded-delivery trial](acceptance/2026-11-05-grok-staged-delivery.md).
-This is separate from the earlier
-[failed one-call transfer](acceptance/2026-11-05-grok-packaged-explorer.md).
+**Status:** the branded explorer renders and responds in the Mac Grok Bot app in
+its dark theme, delivered through bounded native edits. See the
+[design pass](acceptance/2026-11-06-grok-design-pass.md), which also lists what remains
+untested, and the earlier [bounded-delivery trial](acceptance/2026-11-05-grok-staged-delivery.md)
+and [failed one-call transfer](acceptance/2026-11-05-grok-packaged-explorer.md).
 Native tool receipts, source verification and actual interaction remain distinct
 acceptance checks; a local export alone proves none of them.
 
@@ -34,14 +33,59 @@ credentials, sync, Node runtime, CDN, chart extra or network listener is needed.
 The workbench applies a 1 MiB export guardrail; this is not a documented Grok
 host limit. The file contains health observations when the archive is personal.
 
-`ui/recovery.canvas.tsx` owns presentation: a linked selected date across five
-chart lanes, Trends / Night detail / Compare, Last 7, pointer and keyboard
-selection, light/dark colors, explicit unavailable states and segmented gaps.
-The four sleep stages exclude awake. All period averages and differences come
+`ui/recovery.canvas.tsx` owns presentation and follows the branded
+[Muse widget](INTERACTIVE_CHARTS.md): the same masthead and date wording, a hero
+built from the logo's two bubbles and an unsmoothed data line, a date scrubber
+aligned to the chart columns, four linked chart lanes, Trends / Night detail /
+Compare, Last 7, period bubbles and zero-based comparison bars. Hovering with a
+mouse previews a night; a press, drag, tap or arrow key selects it. Gaps keep the
+PNG charts' status shapes. Body Battery is in the night summary, Night detail and
+Compare rather than a fifth lane. The four sleep stages exclude awake, in the PNG
+order: Deep, REM, Light, Unclassified. All period averages and differences come
 from shared Python queries. The renderer cannot query, sync or send a message.
 Its view state is held only in local React state, with no persistence bridge;
 actual native reopening behavior remains untested. Request a new snapshot to
 refresh data.
+
+The Page has no stylesheet of its own, so states and breakpoints are inline: hover
+and focus use React state, the range input is transparent over a drawn thumb, and
+widths use percentages, `min()` and `clamp()`. Only `Page`, `Section`, `useState`
+and `useGrokTheme` are used at runtime. Colors and the logo come from `brand.json`
+and `assets/logo.svg`, applied to the template at export; a test rejects other
+color literals. The surface, font and motion timing come from `useGrokTheme()`.
+
+### What the host does to a Page
+
+Observed in the Mac app's dark theme with diagnostic Pages, November 6, 2026. None
+of this is in Grok's documentation, so recheck it if the app changes.
+
+- **It repaints colors at runtime.** After render it tags elements
+  `data-grok-adapt-ink`, `-bg` and `-fill` and overrides their computed color. A
+  read at mount still shows the authored value.
+- **An explicit background on an ancestor keeps text and SVG as authored**, even
+  when it equals the surface. On an unset background, grey text is dimmed and white
+  SVG disappears. So the explorer's root sets `background: theme.bg.base`.
+- **Near-white CSS backgrounds and borders are repainted anyway.** White and
+  `#d6e3fb` turned dark; `#b4d1ff` survived. Draw near-white shapes as SVG, as the
+  hero dot, chart guide, need swatch and picker chevron do. A white `rect` turned
+  dark, and so did a white line drawn over it. A white `path` plate stayed white in a
+  44 px test but not in the real 22 px footer.
+- **A coloured CSS box protects what is inside it.** Inside `#b4d1ff` the adapter
+  tagged nothing, and small white SVG stays white inside blue. So the logo sits on a
+  `#b4d1ff` plate in dark theme and the hero dot's white centre sits in a blue disc.
+  That plate then sampled near-white in the footer, which matches Muse; why is unknown.
+- **Native `p`, `h1`–`h6`, `table`, `pre`, `ul`, `ol`, `dl`, `blockquote`, `figure`
+  and `hr` get host typography.** Table cells also get `!important` padding and
+  borders. The explorer uses plain elements with ARIA roles instead.
+- **The compiler rejects some source** by name: reading the color scheme through
+  `matchMedia` (`canvas-system-color-scheme`) and reading `outerHTML`
+  (`canvas-injection-sink`). Grok reports those two rules; there may be others.
+  Its theme declaration asks custom visuals to skip transitions for reduced motion,
+  and a `matchMedia` query for that has compiled.
+
+A browser check cannot see the first three, so `scripts/test_grok_widget.mjs` guards
+their causes: the root's background, no native elements above, and in dark theme no
+near-white CSS background or border. Judge the look from the real app.
 
 ### Bounded native delivery
 
@@ -80,18 +124,27 @@ Finally inspect the Page, exercise selection and check **Only you**. No method
 here supplies a server-attested source hash: a hash of actual saved response
 bytes is a local comparison result, distinct from the expected input hash.
 
-Calls must succeed sequentially. Stop on any mismatch, transport or compiler
-failure and preserve its diagnostic. Failed compilation retains the previous
-revision; do not skip to the next step, guess source text or silently redesign
-it. Resume only after reconciling the published `ReadCanvas` source with the
-expected state before the failed step, then explicitly retry that exact call.
-Do not use or silently repair an unpublished failed draft. Bounded calls reduce
-transfer size; they do not eliminate model transcription errors. The native
-trial caught a copying typo during verification and rejected its compilation
-while preserving the working Page.
+Calls must succeed sequentially. Stop on any transport or compiler failure and
+preserve its diagnostic. Failed compilation retains the previous revision; do not
+skip to the next step, guess source text or silently redesign it. Resume only
+after reconciling the published `ReadCanvas` source with the expected state before
+the failed step, then explicitly retry that exact call. Do not use or silently
+repair an unpublished failed draft.
 
-The current 14-day example uses ten delivery calls plus one saved ReadCanvas
-response and a local byte comparison. The fallback uses nine verification edits
+Bounded calls reduce transfer size; they do not eliminate model transcription
+errors, and compilation does not catch a wrong identifier that still type-checks.
+Expect one in a delivery. Follow the plan's `step_verification`: after every step,
+compare saved response bytes with that step's `after_sha256`. A mistyped or truncated
+step that compiled has already been applied, so it cannot be retried. Report the
+step, offset, expected and actual text, apply the smallest `EditCanvas` that restores
+exactly the plan's bytes, and check again. The handoff directory's `fix_step.py`
+prints that edit from the plan and the saved source; pass exactly what it prints.
+Corrections written from memory failed to compile in the native trial, and the
+script's did not. Stop if it exits with an error, a correction fails, or the same
+step needs a second one.
+
+The current 14-day example uses 13 delivery calls plus one saved ReadCanvas
+response and a local byte comparison. The fallback uses 13 verification edits
 before readback inspection. Its 12,000-byte conservative
 argument budget includes reserved ID space; it is a workbench guardrail, not a
 vendor limit. Compact string/tuple packing reduces repeated data; inert bounded
@@ -107,17 +160,19 @@ harness change or undocumented API. It does involve more native calls than
 Muse's direct file handoff. Native mobile delivery and cross-device behavior
 still require their own acceptance tests.
 
-### Next design and copy pass
+### Check the design locally
 
-Keep this framework while refining the surface: establish a consistent spacing
-and type scale; strengthen the selected-night hierarchy and shared cursor;
-balance chart density against night details; shorten repeated status/source copy;
-and tune stage contrast, focus treatments and touch targets in both themes.
-`palette`, `Lane`, `StageDetail`, `ComparisonView` and the formatters isolate these
-changes from query semantics. Compare screenshots against Muse's actual delivered
-widget, then repeat native keyboard, touch, reopen and narrow-screen checks.
-Native compilation and exact-source delivery come before claiming that polish
-is consistently available in Grok.
+```sh
+uv run --locked python scripts/preview_grok_widget.py --output-dir /absolute/new/fixtures
+npm ci --prefix scripts/grok_harness
+npm exec --prefix scripts/grok_harness -- playwright install chromium webkit
+node scripts/test_grok_widget.mjs --fixtures /absolute/new/fixtures --output-dir /absolute/new/checks
+```
+
+This runs the exact exported source in Chromium and WebKit at 320, 390 and 728
+pixels in both themes, with no host stylesheet. It uses a React stand-in for
+`grok/canvas`, so it does not verify Grok's compiler, sandbox or delivery. The
+Mac app is Electron; phones are expected to use WebKit.
 
 ## What has been observed
 

@@ -6,7 +6,7 @@ does not verify Grok's compiler, sandbox, delivery or native theme implementatio
 
     uv run --locked python scripts/preview_grok_widget.py --output-dir /new/fixtures
     npm ci --prefix scripts/grok_harness
-    npm exec --prefix scripts/grok_harness -- playwright install chromium
+    npm exec --prefix scripts/grok_harness -- playwright install chromium webkit
     node scripts/test_grok_widget.mjs --fixtures /new/fixtures --output-dir /checks
 """
 from __future__ import annotations
@@ -19,6 +19,7 @@ from pathlib import Path
 
 from create_demo_archive import create_demo_archive
 from garmin_archive.archive import Archive
+from garmin_archive.brand import brand_tokens_canvas, get_brand
 from garmin_archive.queries import open_archive
 from garmin_archive.widgets import recovery_grok_canvas, recovery_widget_snapshot
 
@@ -83,7 +84,10 @@ def main() -> None:
             with (destination / f'{name}.canvas.tsx').open('x', encoding='utf-8', newline='') as out:
                 out.write(source)
     with (destination / 'fixtures.json').open('x', encoding='utf-8') as out:
+        brand = get_brand()
         json.dump({'synthetic': True, 'source_sha256': source_hashes,
+                   'brand': {'colors': brand['colors'], 'dark_colors': brand['dark_colors']},
+                   'brand_tokens': brand_tokens_canvas(),
                    'scenario_notes': {'warning': 'Current/future query warning flags injected into invented demo data for presentation testing; dates and observations are unchanged.'},
                    'snapshots': snapshots}, out, ensure_ascii=True, indent=2)
         out.write('\n')

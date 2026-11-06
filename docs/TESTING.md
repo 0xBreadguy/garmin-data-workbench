@@ -80,7 +80,7 @@ tests; Python users need no Node runtime. Use new fixture/output directories:
 
 ```sh
 npm ci --prefix scripts/grok_harness
-npm exec --prefix scripts/grok_harness -- playwright install chromium
+npm exec --prefix scripts/grok_harness -- playwright install chromium webkit
 uv run --locked python scripts/preview_grok_widget.py --output-dir /absolute/new/grok-fixtures
 node scripts/test_grok_widget.mjs --fixtures /absolute/new/grok-fixtures --output-dir /absolute/new/grok-checks
 node scripts/test_grok_transport.mjs --fixtures /absolute/new/grok-fixtures
@@ -89,8 +89,10 @@ node scripts/test_grok_transport.mjs --fixtures /absolute/new/grok-fixtures
 It exercises linked pointer/drag, keyboard and emulated touch selection; tabs;
 night details; shared comparison values, denominators and warnings; missing
 middle-date gaps; independent failed refreshes and zeroes; incomplete stages;
-1/90-day bounds; light/dark 390/728 px layouts; overflow and unwanted network
-requests. Output includes screenshots and source hashes. It needs no HTTP server,
+1/90-day bounds; Chromium and WebKit at 320/390/728 px in light and dark; hover
+preview; scrubber alignment; zero-based comparison bars; marks not rebuilt on
+selection; guards against what the [Grok host repaints](GROK_CHARTS.md#what-the-host-does-to-a-page);
+overflow and unwanted network requests. Output includes screenshots and source hashes. It needs no HTTP server,
 credentials, personal archive or Grok connection. A controlled warning fixture
 injects flags into a synthetic snapshot without moving observations to today.
 The transport check executes the packaged decoder against an independently

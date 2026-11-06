@@ -10,7 +10,7 @@ import os
 import re
 from pathlib import Path
 
-from .grok_transport import pack_grok_snapshot
+from .grok_transport import grok_template, pack_grok_snapshot
 from .mcp_apps import bundle_recovery, recovery_template
 from .recovery import _snapshot, compare_sleep_recovery, get_sleep_recovery
 
@@ -63,7 +63,7 @@ def recovery_widget_html(snapshot: dict) -> str:
 
 def recovery_grok_canvas(snapshot: dict) -> str:
     """Embed the canonical view fields in the packaged native Grok Page source."""
-    template = (Path(__file__).with_name("ui") / "recovery.canvas.tsx").read_text(encoding="utf-8")
+    template = grok_template()
     if template.count(GROK_SNAPSHOT_MARKER) != 1:
         raise ValueError("Grok Page template must contain exactly one snapshot marker.")
     # ASCII JSON also escapes JS line separators. Escape HTML delimiters even

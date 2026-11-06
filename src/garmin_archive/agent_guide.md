@@ -98,7 +98,10 @@ requires inline source, not a path or `$file:` reference. Use `plan.json` in the
 handoff directory to avoid one oversized submission. Execute its bounded
 WriteCanvas/EditCanvas calls in order, binding only the new Page's returned ID.
 Keep the placeholder until the final edit; stop on any failed step and report its
-diagnostic without silently rewriting the chart. Prefer full byte comparison
+diagnostic without silently rewriting the chart. Compilation does not check text,
+so a mistyped step can still publish: follow the plan's `step_verification` after
+each call, correcting only back to the plan's bytes and reporting every correction.
+Prefer full byte comparison
 when the native bridge can save the actual ReadCanvas response to a file: the
 observed bridge's `write_to_file: true` is beside `arguments`, not a ReadCanvas
 argument. Exclude only the identified response wrapper; preserve source whitespace

@@ -24,7 +24,8 @@ if (process.argv.length !== 4 || process.argv[2] !== '--fixtures') {
 const fixtures = path.resolve(process.argv[3]);
 const receipt = JSON.parse(await fs.readFile(path.join(fixtures, 'fixtures.json'), 'utf8'));
 assert.equal(receipt.synthetic, true, 'Use generated synthetic fixtures only.');
-const template = await fs.readFile(path.join(here, '../src/garmin_archive/ui/recovery.canvas.tsx'), 'utf8');
+const rawTemplate = await fs.readFile(path.join(here, '../src/garmin_archive/ui/recovery.canvas.tsx'), 'utf8');
+const template = rawTemplate.replace('/*__BRAND_TOKENS__*/', () => receipt.brand_tokens);
 const marker = '/*__RECOVERY_SNAPSHOT__*/';
 assert.equal(template.split(marker).length, 2);
 const initialization = `const snapshot = decodeTransport(${marker});`;
@@ -130,7 +131,8 @@ for (const [name, canonical] of Object.entries(receipt.snapshots)) {
   for (const theme of ['light', 'dark']) for (const view of ['trends', 'night', 'compare']) {
     for (const selected of new Set([0, days - 1])) for (const last7 of [false, true]) {
       if (last7 && selected < days - 7) continue;
-      const state = [selected, view, last7];
+      // Explorer's useState order: selected, preview, view, last7, announced. Child hooks read undefined.
+      const state = [selected, null, view, last7, ''];
       assert.equal(compactRender(state, theme), fullRender(state, theme), `${name}/${theme}/${view}/${selected}/${last7}: rendered parity`);
       checks++;
     }

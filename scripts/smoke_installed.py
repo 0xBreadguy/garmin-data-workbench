@@ -216,7 +216,7 @@ finally:
             "--handoff-dir", str(workdir / "grok-handoff")]))
         assert canvas_info["output_path"] == str(canvas) and canvas_info["archive_provenance"]["synthetic"]
         source = canvas.read_text(encoding="utf-8")
-        assert 'grok/canvas' in source and '/*__RECOVERY_SNAPSHOT__*/' not in source
+        assert 'grok/canvas' in source and '/*__RECOVERY_SNAPSHOT__*/' not in source and '/*__BRAND_TOKENS__*/' not in source
         assert '\\"codec_version\\":1' in source and '\\"schema_version\\":1' in source
         assert 'const transportPart0 = ' in source and 'decodeTransport(JSON.parse([' in source
         assert 'WriteCanvas' in canvas_info["delivery"] and 'private Page' in canvas_info["delivery"]

@@ -15,15 +15,15 @@ from unittest.mock import patch
 from garmin_archive import widgets
 from garmin_archive.archive import Archive
 from garmin_archive.cli import main
-from garmin_archive.grok_transport import pack_grok_snapshot, project_grok_snapshot
+from garmin_archive.brand import brand_tokens_canvas, get_brand
+from garmin_archive.grok_transport import BRAND_MARKER, grok_template, pack_grok_snapshot, project_grok_snapshot
 from garmin_archive.queries import open_archive
 from garmin_archive.recovery import compare_sleep_recovery, get_sleep_recovery
 from test_recovery import seed
 
 
 def embedded_transport_parts(source):
-    template = (Path(widgets.__file__).with_name("ui") / "recovery.canvas.tsx").read_text(encoding="utf-8")
-    before, after = template.split('const snapshot = decodeTransport(/*__RECOVERY_SNAPSHOT__*/);')
+    before, after = grok_template().split('const snapshot = decodeTransport(/*__RECOVERY_SNAPSHOT__*/);')
     assert source.startswith(before) and source.endswith(after)
     block = source[len(before):len(source) - len(after) if after else None]
     lines = block.splitlines()
@@ -258,6 +258,43 @@ class GrokWidgetTest(unittest.TestCase):
         with open_archive(self.archive) as db:
             with self.assertRaisesRegex(ValueError, "host must be"):
                 widgets.write_recovery_widget(db, target, host="unknown")
+
+    def test_colors_stage_order_and_logo_come_from_shared_brand(self):
+        template = (Path(widgets.__file__).with_name("ui") / "recovery.canvas.tsx").read_text(encoding="utf-8")
+        # White on brand fills and the logo plate, plus the shared focus ring, are the only literals.
+        self.assertLessEqual(set(re.findall(r"#[0-9a-fA-F]{3,8}\b", template)), {"#fff", "#438dff"})
+        self.assertEqual(template.count(BRAND_MARKER), 1)
+        brand, tokens = get_brand(), json.loads(brand_tokens_canvas())
+        stages = ("deep", "rem", "light", "unmeasurable")
+        for name, colors in (("light", brand["colors"]), ("dark", brand["dark_colors"])):
+            self.assertEqual(tokens[name]["stages"], [colors["sleep_stages"][stage] for stage in stages])
+            self.assertEqual(tokens[name]["primary"], colors["primary"])
+            self.assertEqual(tokens[name]["ink"], colors["ink"])
+        self.assertEqual(tokens["light"]["inkFill"], brand["colors"]["ink"])
+        self.assertEqual(tokens["dark"]["inkFill"], brand["dark_colors"]["ink_fill"])
+        logo = Path(brand["assets"]["logo_svg"]).read_text(encoding="utf-8")
+        self.assertEqual(len(tokens["logo"]["paths"]), logo.count("<path"))
+        for path in tokens["logo"]["paths"]:
+            self.assertIn(path["d"], logo)
+        with open_archive(self.archive) as db:
+            source = widgets.recovery_grok_canvas(widgets.recovery_widget_snapshot(db, "2026-01-01", "2026-01-04"))
+        self.assertIn(brand_tokens_canvas(), source)
+        self.assertNotIn(BRAND_MARKER, source)
+
+    def test_renderer_stays_on_confirmed_host_contract(self):
+        # Only these runtime exports have compiled natively. Native tests cover anything added here.
+        template = (Path(widgets.__file__).with_name("ui") / "recovery.canvas.tsx").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r"^import \{[^}]*\} from .*$", template, re.M),
+                         ['import { Page, Section, useState, useGrokTheme } from "grok/canvas";'])
+        self.assertEqual(set(re.findall(r'from "([^"]+)"', template)), {"grok/canvas"})
+        # outerHTML and innerHTML fail its injection rule, and reading the color scheme fails its theme rule.
+        for forbidden in ("<style", "dangerouslySetInnerHTML", "outerHTML", "innerHTML", "prefers-color-scheme",
+                          "fetch(", "localStorage", "<iframe", "eval("):
+            self.assertNotIn(forbidden, template)
+        # The host restyles these native elements, including their font.
+        self.assertEqual(re.findall(r"<(?:p|h[1-6]|table|pre|ul|ol|dl|blockquote|figure|hr)[\s>]", template), [])
+        # The host repaints a white rect dark, and the line drawn over it.
+        self.assertNotIn("<rect", template)
 
     def test_default_and_explicit_muse_exports_match(self):
         default = self.root / "default.html"

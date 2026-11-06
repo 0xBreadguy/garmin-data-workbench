@@ -27,6 +27,28 @@ def inline_logo() -> str:
     return f'<svg class="logo" viewBox="{view_box}" aria-hidden="true" focusable="false">{paths}</svg>'
 
 
+def brand_tokens_canvas() -> str:
+    """The same tokens and logo as a literal for the native Grok Page, which has no stylesheet."""
+    brand = get_brand()
+    light, dark = brand["colors"], brand["dark_colors"]
+
+    def tone(colors: dict, ink_fill: str) -> dict:
+        stages = colors["sleep_stages"]
+        return {"primary": colors["primary"], "ink": colors["ink"], "inkFill": ink_fill,
+                "primaryFill": light["primary"], "background": colors["background"],
+                "secondary": colors["secondary"], "rule": colors["rule"], "tint": colors["tint"],
+                "stages": [stages[name] for name in ("deep", "rem", "light", "unmeasurable")]}
+
+    source = Path(brand["assets"]["logo_svg"]).read_text(encoding="utf-8")
+    jsx_names = {"d": "d", "fill": "fill", "stroke": "stroke",
+                 "stroke-width": "strokeWidth", "stroke-linecap": "strokeLinecap"}
+    paths = [{jsx_names[name]: value for name, value in re.findall(r'([a-z-]+)="([^"]*)"', tag)}
+             for tag in re.findall(r"<path\b[^>]*/>", source)]
+    logo = {"viewBox": re.search(r'viewBox="([^"]+)"', source).group(1), "paths": paths}
+    return json.dumps({"light": tone(light, light["ink"]), "dark": tone(dark, dark["ink_fill"]), "logo": logo},
+                      ensure_ascii=True, separators=(",", ":"))
+
+
 def get_brand() -> dict:
     package = Path(__file__).resolve().parent
     # Wheel assets are copied from the repository's authoritative assets at build
