@@ -7,8 +7,9 @@ a native TSX renderer so the layout and behavior can stay consistent between
 requests. The HTML export is not interchangeable with a Grok Page.
 
 **Status:** bounded native edits delivered the packaged explorer in the Mac Grok
-Bot app. Linked selection, keyboard navigation, Last 7, night details and
-comparisons responded visibly. See the [bounded-delivery trial](acceptance/2026-11-05-grok-staged-delivery.md).
+Bot app. The shortened source-verification sequence passed, and linked selection,
+keyboard navigation, Last 7, night details, comparisons and independent missing
+observations responded visibly. See the [bounded-delivery trial](acceptance/2026-11-05-grok-staged-delivery.md).
 This is separate from the earlier
 [failed one-call transfer](acceptance/2026-11-05-grok-packaged-explorer.md).
 Native tool receipts, source verification and actual interaction remain distinct
@@ -58,16 +59,26 @@ The agent performs the calls through Grok's supported tools:
 2. `EditCanvas({canvas_id, old_string, new_string, replace_all: false})` appends
    complete declarations at one unique anchor. The final edit activates the
    packaged App. Do not combine the calls into one large source submission.
-3. Run the verification calls in order. Direct identical old/new edits are
-   rejected by this host. The supported atomic `edits` batch instead changes a
-   bounded source fragment to a unique temporary slot and restores it before compilation, then advances
-   only a temporary trailing comment. Overlapping fragments check the complete
-   expected source and its boundaries; the final call removes the comment.
-4. `ReadCanvas({canvas_id})` returns source text. Compare the complete result with
-   `source.canvas.tsx`, inspect the Page, exercise selection and check **Only you**.
-   The API supplies no remote source hash. Local hashes identify the expected
-   file; they must not be presented as a server-attested hash. Fragment matches
-   alone cannot exclude extra text outside the expected program.
+3. Prefer a machine comparison of the actual `ReadCanvas({canvas_id})` response.
+   The observed native dynamic-tool bridge accepts top-level `write_to_file: true`
+   beside `namespace`, `toolName` and `arguments`; this is **not** a ReadCanvas
+   argument. It saves the actual response to a returned asset path. Compare its
+   complete source bytes with `source.canvas.tsx`, excluding only the identified
+   response header/footer without trimming source whitespace. Never substitute a
+   model-reproduced file. The bridge is a host capability to check, not an API
+   implemented by this package. This comparison replaces the fallback edit checks.
+4. If actual response bytes are unavailable, run `verification_steps` in order.
+   Direct identical old/new edits are rejected. Atomic `edits` instead replaces a
+   bounded fragment with a unique temporary slot and restores it before compilation,
+   then advances only a trailing comment. Overlapping fragments cover the expected
+   source and its boundaries; cleanup removes the comment. Complete ReadCanvas
+   text inspection remains necessary to exclude extra or reordered content.
+   Report the limits of text-only inspection. Fragment matches alone do not
+   establish full byte identity.
+
+Finally inspect the Page, exercise selection and check **Only you**. No method
+here supplies a server-attested source hash: a hash of actual saved response
+bytes is a local comparison result, distinct from the expected input hash.
 
 Calls must succeed sequentially. Stop on any mismatch, transport or compiler
 failure and preserve its diagnostic. Failed compilation retains the previous
@@ -79,8 +90,9 @@ transfer size; they do not eliminate model transcription errors. The native
 trial caught a copying typo during verification and rejected its compilation
 while preserving the working Page.
 
-The current 14-day example uses ten delivery calls and nine source-verification
-calls. Its 12,000-byte conservative
+The current 14-day example uses ten delivery calls plus one saved ReadCanvas
+response and a local byte comparison. The fallback uses nine verification edits
+before readback inspection. Its 12,000-byte conservative
 argument budget includes reserved ID space; it is a workbench guardrail, not a
 vendor limit. Compact string/tuple packing reduces repeated data; inert bounded
 string declarations allow even a 90-day snapshot to be assembled without a

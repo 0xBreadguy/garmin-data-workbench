@@ -505,7 +505,8 @@ def _read(args: argparse.Namespace) -> int:
                         return _error("handoff_error", f"Source saved to {result['output_path']}; handoff creation failed: {error}. Choose a new handoff directory; do not overwrite existing artifacts.")
                     result["delivery"] = ("Use plan.json in the private handoff directory. Execute its bounded native "
                         "WriteCanvas/EditCanvas calls in order, binding only the returned canvas_id. Stop on any failure. "
-                        "Run its source verification steps and ReadCanvas comparison, then inspect the private Page. "
+                        "Follow its verification_strategy: prefer comparing saved native ReadCanvas response bytes; "
+                        "otherwise run the fallback source verification steps and full text comparison. Inspect the private Page. "
                         "Local hashes and file creation do not prove native delivery. Do not publish or enable public sharing.")
                 _print_json(result)
             elif args.command == "compare":

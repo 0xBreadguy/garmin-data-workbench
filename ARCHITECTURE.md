@@ -71,6 +71,8 @@ before parsing so data can be inserted in small native edits.
 `--handoff-dir` exports private ordered `WriteCanvas`/`EditCanvas` calls. A
 placeholder App stays active until the complete source is assembled. The plan
 contains local reconstruction hashes and bounded overlapping source verification
-batches; complete `ReadCanvas` comparison and native interaction remain separate
-acceptance gates. No tool calls are executed by the Python package. See
+batches as a fallback. Prefer complete byte comparison when the native bridge
+can save its actual `ReadCanvas` response to a file; otherwise pair the batches
+with full text inspection. Native interaction remains a separate acceptance
+gate. No tool calls are executed by the Python package. See
 [Grok delivery](docs/GROK_CHARTS.md#bounded-native-delivery).

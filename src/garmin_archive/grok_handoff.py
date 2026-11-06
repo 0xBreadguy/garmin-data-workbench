@@ -2,9 +2,9 @@
 
 This module never calls Grok. Hashes describe locally reconstructed source, not a
 remote receipt. The 12,000-byte argument budget is a project guardrail, not a
-vendor limit. Native EditCanvas rejects no-op edits, so verification uses atomic
-round trips with a changing temporary comment. Exact full ReadCanvas comparison
-is the final source-identity gate.
+vendor limit. Prefer actual saved ReadCanvas response bytes for comparison.
+Native EditCanvas rejects no-op edits, so fallback verification uses atomic
+round trips with a changing temporary comment. Full readback is still required.
 """
 from __future__ import annotations
 
@@ -196,7 +196,8 @@ def build_handoff_plan(source: str, title: str) -> dict:
             "argument_budget_meaning": "Conservative project guardrail; not a documented Grok host limit.",
             "canvas_id_placeholder": CANVAS_ID, "max_canvas_id_json_bytes": MAX_CANVAS_ID_JSON_BYTES,
             "execution": "Execute in order. Bind the returned canvas_id without changing source. Stop on any failure; failed compilation preserves the published revision. Reconcile ReadCanvas with the expected pre-step source before explicitly retrying the exact failed call. Never skip a failed step or silently repair a failed draft.",
-            "verification_meaning": "Atomic edits round-trip each unique expected fragment and update only a temporary trailing comment; overlapping fragments cover every expected source byte. The final edit removes the comment. Local hashes are not remote hashes; exact full ReadCanvas comparison is still required to exclude extra or reordered source.",
+            "verification_strategy": "Prefer ReadCanvas through a supported native tool bridge that saves its actual response to a file (the observed bridge exposes write_to_file: true beside arguments, not inside ReadCanvas arguments). Compare the complete extracted source bytes with source.canvas.tsx, excluding only the identified response wrapper without trimming source whitespace. This can replace the fallback verification_steps. Never substitute a model-reproduced file for actual returned bytes.",
+            "verification_meaning": "Fallback when actual readback bytes are unavailable: atomic edits round-trip each unique expected fragment and update only a temporary trailing comment; overlapping fragments cover every expected source byte. The final edit removes the comment. Local hashes are not remote hashes; exact full ReadCanvas comparison is still required to exclude extra or reordered source.",
             "steps": steps, "verification_steps": verification,
             "readback": {"tool": "ReadCanvas", "arguments": {"canvas_id": CANVAS_ID},
                          "acceptance": "Compare the complete returned source with source.canvas.tsx, preserving whitespace and order and excluding only the tool's identified wrapper. If only text inspection is available, report that limit rather than claiming byte-level identity; local hashes do not establish a remote SHA."}}

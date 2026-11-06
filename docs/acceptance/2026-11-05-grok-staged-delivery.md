@@ -75,10 +75,62 @@ source hash. Input hashes and locally reconstructed hashes are not remote hash
 receipts. Tool-reported matches, assistant readback inspection and observed UI
 behavior are separate evidence.
 
-**Pending:** the nine-call verifier's final native result, the independent
-failed-HRV/missing-sleep case and final restoration. The revised sequence was
-submitted, but native control returned `cgWindowNotFound` before its result could
-be inspected. These checks are not passed by the local harness results below.
+**Passed (Grok-reported native tool receipts):** the revised verifier completed
+all nine calls and 23 replacements without another copying error or source
+repair. Cleanup removed the verification markers. Grok reported that full
+readback matched the expected April program, including whitespace, order and
+final newline. The separate data-only edge edit then compiled with one
+replacement. These are native tool results reported by Grok, not an independently
+retrieved remote hash.
+
+**Passed (direct native inspection):** the January 14–18 synthetic fixture
+rendered with a visible HRV gap on January 16 and missing sleep on January 17.
+Selecting January 16 showed sleep **7h49m**, HRV **Unavailable / Refresh failed**,
+RHR **61 bpm**, score **74** and Body Battery charge **60**. Advancing to January
+17 and opening Night detail showed sleep, need, score and awake time unavailable;
+the stage breakdown was unavailable rather than invented. HRV remained **40 ms**,
+RHR **61 bpm** and Body Battery charge **60**. Each metric retained its own
+missingness and coverage. This was inspected in the actual native Page, including
+its SVG geometry, rather than inferred from the local harness.
+
+**Passed (restoration):** the initial data-only restore compiled but its full
+readback detected one extra closing character in an embedded JSON string. This
+demonstrates that TypeScript compilation alone does not verify embedded data.
+An explicitly authorized minimal correction removed only that mismatch. Grok
+reported a complete byte match with the original April source, including its
+final newline and absence of markers. Direct native inspection then confirmed
+the April 17–30 chart, April 30 values and 14/14 coverage, working previous/next
+selection, and **Only you** sharing again.
+
+### Preferred machine readback
+
+The final trial clarified a supported mechanism that was missing from the
+earlier tool-contract description. Grok's native dynamic-tool bridge accepts:
+
+```json
+{
+  "namespace": "cursor",
+  "toolName": "ReadCanvas",
+  "arguments": {"canvas_id": "<returned Page ID>"},
+  "write_to_file": true
+}
+```
+
+`write_to_file` is a bridge option, not a ReadCanvas argument. Grok reported that
+the bridge serialized the actual saved-Page response directly into an asset file
+at a tool-returned path. The response contained a title/URL header, full source,
+two wrapper newlines after the source's own final newline, and a closing wrapper.
+Its comparison excluded only that wrapper without trimming source whitespace.
+No model-reproduced source was used. This mechanism and its byte-comparison
+results are Grok-reported; native rendering and behavior were directly inspected
+from this agent. No server-attested hash is claimed.
+
+The workbench now recommends that machine comparison instead of the nine extra
+verification edits when the host exposes saved response bytes. The atomic checks
+remain a fallback for hosts with text-only readback. The successful nine-call
+trial above remains separate evidence; it is no longer the preferred workflow.
+Bounded writes still require faithful argument transfer, and readback is mandatory:
+the trial caught both a compiler-rejected typo and a compiled data discrepancy.
 
 ## Local verification
 
