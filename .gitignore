@@ -18,3 +18,4 @@ __pycache__/
 *.zip
 .coverage
 .DS_Store
+.crumb/design/

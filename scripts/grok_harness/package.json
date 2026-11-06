@@ -1,0 +1,16 @@
+{
+  "name": "garmin-grok-widget-harness",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Development-only synthetic React shim and browser checks; not the Grok SDK",
+  "dependencies": {
+    "esbuild": "0.28.2",
+    "playwright": "1.65.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}

@@ -144,6 +144,13 @@ Sync saves the Garmin profile's measurement system and time zone. Queries use th
 
 For branded PNG trend charts, synthetic demos and the `brand` JSON command, see [Visualizing your archive](VISUALIZATION.md).
 
+For interactive sleep/recovery snapshots, `widget sleep-recovery` exports a
+private Muse HTML fragment by default. `--host grok` exports native TSX; add
+`--handoff-dir /absolute/new/directory` for bounded create/edit and verification
+calls. See the [Muse guide](INTERACTIVE_CHARTS.md#muse-native-widget-trial) and
+[Grok guide](GROK_CHARTS.md#bounded-native-delivery). The command prints a JSON
+receipt; a saved export still needs the host's native delivery and interaction checks.
+
 ## SQL and source data
 
 | Table or view | Contents |
@@ -215,3 +222,5 @@ Adjust executable, archive and log paths for your installation. Use the same OS 
 Check for duplicate jobs, protect logs and verify an actual execution and archive status. The job needs the same storage and key after restarts. Sleeping/offline hosts may update later. More frequent syncs and longer lookbacks make more requests; uploads outside the lookback may need a manual refresh. Garmin's exact quota isn't published, and catch-up can't guarantee historical data.
 
 Summary and native-query envelopes include `archive_provenance`. Explicit synthetic provenance (or a legacy `SYNTHETIC.txt` marker) labels charts automatically. Unmarked provenance is unknown; fetch timestamps do not prove live Garmin freshness for synthetic data. Legacy bare-list activity/record exports retain their existing format.
+
+`garmin-archive chart-kit --host {grok,muse} --output /absolute/new/dir` exports experimental, data-free chart rules, an editable starter, a read-only reference view and brand assets; no archive needed.

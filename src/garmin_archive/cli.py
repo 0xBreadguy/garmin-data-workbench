@@ -110,7 +110,8 @@ def parser() -> argparse.ArgumentParser:
 Archive selection: put --data-dir DIRECTORY before the command.
 Read-only queries: day, trend, compare, workout-summary, sleep, body-battery, status, activities, health,
 records, source-data, source-series. They never sync or create an archive.
-Exports: chart and export-original write new files and never overwrite.
+Exports: chart, widget and export-original write new files and never overwrite.
+chart-kit writes a new directory without opening an archive.
 Live/configuration: sync uses credentials/network; install also connects clients
 and may schedule; connect registers clients; setup changes the macOS schedule;
 save-key authenticates and saves a key unless --dry-run is selected.
@@ -210,6 +211,17 @@ JSON on stderr (exit 2 invalid input, 1 operational failure, 3 not found).
     chart.add_argument("--json", action="store_true", help="Print the saved PNG path and shared caption, coverage and freshness metadata as JSON")
     chart.add_argument("--synthetic", action="store_true", help="Label generated/demo data visibly and identify its source as synthetic")
     chart.add_argument("--layout", choices=("chat", "wide"), default="chat", help="Readable chat/phone layout or wide report layout (default: chat)")
+    kit = commands.add_parser("chart-kit", help="Export an experimental, data-free interactive chart starter")
+    kit.add_argument("--host", choices=("grok", "muse"), required=True)
+    kit.add_argument("--output", required=True, type=Path, help="New private directory; never overwritten")
+
+    widget = commands.add_parser("widget", help="Export an interactive snapshot for a native Muse widget or Grok Page")
+    widget.add_argument("view", choices=("sleep-recovery",))
+    widget.add_argument("--host", choices=("muse", "grok"), default="muse", help="Native delivery host (default: muse)")
+    widget.add_argument("--from", dest="start", type=_date, help="First of 1–90 inclusive dates; default fourteen days ending at --to")
+    widget.add_argument("--to", dest="end", type=_date)
+    widget.add_argument("--output", required=True, type=Path, help="New private .html fragment for Muse or .canvas.tsx source for Grok; present with the host's native tool")
+    widget.add_argument("--handoff-dir", type=Path, help="Grok only: new private directory of bounded native create/edit calls and source verification steps")
     commands.add_parser("brand", help="Print shared brand colors, rules and local logo paths as JSON; no archive needed")
 
     commands.add_parser("status", help="Show archive coverage and sync errors as JSON",
@@ -474,7 +486,36 @@ def _read(args: argparse.Namespace) -> int:
     """Query an existing archive without creating, migrating or syncing it."""
     try:
         with open_archive(args.data_dir) as db:
-            if args.command == "compare":
+            if args.command == "widget":
+                from .widgets import write_recovery_widget
+                if args.handoff_dir is not None and args.host != "grok":
+                    raise ValueError("--handoff-dir requires --host grok.")
+                try:
+                    handoff_dir = None
+                    if args.handoff_dir is not None:
+                        requested = args.handoff_dir.expanduser().absolute()
+                        if requested.exists() or requested.is_symlink():
+                            raise FileExistsError(str(requested))
+                        handoff_dir = requested.parent.resolve(strict=True) / requested.name
+                    result = write_recovery_widget(db, args.output,
+                        args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else "", host=args.host)
+                except OSError:
+                    return _error("output_error", "Could not write widget; choose new writable output and handoff paths. Existing paths are not overwritten.")
+                if handoff_dir is not None:
+                    from .grok_handoff import write_handoff
+                    try:
+                        result["handoff"] = write_handoff(handoff_dir,
+                            Path(result["output_path"]).read_text(encoding="utf-8"), "Sleep & recovery")
+                    except (OSError, ValueError) as error:
+                        return _error("handoff_error", f"Source saved to {result['output_path']}; handoff creation failed: {error}. Choose a new handoff directory; do not overwrite existing artifacts.")
+                    result["delivery"] = ("Use plan.json in the private handoff directory. Execute its bounded native "
+                        "WriteCanvas/EditCanvas calls in order, binding only the returned canvas_id. Stop on any failure. "
+                        "A mistyped step can still compile: follow step_verification after each call, correcting only back to the plan's bytes and reporting it. "
+                        "Follow its verification_strategy: prefer comparing saved native ReadCanvas response bytes; "
+                        "otherwise run the fallback source verification steps and full text comparison. Inspect the private Page. "
+                        "Local hashes and file creation do not prove native delivery. Do not publish or enable public sharing.")
+                _print_json(result)
+            elif args.command == "compare":
                 _print_json(compare_periods(db, args.metric, args.start.isoformat(), args.end.isoformat(),
                                            args.baseline_from.isoformat(), args.baseline_to.isoformat()))
             elif args.command == "workout-summary":
@@ -738,6 +779,13 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as error:
             return _error("invalid_argument", str(error), 2)
         return 0
+    if args.command == "chart-kit":
+        from .chart_kit import write_chart_kit
+        try:
+            _print_json(write_chart_kit(args.output, args.host))
+        except OSError:
+            return _error("output_error", "Could not create chart kit; choose a new directory in an existing writable parent. Existing paths are not overwritten.")
+        return 0
     if args.command == "brand":
         from .brand import get_brand
         _print_json(get_brand())
@@ -765,7 +813,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "path":
         print(args.data_dir.expanduser() / "archive.sqlite3")
         return 0
-    if args.command in {"day", "trend", "compare", "workout-summary", "sleep", "body-battery", "chart", "status", "activities", "records", "health", "export-original", "source-data", "source-series"}:
+    if args.command in {"day", "trend", "compare", "workout-summary", "sleep", "body-battery", "chart", "widget", "status", "activities", "records", "health", "export-original", "source-data", "source-series"}:
         return _read(args)
     if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
         print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)

@@ -32,7 +32,7 @@ def chart_metadata(result: dict, *, synthetic: bool = False, layout: str = 'chat
     stamps = sorted(p['fetched_at'] for p in points if p.get('fetched_at') and p['status'] == 'ok' and p['value'] is not None)
     explanations = []
     if sleep:
-        explanations.extend(['Dotted need line: Garmin adjusted sleep-need estimate, not a prescribed target.',
+        explanations.extend(['Need ticks: Garmin adjusted sleep-need estimate for each night, not a prescribed target.',
                              'Sleep score has an independent 0–100 panel and its own coverage.'])
     if body_levels:
         explanations.extend(["Levels use Garmin's 0–100 Body Battery scale, not percentages.",

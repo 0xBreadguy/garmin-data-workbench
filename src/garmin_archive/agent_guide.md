@@ -45,9 +45,13 @@ Answer the user's underlying question, not just a list of measurements. Identify
 
 For example, if several comparable nights show shorter sleep before early starts, note the observed pattern and suggest tracking whether it repeats or trying a manageable earlier wind-down, if relevant to the user's goal. Do not claim the early starts caused the shorter sleep, promise an outcome, or prescribe an exact bedtime. If the data is sparse, say a pattern cannot yet be judged and suggest what additional observations would help. For symptoms, concerning readings or medical decisions, avoid diagnosis and direct the user to an appropriate clinician; urgency depends on the situation, not a wearable value alone.
 
-Use the renderer's caption/alt text when provided. It should state title, inclusive dates, available-day denominator, rendered units, synthetic provenance and wearable estimates where applicable. Keep routine explanation outside the image. Explain the dotted sleep-need line as Garmin's estimate, the independent score panel, and any gap-strip symbols present; do not assume the image explains these by itself.
+Use the renderer's caption/alt text when provided. It should state title, inclusive dates, available-day denominator, rendered units, synthetic provenance and wearable estimates where applicable. Keep routine explanation outside the image. Explain the PNG's nightly sleep-need ticks (or the interactive view's need line) as Garmin's estimate, the independent score panel, and any gap-strip symbols present; do not assume the image explains these by itself.
 
 For MCP, use `chart` with `metric="sleep"` or a named scalar metric. It returns PNG image content and structured caption, coverage, provenance and explanation metadata without creating a file. `brand` returns settings and asset resource URIs retrievable with MCP resources/read. Host display still needs verification.
+
+For an explicitly interactive sleep/recovery request in an MCP Apps-capable host, use `explore_sleep_recovery(start, end)`. It opens a bundled in-chat explorer with linked sleep stages/need, HRV, resting heart rate, sleep score, night details and daily Body Battery charge. Dates are inclusive and bounded to 90 days (default 14). Its comparison view uses the shared comparison queries, not frontend metric definitions. Loading dates reads the archive; it never syncs Garmin. A user's “Ask about this night” action sends a dated question to this conversation when the host supports it.
+
+The host mounts the linked UI separately from the model's text response. After a successful call, keep narration brief: for example, “Requested the explorer for April 17–30, using synthetic data.” Do not repeat the whole report or add an unsolicited rendering disclaimer. Tool success alone does not prove visible display; missing browser/computer-use access or an absent surface in those tools does not prove display failure either. Do not inspect unrelated apps merely to infer whether the chart appeared. Treat the user's report that they can see and interact with it as display evidence. Use PNG/table fallback only when the host explicitly reports an error or unsupported MCP Apps, or the user reports missing UI; respect an explicit interactive-only request. Explain confirmed limitations without taking the user to a browser or publishing health data. Preserve text-only requests and sparse-data interpretation rules. This experimental surface needs per-host acceptance testing.
 
 For CLI delivery, add `--json` to `chart` to receive the saved `output_path`, `caption`, `alt_text`, `freshness` and `explanations`. Attach that PNG and carry its caption, fetch-time meaning and relevant explanations into the answer, including sampled-level limits for Body Battery. Null fetch bounds mean no available fetch timestamp; synthetic timestamps remain simulated. File creation alone does not establish host display or MCP transport.
 
@@ -70,6 +74,14 @@ Before replying, reuse returned aggregates where present rather than recomputing
 - **Garmin assessment:** “Garmin reports a sleep score of 68 on 2026-11-01.” Attribute explicit source feedback to Garmin. A low score alongside low estimated deep sleep is an observed association; it does not show that deep sleep caused the score. Quantify a correlation over matched available nights before calling it one, and keep causal explanations labeled as hypotheses. The synthetic demo generates scores separately from stages, so their co-occurrence cannot explain the cause of a score.
 - **Observed sequence:** synthetic REM of 1h 47m on 2026-11-02, 1h 54m on 2026-11-03 and 1h 52m on 2026-11-04 rose then dipped. It ended 5 minutes above the first night; it did not rise every night or establish a sustained trend. Check intermediate values before describing direction, retain missing dates as gaps, and report exact inclusive dates, coverage and source/fetch context.
 
+## Experimental agent-authored interactive charts
+
+For any topic on Grok or Muse, run `chart-kit --host grok|muse --output /absolute/new/dir`.
+Read its RULES.md, query explicit dates with the existing commands, and build the chart the
+question needs, taking what helps from its starter and reference. Verify embedded data and layout
+by script against the query JSON, then inspect delivery. This is experimental; the starter holds
+sample data and is not an archive query or a finished view.
+
 ## Raw-data fallback
 
 Prefer `api_catalog` plus `source_data` for fields the summaries do not expose. These retain native values and provide pagination for large arrays. Nap summaries include up to 20 episodes per date and 100 per report with source offsets; page `/dailyNapDTOS` for remaining episodes or additional fields. Missing episode data does not mean zero naps.
@@ -79,6 +91,60 @@ Use raw `health` / `daily_health` only when a whole response is necessary. First
 The supported collection source is Garmin's Personal API. Do not add unofficial Connect authentication, Grafana collection, or an invented readiness score to fill unavailable fields. Report a missing source field explicitly.
 
 For a client handoff, use `agent-guide --client muse` (or dot/codex/claude/other); it appends the same handoff as `assistant-guide --client muse`. Neither command opens the archive or configures a client.
+
+## Grok native interactive Pages (experimental)
+
+For an explicit interactive request, export the packaged view with
+`garmin-archive --data-dir /absolute/archive widget sleep-recovery --host grok
+--from YYYY-MM-DD --to YYYY-MM-DD --output /absolute/new/recovery.canvas.tsx
+--handoff-dir /absolute/new/grok-handoff`.
+It retains all rendered fields from the same 1–90 day snapshot and comparisons as Muse, with
+`grok/canvas` imports, embedded observations and local React state. It does not
+accept the Muse HTML/D3 export or establish MCP Apps support. Check the current
+host contract before delivery: `WriteCanvas({contents: source, title: title})`
+requires inline source, not a path or `$file:` reference. Use `plan.json` in the
+handoff directory to avoid one oversized submission. Execute its bounded
+WriteCanvas/EditCanvas calls in order, binding only the new Page's returned ID.
+Keep the placeholder until the final edit; stop on any failed step and report its
+diagnostic without silently rewriting the chart. Compilation does not check text,
+so a mistyped step can still publish: follow the plan's `step_verification` after
+each call, correcting only back to the plan's bytes and reporting every correction.
+Prefer full byte comparison
+when the native bridge can save the actual ReadCanvas response to a file: the
+observed bridge's `write_to_file: true` is beside `arguments`, not a ReadCanvas
+argument. Exclude only the identified response wrapper; preserve source whitespace
+and never compare a model-reproduced copy. This replaces the plan's bounded atomic
+verification batches. When response bytes are unavailable, use those fallback
+batches plus complete text inspection and report that limit. Local hashes are
+not remote hash receipts. Keep the Page owner-only and deliver its native card.
+
+Use one selected date across charts and night details, with chart click/tap and
+keyboard controls. Preserve each field's units, missingness, coverage and fetch
+freshness; label the fixed snapshot and exact inclusive dates. Re-query for a new
+range rather than pretending the Page updates itself. Use the returned
+`stages_complete` flag; deep/light/REM/unclassified are the sleep stages, while
+awake stays separate. Preserve source-local timestamps without inventing an
+offset from the current profile. Use shared `compare`
+results for period comparisons when available. Never sync or change installations
+to render a view. Verify the actual native Page: a browser sign-in redirect or
+unavailable preview does not prove the native card failed to display. Physical
+touch and phone delivery require separate tests. The packaged Page has no saved
+interaction state bridge or archive connection; native reopening is untested.
+
+## Muse native interactive widgets (experimental)
+
+When Muse's native `widget.create_html_file_widget` tool is available, export the
+same sleep/recovery explorer with `garmin-archive --data-dir /absolute/archive
+widget sleep-recovery --from YYYY-MM-DD --to YYYY-MM-DD --output /absolute/new.html`.
+The CLI returns JSON with the saved path. Present that file unchanged in the
+conversation with the native widget tool; do not substitute a file preview,
+external page or PNG for an interactive request. Keep widget files outside
+`workspace/your_files/` and `workspace/visual_grounding/` in Muse.
+This is a fixed 1–90 day archive snapshot, with a comparison of its earlier and
+later halves. Selection, tabs and Last 7 are interactive. Ask the CLI for a new
+export when dates change. The widget cannot sync, query the archive or send a
+message. A saved file or successful tool result does not establish visible
+delivery; follow the user's report and avoid unsupported display disclaimers.
 
 ## Finish setup honestly
 

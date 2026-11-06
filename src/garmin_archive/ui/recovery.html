@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Garmin Data Workbench · Sleep & recovery</title>
+<style>/*__brand-tokens__*//*__recovery.css__*/</style></head><body>
+<main id="demo">
+  <header class="masthead">
+    <div><h2>Sleep &amp; recovery</h2><p class="range num" id="range-label"></p></div>
+    <span class="badge" id="provenance">LOCAL ARCHIVE</span>
+  </header>
+  <p id="connection" class="help" role="status">Connecting to your assistant…</p>
+  <form id="range-form" class="date-form" hidden>
+    <label>From<input id="range-from" type="date" required></label>
+    <label>Through<input id="range-to" type="date" required></label>
+    <button class="control" type="submit">Load dates</button>
+  </form>
+  <p id="error" role="alert" hidden></p>
+  <div id="workspace" hidden>
+    <div class="tabs" role="tablist" aria-label="Sleep explorer views">
+      <button type="button" class="tab" id="tab-trends" role="tab" aria-controls="trends" aria-selected="true" data-tab="trends">Trends</button>
+      <button type="button" class="tab" id="tab-night" role="tab" aria-controls="night" aria-selected="false" data-tab="night" tabindex="-1">Night detail</button>
+      <button type="button" class="tab" id="tab-compare" role="tab" aria-controls="compare" aria-selected="false" data-tab="compare" tabindex="-1">Compare</button>
+    </div>
+    <section id="hero" class="hero" aria-label="Selected night">
+      <div class="bubble bubble-back"><p class="hero-need"><span>Garmin need</span> <b class="num" id="hero-need"></b></p></div>
+      <div class="bubble bubble-front">
+        <div class="hero-top">
+          <div>
+            <p class="hero-date" id="selected-date"></p>
+            <p class="hero-value" id="hero-sleep"></p>
+          </div>
+          <div class="hero-cover"><b class="num" id="hero-coverage"></b><span>Coverage</span></div>
+        </div>
+        <p class="hero-label" id="hero-label">Total sleep</p>
+      </div>
+      <svg id="hero-line" aria-hidden="true"></svg>
+    </section>
+    <section id="trends" class="view" role="tabpanel" aria-labelledby="tab-trends">
+      <div class="toolbar">
+        <div class="segmented" role="group" aria-label="Visible dates"><button type="button" class="control" data-window="all" aria-pressed="true">All dates</button><button type="button" class="control" data-window="7" aria-pressed="false">Last 7</button></div>
+        <span class="small muted" id="window-label"></span>
+      </div>
+      <div class="scrub" id="scrub">
+        <span class="scrub-bubble num" id="scrub-bubble" aria-hidden="true"></span><i class="scrub-tail" id="scrub-tail" aria-hidden="true"></i>
+        <label class="sr" for="day-range">Inspect a night. Arrow keys move between dates.</label>
+        <input class="scrubber" id="day-range" type="range" min="0" max="0" value="0" step="1">
+      </div>
+      <div id="lanes"></div>
+      <p id="coverage-line" class="small muted gaps" hidden></p>
+      <div id="selection-summary" class="summary"></div><p class="notes" id="data-note"></p>
+      <button type="button" class="control" id="inspect-night">Inspect this night →</button>
+    </section>
+    <section id="night" class="view" role="tabpanel" aria-labelledby="tab-night" hidden></section>
+    <section id="compare" class="view" role="tabpanel" aria-labelledby="tab-compare" hidden>
+      <form id="compare-form" class="compare-form">
+        <fieldset><legend>Earlier period</legend><label>From<input id="base-from" type="date" required></label><label>Through<input id="base-to" type="date" required></label></fieldset>
+        <fieldset><legend>Later period</legend><label>From<input id="period-from" type="date" required></label><label>Through<input id="period-to" type="date" required></label></fieldset>
+        <button class="control primary" type="submit">Compare periods</button>
+      </form><p class="help">1–90 days per period. Earlier period must finish before the later period starts.</p>
+      <div id="comparison-result" role="status"></div>
+    </section>
+    <div class="toolbar ask-row"><button type="button" class="control primary" id="ask-night" disabled>Ask about this night</button><span id="ask-status" class="small muted" role="status"></span><p id="ask-hint" class="ask-bubble" hidden></p></div>
+    <details class="freshness"><summary>Coverage, source &amp; freshness</summary><div id="freshness"></div></details>
+  </div>
+  <footer class="foot">
+    <p>Reads your local archive; loading dates never starts a Garmin sync.<br>Sleep stages, score and need are Garmin estimates. Co-movement does not establish a cause.</p>
+    <div class="signature"><span class="logo-plate">/*__logo.svg__*/</span>Garmin Data Workbench</div>
+  </footer>
+  <span id="announcement" class="sr" aria-live="polite"></span>
+</main>
+<script>/*__d3.min.js__*/</script>
+<script>/*__recovery.js__*/</script>
+</body></html>

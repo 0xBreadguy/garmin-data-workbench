@@ -49,6 +49,11 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | Chart semantics and branding | `test_charts.py` |
 | Versioned demo answers, DST and archive provenance | `test_demo_provenance.py` |
 | MCP image/brand resource transport and chart failures | `test_chart_delivery.py` |
+| Interactive sleep/recovery query parity, snapshots and MCP Apps resource transport | `test_recovery.py` |
+| Native widget snapshot parity, bounds, escaping and private CLI exports | `test_widgets.py` |
+| Grok TSX snapshot parity, source escaping, provenance, bounds and exclusive exports | `test_grok_widgets.py` |
+| Archive-free chart-kit discovery, private exports and packaged resources | `test_chart_kit.py` |
+| Bounded Grok native edit plans, atomic verification, exact reconstruction and private handoff artifacts | `test_grok_handoff.py`, `test_grok_handoff_cli.py` |
 | Units and time zones | `test_preferences.py` |
 | Entry points and POSIX/PowerShell command examples | `test_platforms.py` |
 | Stdio MCP handshake and responses | `test_workbench_mcp.py` |
@@ -67,6 +72,43 @@ uv run --locked --extra charts python scripts/smoke_installed.py --charts
 The smoke check expects exactly one wheel in `dist/`. It installs that wheel and locked runtime dependencies into a temporary environment, runs both installed help commands, seeds a synthetic archive using the installed package and queries it through CLI and stdio MCP from outside the checkout. It checks that queries leave the database unchanged. Installation may need network access. No credentials, live sync, client registration or scheduler are used.
 
 The `--charts` mode also installs the locked chart dependencies and renders a synthetic PNG with the installed command.
+
+### Grok renderer harness
+
+The optional development harness bundles the exact exported TSX with a small
+React replacement for `grok/canvas`. Its pinned npm dependencies are only for
+tests; Python users need no Node runtime. Use new fixture/output directories:
+
+```sh
+npm ci --prefix scripts/grok_harness
+npm exec --prefix scripts/grok_harness -- playwright install chromium webkit
+uv run --locked python scripts/preview_grok_widget.py --output-dir /absolute/new/grok-fixtures
+node scripts/test_grok_widget.mjs --fixtures /absolute/new/grok-fixtures --output-dir /absolute/new/grok-checks
+node scripts/test_grok_transport.mjs --fixtures /absolute/new/grok-fixtures
+node scripts/test_chart_starters.mjs --output-dir /absolute/new/starter-checks
+```
+
+It exercises linked pointer/drag, keyboard and emulated touch selection; tabs;
+night details; shared comparison values, denominators and warnings; missing
+middle-date gaps; independent failed refreshes and zeroes; incomplete stages;
+1/90-day bounds; Chromium and WebKit at 320/390/728 px in light and dark; hover
+preview; scrubber alignment; zero-based comparison bars; marks not rebuilt on
+selection; guards against what the [Grok host repaints](GROK_CHARTS.md#what-the-host-does-to-a-page);
+overflow and unwanted network requests. Output includes screenshots and source hashes. It needs no HTTP server,
+credentials, personal archive or Grok connection. A controlled warning fixture
+injects flags into a synthetic snapshot without moving observations to today.
+The transport check executes the packaged decoder against an independently
+specified projection of canonical query fields, rejects unsupported versions and
+compares static rendered output with the full snapshot in both themes and all
+views. A Python test splits an actual Unicode JSON escape across an inert string
+declaration boundary and verifies the exact text survives joining and decoding.
+The shim proves neither native compilation nor mobile delivery. Follow the
+[native acceptance boundary](GROK_CHARTS.md#bounded-native-delivery) separately.
+
+The starter check type-checks the exact exported Grok TSX and exercises both
+Grok and Muse starters in Chromium and WebKit, including linked selection,
+gaps, labels, light/dark themes and narrow layouts. These are browser checks
+with a Grok stand-in, separate from actual assistant authoring and delivery.
 
 ## Dependency advisories
 

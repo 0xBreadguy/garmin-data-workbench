@@ -28,7 +28,15 @@ async def check_mcp(executable: Path, archive: Path, workdir: Path, env: dict[st
         async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as client:
             await client.initialize()
             tools = await client.list_tools()
-            assert {"archive_status", "get_day", "chart", "brand"}.issubset({tool.name for tool in tools.tools})
+            assert {"archive_status", "get_day", "chart", "brand", "explore_sleep_recovery"}.issubset({tool.name for tool in tools.tools})
+            recovery_ui = await client.read_resource('ui://garmin-workbench/sleep-recovery-v1.html')
+            assert recovery_ui.contents[0].mimeType == 'text/html;profile=mcp-app'
+            assert 'ui/initialize' in recovery_ui.contents[0].text
+            assert '/*__' not in recovery_ui.contents[0].text
+            recovery = await client.call_tool('explore_sleep_recovery', {'start': '2026-01-01', 'end': '2026-01-03'})
+            assert not recovery.isError
+            assert recovery.structuredContent['archive_provenance']['synthetic'] is True
+            assert recovery.structuredContent['sleep']['nights'][0]['values']['sleep_need'] == 500
             branding = await client.call_tool('brand', {})
             assert not branding.isError
             resource = await client.read_resource('garmin-brand://assets/icon_png')
@@ -125,6 +133,12 @@ def main() -> None:
         assert installed_version["source"] == installation_info()["source"], "Installed version command has stale provenance"
         assert "garmin-data-workbench" in run([str(cli), "--version"])
         assert "chart sleep" in run([str(cli), "agent-guide"])
+        for host, starter in (("grok", "starter.canvas.tsx"), ("muse", "starter.html")):
+            kit = json.loads(run([str(cli), "--data-dir", str(workdir / "missing"), "chart-kit",
+                                  "--host", host, "--output", str(workdir / host)]))
+            source = Path(kit["paths"][starter]).read_text(encoding="utf-8")
+            assert "SAMPLE DATA, REPLACE" in source and "__BRAND" not in source
+            assert Path(kit["paths"]["RULES.md"]).is_file()
         assert "same host" in run([str(cli), "assistant-guide", "--client", "other"])
         receipt = json.loads(run([str(cli), "--data-dir", str(workdir / "missing"), "setup-receipt"]))
         assert receipt["archive"]["status"] == "unavailable", receipt
@@ -194,6 +208,31 @@ finally:
         activities = json.loads(run([str(cli), "--data-dir", str(archive), "activities", "--from", "2026-01-01", "--to", "2026-01-02", "--type", "running"]))
         assert [row["activity_id"] for row in activities] == [42], activities
         mcp_results = asyncio.run(asyncio.wait_for(check_mcp(mcp, archive, workdir, env, args.charts), timeout=30))
+        widget = workdir / "recovery.html"
+        widget_info = json.loads(run([str(cli), "--data-dir", str(archive), "widget", "sleep-recovery",
+            "--from", "2026-01-01", "--to", "2026-01-03", "--output", str(widget)]))
+        assert widget_info["output_path"] == str(widget) and widget_info["archive_provenance"]["synthetic"]
+        fragment = widget.read_text(encoding="utf-8")
+        assert 'id="recovery-snapshot"' in fragment and 'window.hatchWidget' in fragment
+        assert '<form' not in fragment and '/*__' not in fragment
+        assert widget.stat().st_size < 1_000_000
+        canvas = workdir / "recovery.canvas.tsx"
+        canvas_info = json.loads(run([str(cli), "--data-dir", str(archive), "widget", "sleep-recovery",
+            "--host", "grok", "--from", "2026-01-01", "--to", "2026-01-03", "--output", str(canvas),
+            "--handoff-dir", str(workdir / "grok-handoff")]))
+        assert canvas_info["output_path"] == str(canvas) and canvas_info["archive_provenance"]["synthetic"]
+        source = canvas.read_text(encoding="utf-8")
+        assert 'grok/canvas' in source and '/*__RECOVERY_SNAPSHOT__*/' not in source and '/*__BRAND_TOKENS__*/' not in source
+        assert '\\"codec_version\\":1' in source and '\\"schema_version\\":1' in source
+        assert 'const transportPart0 = ' in source and 'decodeTransport(JSON.parse([' in source
+        assert 'WriteCanvas' in canvas_info["delivery"] and 'private Page' in canvas_info["delivery"]
+        assert canvas_info["bytes"] == canvas.stat().st_size <= 1_048_576
+        handoff = canvas_info["handoff"]
+        assert Path(handoff["source_path"]).read_bytes() == canvas.read_bytes()
+        plan = json.loads(Path(handoff["plan_path"]).read_text(encoding="utf-8"))
+        assert len(plan["steps"]) > 2 and len(plan["verification_steps"]) > 2
+        assert all(step["reserved_arguments_json_bytes"] <= 12000
+                   for step in [*plan["steps"], *plan["verification_steps"]])
         assert mcp_results == {"comparison": comparison, "workouts": workouts}, "Installed CLI and MCP disagree"
         if args.charts:
             chart = workdir / "steps.png"

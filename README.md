@@ -1,11 +1,6 @@
-```text
-  G A R M I N   D A T A
+<img src="docs/assets/wordmark.svg" alt="Garmin Data" width="230">
 
-  __      _____  ___ _  _____ ___ _  _  ___ _  _
-  \ \    / / _ \| _ \ |/ / _ ) __| \| |/ __| || |
-   \ \/\/ / (_) |   / ' <| _ \ _|| .` | (__| __ |
-    \_/\_/ \___/|_|_\_|\_\___/___|_|\_|\___|_||_|
-```
+**WORKBENCH**
 
 # Garmin Data Workbench
 
@@ -92,6 +87,7 @@ See [assistant connections](docs/ASSISTANTS.md) for remote access and the checks
 - [Commands, SQL, exports and scheduling](docs/USAGE.md)
 - [Personal API source and field coverage](docs/API_COVERAGE.md)
 - [Assistant connections and handoffs](docs/ASSISTANTS.md)
+- [Experimental interactive charts on main](docs/VISUALIZATION.md#agent-delivery)
 - [Contribute](CONTRIBUTING.md) · [Agent instructions](AGENTS.md) · [Testing](docs/TESTING.md)
 - [Architecture](ARCHITECTURE.md) · [Security](SECURITY.md)
 

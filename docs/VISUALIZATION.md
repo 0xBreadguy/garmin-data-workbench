@@ -20,15 +20,27 @@ The global `--data-dir` option goes **before** `chart`. Omit it to use the defau
 
 The [shared metrics](USAGE.md#summaries-units-and-dates) and 90-day limit apply. Dates default to the same seven-day window as `trend`. Charts divide sleep/stage/nap seconds by 3,600 and sleep-need minutes by 60 to display **hours**, with the summary average in hours/minutes; structured `trend` output retains **seconds** without changing stored data. Distance follows saved profile preferences; other units come from the query. Averages use available values only and state their denominator.
 
-Steps and distance use bars starting at zero. Sleep, resting heart rate and HRV use unsmoothed lines. Line scales can focus on the observed range; read the labeled axis. Zero stays a value. Unavailable days are gaps, with a dated coverage strip and notes distinguishing failed, empty, unchecked and unreturned values. Retained data from a failed refresh stays masked. Fetch times are available in query results; explain freshness in the accompanying response when relevant. Sparse data does not establish a trend, and movement up or down is not inherently good or bad.
+Steps and distance use bars starting at zero. Sleep, resting heart rate and HRV use unsmoothed lines. Line scales can focus on the observed range; read the labeled axis. Zero stays a value. Unavailable days are shaded gaps, with a dated status mark and notes distinguishing failed, empty, unchecked and unreturned values; complete ranges omit the strip. Ranges short enough to fit label every date with its weekday and every value directly; longer ranges label the latest value and extremes. Retained data from a failed refresh stays masked. Fetch times are available in query results; explain freshness in the accompanying response when relevant. Sparse data does not establish a trend, and movement up or down is not inherently good or bad.
 
 For a detailed sleep question, use `chart sleep --from 2026-01-01 --to 2026-01-30 --output sleep-overview.png`. It combines total duration and complete stage bars with a separate score panel. See [sleep report semantics](SLEEP.md); stages and scores are estimates, and incomplete breakdowns are never filled with zeros. Scalar score/stress charts use a 0–100 axis.
 
 Run the installed `agent-guide` for the same presentation and interpretation rules in shell-only or MCP workflows.
 
-Body Battery scalar charts follow the [observed-reading definitions](BODY_BATTERY.md). Level charts use a fixed 0–100 scale; charged/drained amounts use bars starting at zero. The latest observed sample is not a live current value. `chart sleep` also shows Garmin's adjusted need as a distinct dotted line; need is an estimate, not a prescribed target.
+Body Battery scalar charts follow the [observed-reading definitions](BODY_BATTERY.md). Level charts use a fixed 0–100 scale; charged/drained amounts use bars starting at zero. The latest observed sample is not a live current value. `chart sleep` also shows Garmin's adjusted need as a tick for each night; need is an estimate, not a prescribed target.
 
 ## MCP chart delivery
+
+### Experimental in-chat explorer
+
+`explore_sleep_recovery(start, end)` returns the shared sleep report plus HRV, resting heart rate and daily Body Battery charge from one read snapshot. It references `ui://garmin-workbench/sleep-recovery-v1.html` with MIME type `text/html;profile=mcp-app`. An MCP Apps-capable host renders the packaged HTML inside the conversation. Ordinary MCP support alone does not establish interactive rendering support.
+
+The component provides linked day inspection, full night details, date loading, explicit two-period comparisons and an optional “Ask about this night” action through the host. The comparison action calls the app-visible `compare_sleep_recovery` tool; definitions, covered means and change calculations remain in Python's shared query layer. All four sleep stages must reconcile before stacking; zeros, missing fields and failed retained values preserve their query meanings. Source wall times are not converted using today's profile zone.
+
+The template contains no health observations. JavaScript, styles and D3 7.9.0 (ISC license included) ship in the wheel; it requests no network origins or device permissions. No server, CDN, browser navigation, live sync or scheduler is required. Results can still reach the selected AI provider and the host may retain rendered results as conversation content. Loading a date range rereads the archive, not Garmin. Default range is 14 days, maximum 90 inclusive dates. Comparisons accept two nonoverlapping periods of at most 90 days each.
+
+This is an experimental local-trial feature, not a claim of compatibility with every assistant. Verify tool/resource discovery, the host's `ui/initialize` handshake, initial display, touch/keyboard inspection, in-frame tool calls and conversation follow-up separately. Hosts without MCP Apps retain the structured result and existing PNG/table fallback. Do not open an external page as a substitute for an in-chat request. See [the local trial guide](INTERACTIVE_CHARTS.md).
+
+### PNG delivery
 
 The read-only `chart` tool accepts `metric` (`sleep` or any trend metric), `start`, `end` and `layout` (`chat`/`wide`). Dates are inclusive and bounded to 90 days. It returns a PNG as MCP image content plus identical JSON in structured content and a text block: contract version, title/metric, dates, rendered units, layout, per-series denominators/status counts, available-value fetch timestamps, synthetic provenance, caption/alt text and explanations. Sleep duration, score and need retain independent coverage.
 
@@ -90,8 +102,19 @@ Lead with the measurements. Keep dates, units, denominators, legends and meaning
 
 ## Agent delivery
 
+For an explicitly requested interactive view in Grok Bot, use its [native private Page route](GROK_CHARTS.md)
+when available. Export the shared snapshot with `widget sleep-recovery --host grok`
+to a new `.canvas.tsx` file, with `--handoff-dir` for bounded native create/edit
+calls. Execute and verify the plan sequentially; the native writer does not
+accept file references. Treat source verification and native compilation as
+separate acceptance gates. The packaged HTML
+widget is not interchangeable with a Grok Page. Verify visible interaction
+separately from successful generation.
+
 Create images in a private location and deliver them through the host's supported attachment/image interface. A local path alone may not be visible to the user. If rendering or delivery is unavailable, explain the limitation and provide a concise table from `trend`. Do not substitute image-generation models for plotting actual measurements.
 
 Query results and images can reach the selected AI provider. Do not publish/upload them elsewhere without authorization. Avoid precise coordinates and routes by default; the chart command does not draw routes. Charting does not authorize syncing or reconfiguring services.
 
 The optional [skill](../skills/garmin-visualization/SKILL.md) can be read directly by any agent with repository access. Discovery and installation differ by host; it is not automatically installed. MCP access alone does not imply filesystem access or image display support.
+
+For experimental agent-authored interactive charts on any topic, use `chart-kit --host grok|muse --output /absolute/new/dir`; follow its RULES.md, query, build what the question needs and verify. See the installed `agent-guide`.
