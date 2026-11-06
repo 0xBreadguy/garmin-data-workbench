@@ -24,7 +24,7 @@ CI enables the optional `charts` extra so rendering tests run on every OS. To ma
 
 CI also passes `--durations 10` to unittest to report the slowest tests. Chart and CLI-query tests seed a closed synthetic archive once per class and copy it into a fresh temporary directory for each test. This avoids repeated database commits during fixture setup while preserving independent archives. Demo generation, archive writes and sync behavior still have dedicated tests using real writes; database durability settings are unchanged.
 
-For coordinator automation, [`.crumb/coordinator.json`](../.crumb/coordinator.json) lists the offline release checks as argument arrays with timeouts. A coordinator runner can record the exact revision and configuration used, keep logs outside the repository and stop on a failed check. The ordinary commands documented here remain available without that optional tooling. Passing local checks does not replace required GitHub checks, review of accepted handoffs or public-content inspection.
+Before opening a PR, run the relevant checks below and record the tested revision, commands and results. Before merging to the default branch, require the full suite and release checks for that revision. Passing local checks does not replace required GitHub checks or review of the changes being published.
 
 ## Focused checks
 
