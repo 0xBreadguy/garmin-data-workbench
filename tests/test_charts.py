@@ -90,13 +90,15 @@ class ChartsTest(unittest.TestCase):
         with open_archive(self.data_dir) as db:
             return get_trend(db, metric, start, end)
 
-    def assert_readable_dates(self, figure, strip, count):
+    def assert_readable_dates(self, figure, strip, count, gaps=()):
         figure.canvas.draw()
         ticks = list(strip.get_xticks())
         self.assertEqual(ticks, sorted(set(ticks)))
         self.assertEqual((ticks[0], ticks[-1]), (0, count - 1))
-        self.assertLessEqual(len(ticks), min(5, count))
-        self.assertEqual(len(strip.lines), count)  # Keep every dated coverage mark.
+        if count > 16:  # Only short ranges have room to label every date.
+            self.assertLessEqual(len(ticks), 8)
+        # Every unavailable date, and only those, keeps a dated status mark.
+        self.assertEqual([line.get_xdata()[0] for line in strip.lines], list(gaps))
         bounds = [label.get_window_extent() for label in strip.get_xticklabels()]
         # A visible 10-point gutter, including at the PNG export resolution.
         for left, right in zip(bounds, bounds[1:]):
@@ -114,8 +116,8 @@ class ChartsTest(unittest.TestCase):
                     strip = figure.axes[2]
                     self.assert_readable_dates(figure, strip, 7)
                     labels = strip.get_xticklabels()
-                    self.assertEqual((labels[0].get_text(), labels[-1].get_text()), ('Apr 24', 'Apr 30'))
-                    self.assertGreaterEqual(len(labels), 3)
+                    self.assertEqual((labels[0].get_text(), labels[-1].get_text()), ('Fri\nApr 24', 'Thu\n30'))
+                    self.assertEqual(len(labels), 7)  # A week labels every night, evenly.
                     self.assertEqual(figure.axes[1].get_ylim(), (0, 100))
                     self.assertEqual(strip.get_xlim(), figure.axes[1].get_xlim())
 
@@ -130,7 +132,76 @@ class ChartsTest(unittest.TestCase):
                 with self.subTest(first=first, count=count, layout=layout):
                     figure = build_trend_figure(trend, layout=layout)
                     figure.set_dpi(160)
-                    self.assert_readable_dates(figure, figure.axes[1], count)
+                    gaps = [i for i, p in enumerate(trend['points']) if p['status'] != 'ok' or p['value'] is None]
+                    self.assert_readable_dates(figure, figure.axes[1], count, gaps)
+
+    def test_complete_coverage_adds_no_status_marks_or_shading(self):
+        from garmin_archive.charts import build_sleep_figure
+        with open_archive(self.data_dir) as db:
+            figure = build_sleep_figure(get_sleep(db, '2026-04-24', '2026-04-30'))
+        main, score, strip = figure.axes[:3]
+        self.assertFalse(strip.lines)
+        self.assertFalse(strip.collections)
+        self.assertFalse(main.collections)
+        self.assertFalse(score.collections[0].get_offsets().size)  # No missing-score marks.
+
+    def test_missing_score_mark_stays_off_the_zero_line(self):
+        from garmin_archive.charts import build_sleep_figure
+        # Feb 6 has sleep duration but no score. A real zero must stay a distinct, plotted value.
+        with open_archive(self.data_dir) as db:
+            result = get_sleep(db, '2026-02-03', '2026-02-09')
+        result['nights'][0]['values']['sleep_score'] = 0
+        figure = build_sleep_figure(result)
+        score = figure.axes[1]
+        self.assertEqual(score.lines[0].get_ydata()[0], 0)
+        self.assertTrue(math.isnan(score.lines[0].get_ydata()[3]))
+        marks = score.collections[-1]
+        self.assertEqual([tuple(point) for point in marks.get_offsets()], [(3, -.1)])
+        self.assertEqual(marks.get_offset_transform(), score.get_xaxis_transform())  # Axes height, not a score.
+        text = '\n'.join(t.get_text() for t in figure.texts)
+        self.assertIn('Sleep score unavailable [○]: Feb 6', text)  # × is reserved for a failed refresh.
+
+    def test_nights_without_stages_keep_their_total_and_need_stays_per_night(self):
+        from garmin_archive.charts import build_sleep_figure
+        with open_archive(self.data_dir) as db:
+            result = get_sleep(db, '2026-02-03', '2026-02-09')
+        figure = build_sleep_figure(result)
+        main = figure.axes[0]
+        # Feb 5 and 8 have totals but no usable stages: capped columns, never stacks.
+        self.assertEqual(len(main.patches), 5 * 4)
+        total = main.lines[0]
+        self.assertEqual(list(total.get_markevery()), [2, 5])
+        self.assertEqual(total.get_ydata()[2], result['nights'][2]['values']['sleep_duration'] / 3600)
+        legend = [item.get_text() for item in main.get_legend().get_texts()]
+        self.assertIn('Total only', legend)
+        self.assertNotIn('Unclassified', legend)  # Nothing unclassified in this range.
+        need = next(line for line in main.lines if line.get_label() == 'Garmin need')
+        self.assertEqual((need.get_linestyle(), need.get_marker()), ('None', '_'))
+        self.assertTrue(math.isnan(need.get_ydata()[4]))  # Feb 7 stays a gap, not an interpolated value.
+
+    def test_long_summaries_stay_clear_of_coverage_and_the_canvas(self):
+        from garmin_archive.charts import build_trend_figure
+        # These summaries used to print over the coverage figure in the chat layout.
+        for metric in ('respiration_waking', 'stress_average'):
+            with self.subTest(metric=metric):
+                figure = build_trend_figure(self.query(metric))
+                figure.canvas.draw()
+                coverage = next(t for t in figure.texts if t.get_text().replace('/', '').isdigit())
+                for label in figure.texts:
+                    self.assertLessEqual(label.get_window_extent().x1, figure.bbox.width)
+                    if label is not coverage:
+                        self.assertFalse(label.get_window_extent().overlaps(coverage.get_window_extent()))
+
+    def test_large_step_ticks_use_separators_and_stay_on_the_canvas(self):
+        from garmin_archive.charts import build_trend_figure
+        trend = self.query('steps', '2026-04-24', '2026-04-30')
+        for point in trend['points']:
+            point['value'] *= 3
+        figure = build_trend_figure(trend)
+        figure.canvas.draw()
+        labels = figure.axes[0].get_yticklabels()
+        self.assertIn('10,000', [label.get_text() for label in labels])
+        self.assertLessEqual(max(label.get_window_extent().x1 for label in labels), figure.bbox.width)
 
     def test_sparse_sleep_week_keeps_dates_and_missingness(self):
         from garmin_archive.charts import build_sleep_figure
@@ -146,8 +217,8 @@ class ChartsTest(unittest.TestCase):
             with self.subTest(layout=layout):
                 figure = build_sleep_figure(result, layout=layout)
                 strip = figure.axes[2]
-                self.assert_readable_dates(figure, strip, 7)
-                self.assertEqual([line.get_marker() for line in strip.lines], ['|', 'o', '|', '|', 's', '|', '|'])
+                self.assert_readable_dates(figure, strip, 7, [0, 2, 3, 4, 5, 6])
+                self.assertEqual([line.get_marker() for line in strip.lines], ['|', '|', '|', 's', '|', '|'])
                 duration = figure.axes[0].lines[0].get_ydata()
                 self.assertEqual(sum(not math.isnan(value) for value in duration), 1)
                 self.assertIn('1/7', [t.get_text() for t in figure.texts])
@@ -280,6 +351,20 @@ class ChartsTest(unittest.TestCase):
         coverage = next(t for t in figure.texts if t.get_text() == '26/30')
         self.assertFalse(summary.get_window_extent().overlaps(coverage.get_window_extent()))
         self.assertEqual(figure.axes[0].get_ylim(), (0, 100))
+
+    def test_sleep_stage_colors_follow_shared_brand_tokens(self):
+        from matplotlib.colors import to_hex
+        from garmin_archive.charts import build_sleep_figure
+        brand = get_brand()
+        palette = dict(zip(('deep', 'rem', 'light', 'unmeasurable'),
+                           ('#114477', '#2266AA', '#88BBDD', '#667788')))
+        brand['colors']['sleep_stages'] = palette
+        with open_archive(self.data_dir) as db:
+            result = get_sleep(db, '2026-04-24', '2026-04-30')
+        with patch('garmin_archive.charts.get_brand', return_value=brand):
+            figure = build_sleep_figure(result)
+        self.assertEqual({to_hex(bar.get_facecolor()).upper() for bar in figure.axes[0].patches},
+                         set(palette.values()))
 
     def test_sleep_need_minutes_convert_to_hours_and_body_battery_levels_keep_scale(self):
         from garmin_archive.charts import build_trend_figure, build_sleep_figure

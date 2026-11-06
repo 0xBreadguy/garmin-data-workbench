@@ -20,13 +20,13 @@ The global `--data-dir` option goes **before** `chart`. Omit it to use the defau
 
 The [shared metrics](USAGE.md#summaries-units-and-dates) and 90-day limit apply. Dates default to the same seven-day window as `trend`. Charts divide sleep/stage/nap seconds by 3,600 and sleep-need minutes by 60 to display **hours**, with the summary average in hours/minutes; structured `trend` output retains **seconds** without changing stored data. Distance follows saved profile preferences; other units come from the query. Averages use available values only and state their denominator.
 
-Steps and distance use bars starting at zero. Sleep, resting heart rate and HRV use unsmoothed lines. Line scales can focus on the observed range; read the labeled axis. Zero stays a value. Unavailable days are gaps, with a dated coverage strip and notes distinguishing failed, empty, unchecked and unreturned values. Retained data from a failed refresh stays masked. Fetch times are available in query results; explain freshness in the accompanying response when relevant. Sparse data does not establish a trend, and movement up or down is not inherently good or bad.
+Steps and distance use bars starting at zero. Sleep, resting heart rate and HRV use unsmoothed lines. Line scales can focus on the observed range; read the labeled axis. Zero stays a value. Unavailable days are shaded gaps, with a dated status mark and notes distinguishing failed, empty, unchecked and unreturned values; complete ranges omit the strip. Ranges short enough to fit label every date with its weekday and every value directly; longer ranges label the latest value and extremes. Retained data from a failed refresh stays masked. Fetch times are available in query results; explain freshness in the accompanying response when relevant. Sparse data does not establish a trend, and movement up or down is not inherently good or bad.
 
 For a detailed sleep question, use `chart sleep --from 2026-01-01 --to 2026-01-30 --output sleep-overview.png`. It combines total duration and complete stage bars with a separate score panel. See [sleep report semantics](SLEEP.md); stages and scores are estimates, and incomplete breakdowns are never filled with zeros. Scalar score/stress charts use a 0–100 axis.
 
 Run the installed `agent-guide` for the same presentation and interpretation rules in shell-only or MCP workflows.
 
-Body Battery scalar charts follow the [observed-reading definitions](BODY_BATTERY.md). Level charts use a fixed 0–100 scale; charged/drained amounts use bars starting at zero. The latest observed sample is not a live current value. `chart sleep` also shows Garmin's adjusted need as a distinct dotted line; need is an estimate, not a prescribed target.
+Body Battery scalar charts follow the [observed-reading definitions](BODY_BATTERY.md). Level charts use a fixed 0–100 scale; charged/drained amounts use bars starting at zero. The latest observed sample is not a live current value. `chart sleep` also shows Garmin's adjusted need as a tick for each night; need is an estimate, not a prescribed target.
 
 ## MCP chart delivery
 
