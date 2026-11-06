@@ -1,4 +1,4 @@
-/* Garmin Data Workbench MCP App. All queries go through the parent MCP host. */
+/* Shared recovery renderer: MCP Apps bridge or bounded native-widget snapshot. */
 (() => {
   'use strict';
   const root = document.getElementById('demo');
@@ -19,6 +19,32 @@
   ];
   let data = [], report = null, selected = 0, windowSize = 0, tab = 'trends';
   let initialized = false, capabilities = {}, requestId = 0, loadEpoch = 0, compareEpoch = 0;
+  const snapshotNode = document.getElementById('recovery-snapshot');
+  let nativeStateReady = false, restoringState = false, lastState = '';
+  function currentState() {
+    return {version:1, from:report.from, to:report.to, selectedDate:data[selected].date,
+      tab, window:windowSize === data.length ? 'all' : '7'};
+  }
+  function persistState() {
+    if (!nativeStateReady || restoringState || !data.length) return;
+    const state = currentState(), encoded = JSON.stringify(state);
+    if (encoded === lastState) return;
+    lastState = encoded;
+    try {
+      Promise.resolve(window.hatchWidget.setState(state)).catch(() => {
+        $('#ask-status').textContent = 'Selection could not be saved. You can still explore this snapshot.';
+      });
+    } catch (_) { $('#ask-status').textContent = 'Selection could not be saved. You can still explore this snapshot.'; }
+  }
+  function restoreState(state) {
+    if (!state || state.version !== 1 || state.from !== report.from || state.to !== report.to
+        || !['trends','night','compare'].includes(state.tab) || !['all','7'].includes(state.window)) return;
+    const index = data.findIndex(d => d.date === state.selectedDate);
+    if (index < 0) return;
+    restoringState = true;
+    selected = index; setWindow(state.window); showTab(state.tab);
+    lastState = JSON.stringify(currentState()); restoringState = false;
+  }
   const pending = new Map();
   const bridge = window.parent;
   const send = message => bridge.postMessage({jsonrpc:'2.0', ...message}, '*');
@@ -101,19 +127,24 @@
     windowSize = data.length; compareEpoch++;
     $('#provenance').textContent = value.archive_provenance?.synthetic === true ? 'SYNTHETIC DATA' : 'LOCAL ARCHIVE · UNMARKED PROVENANCE';
     $('#range-label').textContent = `${value.from} — ${value.to} · inclusive`;
-    $('#range-from').value = value.from; $('#range-to').value = value.to;
     $('#day-range').max = data.length-1;
     $('#workspace').hidden = false;
-    $('#connection').textContent = 'Archive loaded. Dates and comparisons read stored data only.';
-    $('#range-form').hidden = false;
-    $('#range-form button').disabled = !capabilities.serverTools;
-    $('#ask-night').disabled = !capabilities.message;
-    $('#ask-status').textContent = capabilities.message ? '' : 'This host does not support asking from the chart.';
-    const middle = Math.floor(data.length / 2);
-    $('#base-from').value = value.from;
-    $('#base-to').value = data[Math.max(0,middle-1)].date;
-    $('#period-from').value = data[Math.min(middle,data.length-1)].date;
-    $('#period-to').value = value.to;
+    if (snapshotNode) {
+      $('#connection').textContent = 'Archive snapshot loaded. Explore these dates or ask Muse for another range.';
+      $('#ask-status').textContent = 'Ask Muse in this conversation about the selected date.';
+    } else {
+      $('#range-from').value = value.from; $('#range-to').value = value.to;
+      $('#connection').textContent = 'Archive loaded. Dates and comparisons read stored data only.';
+      $('#range-form').hidden = false;
+      $('#range-form button').disabled = !capabilities.serverTools;
+      $('#ask-night').disabled = !capabilities.message;
+      $('#ask-status').textContent = capabilities.message ? '' : 'This host does not support asking from the chart.';
+      const middle = Math.floor(data.length / 2);
+      $('#base-from').value = value.from;
+      $('#base-to').value = data[Math.max(0,middle-1)].date;
+      $('#period-from').value = data[Math.min(middle,data.length-1)].date;
+      $('#period-to').value = value.to;
+    }
     $('#comparison-result').textContent = data.length < 2 ? 'Choose two non-overlapping periods to compare.' : 'Choose periods, then compare their covered averages.';
     clearError(); setWindow('all'); renderFreshness(); showTab(tab);
   }
@@ -188,10 +219,11 @@
     if (announce) $('#announcement').textContent = `${d.date}, sleep ${fmt(d,'minutes')}, HRV ${fmt(d,'hrv')}`;
   }
   function selectDay(index, announce=true) {
-    if (!data.length) return;
+    if (!data.length || !Number.isInteger(index)) return;
     selected = Math.max(0,Math.min(data.length-1,index));
-    if (selected < data.length-windowSize) windowSize = data.length;
+    if (selected < data.length-windowSize) setWindow('all');
     updateSelection(announce); drawCharts(); if (tab === 'night') renderNight();
+    persistState();
   }
   function setWindow(value) {
     windowSize = value === '7' ? Math.min(7,data.length) : data.length;
@@ -200,7 +232,7 @@
     const visible = data.slice(-windowSize);
     $('#window-label').textContent = `${visible[0].date} — ${visible.at(-1).date}`;
     $('#coverage-line').textContent = 'Available: '+panels.map(p => `${p.name} ${visible.filter(d => d[p.key] != null).length}/${visible.length}`).join(' · ');
-    updateSelection(); drawCharts();
+    updateSelection(); drawCharts(); persistState();
   }
   function renderNight() {
     const d = data[selected];
@@ -214,6 +246,7 @@
     $$('[data-tab]').forEach(b => { b.setAttribute('aria-selected',b.dataset.tab === next); b.tabIndex = b.dataset.tab === next ? 0 : -1; });
     if (!data.length) return;
     if (next === 'night') renderNight(); else if (next === 'trends') { setWindow(windowSize === data.length ? 'all' : '7'); }
+    persistState();
   }
   function renderComparison(value) {
     if (value.view !== 'sleep_recovery_comparison') throw new Error('Invalid comparison result.');
@@ -256,11 +289,11 @@
     i = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length-1 : (i+(e.key === 'ArrowRight' ? 1 : -1)+tabs.length)%tabs.length;
     tabs[i].focus(); showTab(tabs[i].dataset.tab);
   });
-  $('#range-form').addEventListener('submit',loadRange);
-  $('#compare-form').addEventListener('submit',loadComparison);
+  $('#range-form')?.addEventListener('submit',loadRange);
+  $('#compare-form')?.addEventListener('submit',loadComparison);
   $('#day-range').addEventListener('input',e => selectDay(Number(e.target.value)));
   $('#inspect-night').addEventListener('click',() => { showTab('night'); $('#tab-night').focus(); });
-  $('#ask-night').addEventListener('click',async () => {
+  $('#ask-night')?.addEventListener('click',async () => {
     if (!data.length || !capabilities.message) return;
     const d = data[selected]; $('#ask-night').disabled = true; $('#ask-status').textContent = 'Sending this selected date…';
     try {
@@ -277,6 +310,29 @@
     const height = Math.ceil(root.getBoundingClientRect().height)+16;
     if (initialized && height !== lastHeight) { lastHeight = height; notify('ui/notifications/size-changed',{height}); }
   }).observe(root);
+  if (snapshotNode) {
+    (async () => {
+      try {
+        const snapshot = JSON.parse(snapshotNode.textContent);
+        if (snapshot.schema_version !== 1) throw new Error('Unsupported widget snapshot.');
+        acceptReport(snapshot.report);
+        if (snapshot.comparison) renderComparison(snapshot.comparison);
+        else $('#comparison-result').textContent = 'Load at least two days to compare earlier and later periods.';
+        if (window.hatchWidget?.getState && window.hatchWidget?.setState) {
+          let receivedState;
+          window.addEventListener('hatch-widget-state', event => {
+            receivedState = event.detail?.state;
+            if (nativeStateReady) restoreState(receivedState);
+          });
+          try {
+            const saved = await window.hatchWidget.getState(currentState());
+            restoreState(receivedState ?? saved); nativeStateReady = true;
+          } catch (_) { $('#ask-status').textContent = 'Saved selection unavailable. You can still explore this snapshot.'; }
+        }
+      } catch (e) { $('#workspace').hidden = true; error('Could not load the snapshot. Ask Muse to recreate the widget.'); }
+    })();
+    return; // Native widgets never initialize or query the MCP bridge.
+  }
   window.addEventListener('message',event => {
     if (event.source !== bridge || event.data?.jsonrpc !== '2.0') return;
     const message = event.data;

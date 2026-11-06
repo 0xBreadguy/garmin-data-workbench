@@ -110,7 +110,7 @@ def parser() -> argparse.ArgumentParser:
 Archive selection: put --data-dir DIRECTORY before the command.
 Read-only queries: day, trend, compare, workout-summary, sleep, body-battery, status, activities, health,
 records, source-data, source-series. They never sync or create an archive.
-Exports: chart and export-original write new files and never overwrite.
+Exports: chart, widget and export-original write new files and never overwrite.
 Live/configuration: sync uses credentials/network; install also connects clients
 and may schedule; connect registers clients; setup changes the macOS schedule;
 save-key authenticates and saves a key unless --dry-run is selected.
@@ -210,6 +210,11 @@ JSON on stderr (exit 2 invalid input, 1 operational failure, 3 not found).
     chart.add_argument("--json", action="store_true", help="Print the saved PNG path and shared caption, coverage and freshness metadata as JSON")
     chart.add_argument("--synthetic", action="store_true", help="Label generated/demo data visibly and identify its source as synthetic")
     chart.add_argument("--layout", choices=("chat", "wide"), default="chat", help="Readable chat/phone layout or wide report layout (default: chat)")
+    widget = commands.add_parser("widget", help="Export an interactive snapshot for Muse's in-chat HTML widget tool")
+    widget.add_argument("view", choices=("sleep-recovery",))
+    widget.add_argument("--from", dest="start", type=_date, help="First of 1–90 inclusive dates; default fourteen days ending at --to")
+    widget.add_argument("--to", dest="end", type=_date)
+    widget.add_argument("--output", required=True, type=Path, help="New private HTML fragment; present with the host's native widget tool")
     commands.add_parser("brand", help="Print shared brand colors, rules and local logo paths as JSON; no archive needed")
 
     commands.add_parser("status", help="Show archive coverage and sync errors as JSON",
@@ -474,7 +479,15 @@ def _read(args: argparse.Namespace) -> int:
     """Query an existing archive without creating, migrating or syncing it."""
     try:
         with open_archive(args.data_dir) as db:
-            if args.command == "compare":
+            if args.command == "widget":
+                from .widgets import write_recovery_widget
+                try:
+                    result = write_recovery_widget(db, args.output,
+                        args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else "")
+                except OSError:
+                    return _error("output_error", "Could not write widget; choose a new writable HTML path. Existing files are not overwritten.")
+                _print_json(result)
+            elif args.command == "compare":
                 _print_json(compare_periods(db, args.metric, args.start.isoformat(), args.end.isoformat(),
                                            args.baseline_from.isoformat(), args.baseline_to.isoformat()))
             elif args.command == "workout-summary":
@@ -765,7 +778,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "path":
         print(args.data_dir.expanduser() / "archive.sqlite3")
         return 0
-    if args.command in {"day", "trend", "compare", "workout-summary", "sleep", "body-battery", "chart", "status", "activities", "records", "health", "export-original", "source-data", "source-series"}:
+    if args.command in {"day", "trend", "compare", "workout-summary", "sleep", "body-battery", "chart", "widget", "status", "activities", "records", "health", "export-original", "source-data", "source-series"}:
         return _read(args)
     if args.command == "connect" and not (args.data_dir.expanduser() / "archive.sqlite3").is_file():
         print("No local archive found; run `garmin-archive install` first.", file=sys.stderr)

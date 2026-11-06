@@ -84,6 +84,21 @@ The supported collection source is Garmin's Personal API. Do not add unofficial 
 
 For a client handoff, use `agent-guide --client muse` (or dot/codex/claude/other); it appends the same handoff as `assistant-guide --client muse`. Neither command opens the archive or configures a client.
 
+## Muse native interactive widgets (experimental)
+
+When Muse's native `widget.create_html_file_widget` tool is available, export the
+same sleep/recovery explorer with `garmin-archive --data-dir /absolute/archive
+widget sleep-recovery --from YYYY-MM-DD --to YYYY-MM-DD --output /absolute/new.html`.
+The CLI returns JSON with the saved path. Present that file unchanged in the
+conversation with the native widget tool; do not substitute a file preview,
+external page or PNG for an interactive request. Keep widget files outside
+`workspace/your_files/` and `workspace/visual_grounding/` in Muse.
+This is a fixed 1–90 day archive snapshot, with a comparison of its earlier and
+later halves. Selection, tabs and Last 7 are interactive. Ask the CLI for a new
+export when dates change. The widget cannot sync, query the archive or send a
+message. A saved file or successful tool result does not establish visible
+delivery; follow the user's report and avoid unsupported display disclaimers.
+
 ## Finish setup honestly
 
 Distinguish command installation, initial sync, a verified assistant query and recurring execution. Report installed revision/version, archive location, exact synced dates, failures and the query path. A created/loaded schedule is configured; its first automated execution is pending until independently observed. `setup-receipt` cannot inspect provider routines or prove which process made a sync.

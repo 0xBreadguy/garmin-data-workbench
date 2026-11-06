@@ -9,9 +9,18 @@ APP_META = {"ui": {"prefersBorder": False, "csp": {
 
 
 @lru_cache(maxsize=1)
-def recovery_app_html() -> str:
+def recovery_template() -> str:
+    """Shared unbundled document; adapters may alter markup before inlining code."""
+    return (Path(__file__).with_name("ui") / "recovery.html").read_text(encoding="utf-8")
+
+
+def bundle_recovery(page: str) -> str:
     root = Path(__file__).with_name("ui")
-    page = (root / "recovery.html").read_text(encoding="utf-8")
     for name in ("recovery.css", "d3.min.js", "recovery.js"):
         page = page.replace("/*__" + name + "__*/", (root / name).read_text(encoding="utf-8"))
     return page
+
+
+@lru_cache(maxsize=1)
+def recovery_app_html() -> str:
+    return bundle_recovery(recovery_template())

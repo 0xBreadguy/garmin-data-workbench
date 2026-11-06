@@ -202,6 +202,14 @@ finally:
         activities = json.loads(run([str(cli), "--data-dir", str(archive), "activities", "--from", "2026-01-01", "--to", "2026-01-02", "--type", "running"]))
         assert [row["activity_id"] for row in activities] == [42], activities
         mcp_results = asyncio.run(asyncio.wait_for(check_mcp(mcp, archive, workdir, env, args.charts), timeout=30))
+        widget = workdir / "recovery.html"
+        widget_info = json.loads(run([str(cli), "--data-dir", str(archive), "widget", "sleep-recovery",
+            "--from", "2026-01-01", "--to", "2026-01-03", "--output", str(widget)]))
+        assert widget_info["output_path"] == str(widget) and widget_info["archive_provenance"]["synthetic"]
+        fragment = widget.read_text(encoding="utf-8")
+        assert 'id="recovery-snapshot"' in fragment and 'window.hatchWidget' in fragment
+        assert '<form' not in fragment and '/*__' not in fragment
+        assert widget.stat().st_size < 1_000_000
         assert mcp_results == {"comparison": comparison, "workouts": workouts}, "Installed CLI and MCP disagree"
         if args.charts:
             chart = workdir / "steps.png"

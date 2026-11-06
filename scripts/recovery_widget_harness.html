@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}iframe{width:100%;height:1250px;border:0;display:block}#checks{font:12px system-ui}</style></head><body><p id="checks">Synthetic widget harness · checking…</p><iframe id="app" title="Native widget test"></iframe><script>
+(async()=>{
+const html=__APP_JSON__,frame=document.getElementById('app'),checks=[];let calls=0,writes=0,saved;
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const until=async fn=>{for(let i=0;i<200;i++){if(fn())return;await wait(10);}throw Error('Timed out');};
+const assert=(name,pass)=>{checks.push({name,pass:!!pass});if(!pass)throw Error(name);};
+window.addEventListener('message',e=>{if(e.source===frame.contentWindow&&e.data?.jsonrpc)calls++;});
+window.widgetState={getState:defaults=>saved??(saved=defaults),setState:state=>{writes++;saved=state;}};
+const mount=async()=>{frame.srcdoc='<script>window.hatchWidget=parent.widgetState;<\/script>'+html;await until(()=>frame.contentDocument?.getElementById('workspace')?.hidden===false);await wait(30);};
+try{
+await mount();let doc=frame.contentDocument,$=s=>doc.querySelector(s),click=s=>$(s).click();
+const select=i=>{const e=$('#day-range');e.value=i;e.dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));};
+assert('native snapshot renders four charts',$('#lanes').querySelectorAll('svg').length===4);
+assert('no forms or unsupported chat action',!$('form')&&!$('#ask-night'));
+select(11);assert('linked selection saved',saved.selectedDate==='2026-04-28'&&$('#selected-date').textContent===saved.selectedDate);
+const svg=$('.lane svg'),bounds=svg.getBoundingClientRect();svg.dispatchEvent(new frame.contentWindow.PointerEvent('pointermove',{clientX:bounds.left+78,pointerType:'touch',buttons:1,bubbles:true}));
+assert('touch selection saved',saved.selectedDate==='2026-04-17');
+click('[data-window="7"]');assert('window and clamped date saved',saved.window==='7'&&saved.selectedDate==='2026-04-24');
+click('#inspect-night');assert('night detail saved',saved.tab==='night'&&!$('#night').hidden);
+click('[data-prev]');assert('earlier night expands window',saved.window==='all'&&saved.selectedDate==='2026-04-23');
+click('[data-tab="compare"]');assert('canonical snapshot comparison',$('#comparison-result tbody').children.length===5&&$('#comparison-result').textContent.includes('2026-04-24'));
+const writesBefore=writes;
+frame.contentWindow.dispatchEvent(new frame.contentWindow.CustomEvent('hatch-widget-state',{detail:{state:{...saved,tab:'night',selectedDate:'2026-04-20'}}}));
+assert('remote state restores without echo',$('#night-picker').value==='3'&&writes===writesBefore);
+frame.contentWindow.dispatchEvent(new frame.contentWindow.CustomEvent('hatch-widget-state',{detail:{state:{...saved,from:'invalid',selectedDate:'2026-04-30'}}}));
+assert('unrelated saved state ignored',$('#night-picker').value==='3');
+click('[data-next]');const expected={...saved};await mount();doc=frame.contentDocument;
+assert('reopen restores selection and tab',$('#night-picker').value==='4'&&!$('#night').hidden&&saved.selectedDate===expected.selectedDate);
+click('[data-tab="'+__FINAL_VIEW__+'"]');await wait(30);
+assert('no horizontal overflow',doc.documentElement.scrollWidth<=frame.clientWidth+1);
+assert('no MCP requests from native widget',calls===0);
+document.getElementById('checks').textContent='Synthetic widget harness · '+checks.length+'/'+checks.length+' checks passed';
+console.log(JSON.stringify({checks:checks.length,passed:checks.filter(c=>c.pass).length}));
+}catch(e){document.getElementById('checks').textContent='CHECK FAILED: '+e.message;console.error(e.message);}
+})();
+</script></body></html>

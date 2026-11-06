@@ -38,10 +38,28 @@ For a missing app, compare the original tool event's `mcpAppResourceUri`, succes
 
 Local acceptance observation, November 5, 2026: the user reported a working interactive chart in the ChatGPT/Codex Mac app, despite the agent claiming it had not appeared. A phone-created conversation reportedly showed no app on either device. Two matching local Codex trial runs returned identical structured results and UI resource references. Desktop logs recorded resource loading and app initialization for one run, with no corresponding load events found for the other. Both agents inferred failure from unavailable computer-use/browser surfaces and generated PNG fallbacks. The guidance now avoids that inference. Mobile delivery remains unresolved; no rendering fix or general mobile compatibility is claimed.
 
+## Muse native widget trial
+
+Muse's native HTML widgets provide a separate in-conversation route when a custom MCP Apps host is unavailable. Use the same installed package and synthetic archive above, then run:
+
+```sh
+garmin-archive --data-dir /absolute/new/trial/archive widget sleep-recovery \
+  --from 2026-04-17 --to 2026-04-30 --output /absolute/new/trial/recovery.html
+```
+
+Pass the returned absolute path unchanged to Muse's `widget.create_html_file_widget`, with `present_now: true` or embed its returned token in the reply. Do not rewrite the HTML or turn it into a file-preview link, PNG, external website, or nested iframe. Keep the file outside `workspace/your_files/` and `workspace/visual_grounding/`, which Muse treats as preview files. File generation and tool success are not proof that the user saw the widget.
+
+The fragment bundles the shared renderer and D3 with a read-only 1–90 day snapshot (14 days by default). No charts extra, Node runtime, network listener, or CDN is needed. It refuses exports above Muse's 1 MB limit and creates new files with owner-only permissions where supported. It contains the selected health observations; use a synthetic archive for this trial and treat real exports like health data.
+
+Touch or drag any chart, use Last 7, or switch between Trends, Night detail, and Compare. Comparison divides the loaded range at its midpoint and uses the same Python calculations and independent coverage as MCP; an odd range has one extra day in the later period. One day has no comparison. Ask Muse to generate another widget for different dates or an updated archive snapshot. The widget itself cannot query the archive or send a follow-up message. Its only durable host state is the selected date, tab, and window, using `hatchWidget`; metrics stay in the fixed snapshot. Reopening and cross-device state delivery require separate host acceptance tests.
+
+Native capability observation, November 5, 2026: Muse 11.0 on Mac rendered a counter and its button visibly changed the value. Muse reported native HTML widget tools and no custom MCP Apps host. This established a route worth testing, not Garmin chart or mobile acceptance by itself.
+
 ## Verify the implementation
 
 ```sh
 uv run --locked --extra charts python -m unittest discover -s tests -p 'test_recovery.py' -v
+uv run --locked --extra charts python -m unittest discover -s tests -p 'test_widgets.py' -v
 node --check src/garmin_archive/ui/recovery.js
 uv build
 uv run --locked python scripts/smoke_installed.py
@@ -53,3 +71,5 @@ The shared queries keep source units. The UI converts sleep/stage/awake seconds 
 Automated stdio tests prove tool metadata, resource packaging, query results and read-only archive behavior. Browser harness checks prove the exercised UI and bridge messages. Neither proves the actual assistant displayed the resource or accepted an in-app follow-up. Record those host acceptance steps separately, including desktop/mobile and keyboard/touch coverage. The user-controlled local trial comes before publishing or merging.
 
 For a repeatable browser check, run `uv run --locked python scripts/preview_recovery_app.py --output /absolute/new/recovery-harness.html`. This developer-only harness creates a disposable synthetic archive, embeds the packaged app without modifying it, and simulates the MCP Apps parent bridge. It runs 16 assertions covering initial results, date selection, touch events, window bounds, night drill-down, follow-up payloads, server comparisons, failed/missing/incomplete/single-day data, keyboard tabs, forbidden sync calls, overflow and untrusted message sources. It reports its result above the embedded app. Inspect the generated HTML with a browser test runner or an assistant HTML-preview tool; no HTTP server is needed. This harness is a test fixture, not the user-facing delivery route.
+
+Add `--host muse` for the native widget harness. It checks linked/touch selection, saved state, reopening, incoming state without write-back loops, comparison rendering, missing unsupported controls, responsive overflow and absence of MCP requests. The test harness's iframe and simulated state bridge are development fixtures; the exported fragment is handed directly to Muse.
