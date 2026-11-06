@@ -57,12 +57,20 @@ The experimental MCP Apps sleep/recovery explorer packages a static, self-contai
 
 `widgets.py` adapts that same renderer to Muse's native HTML widget tool. The CLI exports a bounded snapshot and midpoint comparison in a private, exclusively created HTML fragment. It has no forms, remote assets, nested frames or archive connection. `hatchWidget` persists only presentation state; date-range changes require a new assistant export. The MCP resource remains static and data-free. See [the trial guide](docs/INTERACTIVE_CHARTS.md#muse-native-widget-trial) for delivery and acceptance boundaries.
 
-`widget sleep-recovery --host grok` embeds the identical snapshot in the packaged
+`widget sleep-recovery --host grok` embeds a compact projection of that snapshot in the packaged
 `ui/recovery.canvas.tsx` renderer. It uses only the host's `grok/canvas` exports,
 local React state and inline SVG. No production dependency, collector, database
 schema or harness extension is added. Rendering differs by host; metric and
 comparison definitions remain shared. The optional development React shim tests
 the exported component without claiming to implement Grok's compiler or sandbox.
-The native writer currently requires inline source and rejects file references;
-exact-source transport, compilation and visible Page delivery are separate
-acceptance gates. See [Grok delivery](docs/GROK_CHARTS.md#native-delivery-boundary).
+The versioned transport retains every rendered field without recalculating
+metrics. Repeated strings and field names are packed into a dictionary and
+tuples, then restored by the Page. Bounded inert string declarations are joined
+before parsing so data can be inserted in small native edits.
+
+`--handoff-dir` exports private ordered `WriteCanvas`/`EditCanvas` calls. A
+placeholder App stays active until the complete source is assembled. The plan
+contains local reconstruction hashes and bounded overlapping source verification
+batches; complete `ReadCanvas` comparison and native interaction remain separate
+acceptance gates. No tool calls are executed by the Python package. See
+[Grok delivery](docs/GROK_CHARTS.md#bounded-native-delivery).

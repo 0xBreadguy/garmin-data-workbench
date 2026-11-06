@@ -1,5 +1,9 @@
 # Packaged Grok explorer trial — November 5, 2026
 
+This records the earlier one-call trial. See the subsequent
+[bounded-delivery trial](2026-11-05-grok-staged-delivery.md) for the successful
+native packaged route; the observations below remain historical.
+
 ## Outcome
 
 The workbench has a reusable native TSX export and locally verified interaction

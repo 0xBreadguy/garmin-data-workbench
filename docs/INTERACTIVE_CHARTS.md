@@ -61,7 +61,7 @@ Subsequent trial: branch revision `e854d04` was transferred as a Git bundle, ins
 
 For Grok Bot's separate native React Page route, see [Grok interactive charts](GROK_CHARTS.md).
 That host has a separate packaged TSX export (`--host grok`) over the same shared
-snapshot. Its native source transport is still experimental; it does not consume
+snapshot. Its bounded native edit plan avoids oversized tool calls; it does not consume
 this HTML export.
 
 ```sh

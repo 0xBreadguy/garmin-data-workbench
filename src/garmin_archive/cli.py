@@ -216,6 +216,7 @@ JSON on stderr (exit 2 invalid input, 1 operational failure, 3 not found).
     widget.add_argument("--from", dest="start", type=_date, help="First of 1–90 inclusive dates; default fourteen days ending at --to")
     widget.add_argument("--to", dest="end", type=_date)
     widget.add_argument("--output", required=True, type=Path, help="New private .html fragment for Muse or .canvas.tsx source for Grok; present with the host's native tool")
+    widget.add_argument("--handoff-dir", type=Path, help="Grok only: new private directory of bounded native create/edit calls and source verification steps")
     commands.add_parser("brand", help="Print shared brand colors, rules and local logo paths as JSON; no archive needed")
 
     commands.add_parser("status", help="Show archive coverage and sync errors as JSON",
@@ -482,11 +483,30 @@ def _read(args: argparse.Namespace) -> int:
         with open_archive(args.data_dir) as db:
             if args.command == "widget":
                 from .widgets import write_recovery_widget
+                if args.handoff_dir is not None and args.host != "grok":
+                    raise ValueError("--handoff-dir requires --host grok.")
                 try:
+                    handoff_dir = None
+                    if args.handoff_dir is not None:
+                        requested = args.handoff_dir.expanduser().absolute()
+                        if requested.exists() or requested.is_symlink():
+                            raise FileExistsError(str(requested))
+                        handoff_dir = requested.parent.resolve(strict=True) / requested.name
                     result = write_recovery_widget(db, args.output,
                         args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else "", host=args.host)
                 except OSError:
-                    return _error("output_error", "Could not write widget; choose a new writable output path. Existing files are not overwritten.")
+                    return _error("output_error", "Could not write widget; choose new writable output and handoff paths. Existing paths are not overwritten.")
+                if handoff_dir is not None:
+                    from .grok_handoff import write_handoff
+                    try:
+                        result["handoff"] = write_handoff(handoff_dir,
+                            Path(result["output_path"]).read_text(encoding="utf-8"), "Sleep & recovery")
+                    except (OSError, ValueError) as error:
+                        return _error("handoff_error", f"Source saved to {result['output_path']}; handoff creation failed: {error}. Choose a new handoff directory; do not overwrite existing artifacts.")
+                    result["delivery"] = ("Use plan.json in the private handoff directory. Execute its bounded native "
+                        "WriteCanvas/EditCanvas calls in order, binding only the returned canvas_id. Stop on any failure. "
+                        "Run its source verification steps and ReadCanvas comparison, then inspect the private Page. "
+                        "Local hashes and file creation do not prove native delivery. Do not publish or enable public sharing.")
                 _print_json(result)
             elif args.command == "compare":
                 _print_json(compare_periods(db, args.metric, args.start.isoformat(), args.end.isoformat(),

@@ -88,16 +88,19 @@ For a client handoff, use `agent-guide --client muse` (or dot/codex/claude/other
 
 For an explicit interactive request, export the packaged view with
 `garmin-archive --data-dir /absolute/archive widget sleep-recovery --host grok
---from YYYY-MM-DD --to YYYY-MM-DD --output /absolute/new/recovery.canvas.tsx`.
-It uses the same 1–90 day snapshot and midpoint comparisons as Muse, with
+--from YYYY-MM-DD --to YYYY-MM-DD --output /absolute/new/recovery.canvas.tsx
+--handoff-dir /absolute/new/grok-handoff`.
+It retains all rendered fields from the same 1–90 day snapshot and comparisons as Muse, with
 `grok/canvas` imports, embedded observations and local React state. It does not
 accept the Muse HTML/D3 export or establish MCP Apps support. Check the current
 host contract before delivery: `WriteCanvas({contents: source, title: title})`
-requires the complete inline source, not a path or `$file:` reference. The tested
-session had no supported file-to-writer binding, so deterministic native delivery
-remains experimental. If copying the source inline, compare the saved source
-against the export; report transport or compiler failures without silently
-rewriting the chart. Keep the Page owner-only and deliver its native card.
+requires inline source, not a path or `$file:` reference. Use `plan.json` in the
+handoff directory to avoid one oversized submission. Execute its bounded
+WriteCanvas/EditCanvas calls in order, binding only the new Page's returned ID.
+Keep the placeholder until the final edit; stop on any failed step and report its
+diagnostic without silently rewriting the chart. Run the plan's bounded atomic
+source verification batches and complete ReadCanvas comparison. Local hashes are
+not remote hash receipts. Keep the Page owner-only and deliver its native card.
 
 Use one selected date across charts and night details, with chart click/tap and
 keyboard controls. Preserve each field's units, missingness, coverage and fetch

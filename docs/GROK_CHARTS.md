@@ -6,25 +6,28 @@ view over the workbench's shared query results, separate from the
 a native TSX renderer so the layout and behavior can stay consistent between
 requests. The HTML export is not interchangeable with a Grok Page.
 
-**Status:** the packaged source passes local export and interaction tests. Native
-delivery of that exact source remains experimental: the observed writer accepts
-inline source but has no supported file-to-tool binding. The earlier,
-assistant-authored Page was visibly interactive; that does not establish native
-acceptance of this packaged renderer.
-See the [packaged trial report](acceptance/2026-11-05-grok-packaged-explorer.md)
-for the source-transfer failure and the separately passing local checks.
+**Status:** bounded native edits delivered the packaged explorer in the Mac Grok
+Bot app. Linked selection, keyboard navigation, Last 7, night details and
+comparisons responded visibly. See the [bounded-delivery trial](acceptance/2026-11-05-grok-staged-delivery.md).
+This is separate from the earlier
+[failed one-call transfer](acceptance/2026-11-05-grok-packaged-explorer.md).
+Native tool receipts, source verification and actual interaction remain distinct
+acceptance checks; a local export alone proves none of them.
 
 ## Packaged framework
 
 ```sh
 garmin-archive --data-dir /absolute/existing/archive widget sleep-recovery \
   --host grok --from 2026-04-17 --to 2026-04-30 \
-  --output /absolute/new/recovery.canvas.tsx
+  --output /absolute/new/recovery.canvas.tsx \
+  --handoff-dir /absolute/new/grok-handoff
 ```
 
 Use dates actually covered by the selected archive. The command reads 1–90
 inclusive dates (default 14) and exclusively creates a private file. It embeds
-the same coherent snapshot and midpoint comparison used by Muse. The two halves
+a versioned compact projection of the same coherent snapshot and midpoint
+comparison used by Muse. It retains every field consumed by this renderer,
+including nulls, statuses, source times, stages and independent coverage. The two halves
 retain independent metric coverage; one date has no comparison. No Garmin
 credentials, sync, Node runtime, CDN, chart extra or network listener is needed.
 The workbench applies a 1 MiB export guardrail; this is not a documented Grok
@@ -39,33 +42,58 @@ Its view state is held only in local React state, with no persistence bridge;
 actual native reopening behavior remains untested. Request a new snapshot to
 refresh data.
 
-### Native delivery boundary
+### Bounded native delivery
 
-The observed contract is `WriteCanvas({contents: source, title: "Sleep & recovery"})`.
-`contents` must be the complete source string. A file path or `$file:` reference
-is rejected. A reported update uses the same call with `canvas_id`; `ReadCanvas`
-can read a Page by ID or URL. Confirm the current tool contract before use.
+Use the handoff directory's `plan.json`. It contains the expected source identity,
+ordered tool calls and separate source verification calls. Each call also has a
+small JSON argument file. The complete manifest is written last; a directory
+without `plan.json` is incomplete. The directory/files are private on POSIX and
+existing paths are never overwritten. If handoff creation fails after export,
+the CLI names the saved source so it can be recovered without regenerating data.
 
-In the tested session, file tools could read/hash the attachment and Shell could
-read it on disk, but neither could bind those bytes directly into `WriteCanvas`.
-An exported file is therefore not yet the one-step native handoff available in
-Muse. Do not silently replace it with a newly invented chart and call that the
-packaged renderer. If the model copies source inline, compare saved source
-against the export and report any normalization or differences. Check actual
-compilation, owner-only access and visible interaction separately.
+The agent performs the calls through Grok's supported tools:
 
-A follow-up two-day synthetic export (48,146 source bytes) was submitted through
-the normal inline path once. Grok reported truncated tool-argument JSON and an
-unterminated string at position 20,379. No Page or compiler result was produced.
-This is an observed failure of that attempt, not a documented universal size
-limit. Compact transport could be explored, but reducing bytes alone does not
-establish faithful transfer or native rendering.
+1. `WriteCanvas({contents, title})` creates a new private Page with a temporary
+   placeholder. Bind the returned `canvas_id` in subsequent calls.
+2. `EditCanvas({canvas_id, old_string, new_string, replace_all: false})` appends
+   complete declarations at one unique anchor. The final edit activates the
+   packaged App. Do not combine the calls into one large source submission.
+3. Run the verification calls in order. Direct identical old/new edits are
+   rejected by this host. The supported atomic `edits` batch instead changes a
+   bounded source fragment to a unique temporary slot and restores it before compilation, then advances
+   only a temporary trailing comment. Overlapping fragments check the complete
+   expected source and its boundaries; the final call removes the comment.
+4. `ReadCanvas({canvas_id})` returns source text. Compare the complete result with
+   `source.canvas.tsx`, inspect the Page, exercise selection and check **Only you**.
+   The API supplies no remote source hash. Local hashes identify the expected
+   file; they must not be presented as a server-attested hash. Fragment matches
+   alone cannot exclude extra text outside the expected program.
 
-The dependable integration needs a supported file reference/upload on the native
-writer, or supported orchestration that passes file contents into its argument.
-This boundary belongs to the Grok host integration. The query/export/rendering
-framework belongs to Garmin Workbench; no Crumb harness change is required to
-generate it. A local harness change cannot supply an unavailable Grok API.
+Calls must succeed sequentially. Stop on any mismatch, transport or compiler
+failure and preserve its diagnostic. Failed compilation retains the previous
+revision; do not skip to the next step, guess source text or silently redesign
+it. Resume only after reconciling the published `ReadCanvas` source with the
+expected state before the failed step, then explicitly retry that exact call.
+Do not use or silently repair an unpublished failed draft. Bounded calls reduce
+transfer size; they do not eliminate model transcription errors. The native
+trial caught a copying typo during verification and rejected its compilation
+while preserving the working Page.
+
+The current 14-day example uses ten delivery calls and nine source-verification
+calls. Its 12,000-byte conservative
+argument budget includes reserved ID space; it is a workbench guardrail, not a
+vendor limit. Compact string/tuple packing reduces repeated data; inert bounded
+string declarations allow even a 90-day snapshot to be assembled without a
+large argument. Strings are joined before JSON parsing, including escape
+sequences that cross a boundary. No `eval`, runtime package or network access is
+introduced. The optional local test harness checks canonical field parity and
+rendering equivalence.
+
+A file path or `$file:` reference is not accepted by the native writer. The
+bounded edit route uses the tools already present in Grok; it requires no Crumb
+harness change or undocumented API. It does involve more native calls than
+Muse's direct file handoff. Native mobile delivery and cross-device behavior
+still require their own acceptance tests.
 
 ### Next design and copy pass
 

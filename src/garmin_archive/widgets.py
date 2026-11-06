@@ -10,6 +10,7 @@ import os
 import re
 from pathlib import Path
 
+from .grok_transport import pack_grok_snapshot
 from .mcp_apps import bundle_recovery, recovery_template
 from .recovery import _snapshot, compare_sleep_recovery, get_sleep_recovery
 
@@ -17,6 +18,8 @@ MAX_WIDGET_BYTES = 1_000_000
 # Project guardrail for bounded exports, not a documented Grok host limit.
 MAX_GROK_CANVAS_BYTES = 1_048_576
 GROK_SNAPSHOT_MARKER = "/*__RECOVERY_SNAPSHOT__*/"
+GROK_INITIALIZER = "const snapshot = decodeTransport(" + GROK_SNAPSHOT_MARKER + ");"
+GROK_DATA_CHARS = 2048
 
 
 def recovery_widget_snapshot(db, start: str = "", end: str = "") -> dict:
@@ -59,16 +62,25 @@ def recovery_widget_html(snapshot: dict) -> str:
 
 
 def recovery_grok_canvas(snapshot: dict) -> str:
-    """Embed the canonical snapshot in the packaged native Grok Page source."""
+    """Embed the canonical view fields in the packaged native Grok Page source."""
     template = (Path(__file__).with_name("ui") / "recovery.canvas.tsx").read_text(encoding="utf-8")
     if template.count(GROK_SNAPSHOT_MARKER) != 1:
         raise ValueError("Grok Page template must contain exactly one snapshot marker.")
     # ASCII JSON also escapes JS line separators. Escape HTML delimiters even
     # though this is source code, so data cannot terminate a later script wrapper.
-    payload = json.dumps(snapshot, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
+    payload = json.dumps(pack_grok_snapshot(snapshot), ensure_ascii=True, separators=(",", ":"), allow_nan=False)
     for character, escaped in (("<", "\\u003c"), (">", "\\u003e"), ("&", "\\u0026")):
         payload = payload.replace(character, escaped)
-    source = template.replace(GROK_SNAPSHOT_MARKER, payload)
+    if template.count(GROK_INITIALIZER) != 1:
+        raise ValueError("Grok Page template has an unsupported snapshot initializer.")
+    # Complete, inert declarations can be inserted in separate native edits.
+    # Join before parsing, so a boundary may safely bisect a JSON escape sequence.
+    parts = [payload[i:i + GROK_DATA_CHARS] for i in range(0, len(payload), GROK_DATA_CHARS)]
+    names = [f"transportPart{i}" for i in range(len(parts))]
+    declarations = "\n".join(f"const {name} = {json.dumps(part, ensure_ascii=True)};"
+                             for name, part in zip(names, parts))
+    initializer = "const snapshot = decodeTransport(JSON.parse([" + ",".join(names) + "].join(\"\")));"
+    source = template.replace(GROK_INITIALIZER, declarations + "\n" + initializer)
     if len(source.encode("utf-8")) > MAX_GROK_CANVAS_BYTES:
         raise ValueError("Grok Page exceeds the workbench's 1 MiB export limit; choose a shorter date range. This is not a documented Grok host limit.")
     return source
@@ -88,12 +100,13 @@ def write_recovery_widget(db, output: Path, start: str = "", end: str = "", *, h
     with open(output, "xb", opener=lambda path, flags: os.open(path, flags, 0o600)) as file:
         file.write(encoded)
     report = snapshot["report"]
-    delivery = ("Saved native Grok Page source. Read this file and pass its entire unchanged contents to "
-                "WriteCanvas({contents: source, title: 'Sleep & recovery'}) as a private Page; "
-                "do not pass a file path or $file substitution. Verify Only you access and do not publish "
-                "or enable public sharing. The observed host has no file-to-writer binding; if copying "
-                "source inline, compare the saved source with this export. Report a blocked handoff "
-                "instead of silently rewriting the chart. File creation does not prove native compilation or display."
+    delivery = ("Saved native Grok Page source. Include --handoff-dir when exporting with "
+                "widget sleep-recovery --host grok, using new output paths, to generate bounded "
+                "WriteCanvas/EditCanvas delivery and source verification calls for a private Page. "
+                "Do not pass a file path or $file substitution to WriteCanvas. "
+                "Keep the packaged source unchanged, compare full ReadCanvas output, and verify Only you access. "
+                "Stop on a failed handoff instead of silently rewriting the chart. "
+                "File creation does not prove native compilation or display."
                 if host == "grok" else
                 "Saved HTML fragment. Present unchanged using widget.create_html_file_widget; file creation does not prove display.")
     return {"output_path": str(output), "bytes": len(encoded),

@@ -212,13 +212,21 @@ finally:
         assert widget.stat().st_size < 1_000_000
         canvas = workdir / "recovery.canvas.tsx"
         canvas_info = json.loads(run([str(cli), "--data-dir", str(archive), "widget", "sleep-recovery",
-            "--host", "grok", "--from", "2026-01-01", "--to", "2026-01-03", "--output", str(canvas)]))
+            "--host", "grok", "--from", "2026-01-01", "--to", "2026-01-03", "--output", str(canvas),
+            "--handoff-dir", str(workdir / "grok-handoff")]))
         assert canvas_info["output_path"] == str(canvas) and canvas_info["archive_provenance"]["synthetic"]
         source = canvas.read_text(encoding="utf-8")
         assert 'grok/canvas' in source and '/*__RECOVERY_SNAPSHOT__*/' not in source
-        assert '"view":"sleep_recovery"' in source and '"view":"sleep_recovery_comparison"' in source
+        assert '\\"codec_version\\":1' in source and '\\"schema_version\\":1' in source
+        assert 'const transportPart0 = ' in source and 'decodeTransport(JSON.parse([' in source
         assert 'WriteCanvas' in canvas_info["delivery"] and 'private Page' in canvas_info["delivery"]
         assert canvas_info["bytes"] == canvas.stat().st_size <= 1_048_576
+        handoff = canvas_info["handoff"]
+        assert Path(handoff["source_path"]).read_bytes() == canvas.read_bytes()
+        plan = json.loads(Path(handoff["plan_path"]).read_text(encoding="utf-8"))
+        assert len(plan["steps"]) > 2 and len(plan["verification_steps"]) > 2
+        assert all(step["reserved_arguments_json_bytes"] <= 12000
+                   for step in [*plan["steps"], *plan["verification_steps"]])
         assert mcp_results == {"comparison": comparison, "workouts": workouts}, "Installed CLI and MCP disagree"
         if args.charts:
             chart = workdir / "steps.png"

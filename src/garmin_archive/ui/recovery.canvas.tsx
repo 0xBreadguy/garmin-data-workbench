@@ -10,11 +10,35 @@ type Night = { day: string; status: string; values: Record<string, number | null
 type Coverage = { days_with_value: number; requested_days: number };
 type Period = { from: string; to: string; mean_of_available_days: number | null; coverage: Coverage; freshness: { oldest_available_fetch: string | null; newest_available_fetch: string | null } };
 type Comparison = { baseline: Period; period: Period; change: { status: string; mean_difference: number | null }; warnings: string[] };
-type Snapshot = { schema_version: number; report: { from: string; to: string; archive_provenance: { synthetic: boolean | null; freshness_meaning: string }; sleep: { nights: Night[] }; trends: Record<string, { points: (Observation & { day: string })[] }> }; comparison: { metrics: Record<string, Comparison> } | null };
+type Snapshot = { schema_version: number; report: { from: string; to: string; archive_provenance: { synthetic: boolean | null; freshness_meaning: string; [key: string]: unknown }; sleep: { nights: Night[] }; trends: Record<string, { points: (Observation & { day: string })[] }> }; comparison: { metrics: Record<string, Comparison> } | null };
 type Row = { day: string; night: Night; values: Record<Metric, Observation>; stages: number[] | null };
 type Palette = { text: string; muted: string; surface: string; border: string; accent: string; need: string; stages: string[]; selected: string };
 type LaneSpec = { metric: Metric; label: string; unit: string; height: number };
-const snapshot = /*__RECOVERY_SNAPSHOT__*/ as Snapshot;
+type TextRef = number | null;
+type PackedPeriod = [number, number, number | null, number, number, TextRef, TextRef];
+type PackedNight = [number, number, boolean, TextRef, TextRef[], (number | null)[]];
+type PackedPoint = [number, number | null, number, TextRef];
+type PackedComparison = [PackedPeriod, PackedPeriod, number, number | null, number[]];
+type PackedSnapshot = { codec_version: number; schema_version: number; strings: string[]; range: [number, number]; provenance: Snapshot["report"]["archive_provenance"]; nights: PackedNight[]; trends: PackedPoint[][]; comparison: PackedComparison[] | null };
+// Codec v1 only restores field names and repeated strings; it calculates no metrics.
+function decodeTransport(packet: PackedSnapshot): Snapshot {
+  if (packet.codec_version !== 1 || packet.schema_version !== 1) throw new Error("Unsupported recovery transport version.");
+  const text = (index: TextRef): string | null => index === null ? null : packet.strings[index];
+  const sleep = ["sleep_duration", "sleep_need", "sleep_awake", "sleep_score", "sleep_deep", "sleep_light", "sleep_rem", "sleep_unmeasurable"];
+  const trend = ["overnight_hrv", "resting_heart_rate", "body_battery_charged"];
+  const comparison = ["sleep_duration", "overnight_hrv", "resting_heart_rate", "sleep_score", "body_battery_charged"];
+  const period = (p: PackedPeriod): Period => ({ from: packet.strings[p[0]], to: packet.strings[p[1]], mean_of_available_days: p[2],
+    coverage: { days_with_value: p[3], requested_days: p[4] }, freshness: { oldest_available_fetch: text(p[5]), newest_available_fetch: text(p[6]) } });
+  return { schema_version: packet.schema_version, report: {
+    from: packet.strings[packet.range[0]], to: packet.strings[packet.range[1]], archive_provenance: packet.provenance,
+    sleep: { nights: packet.nights.map((n: PackedNight): Night => ({ day: packet.strings[n[0]], status: packet.strings[n[1]], stages_complete: n[2], fetched_at: text(n[3]),
+      timing: Object.fromEntries(["start_utc", "end_utc", "start_local", "end_local"].map((key: string, i: number) => [key, text(n[4][i])])),
+      values: Object.fromEntries(sleep.map((key: string, i: number) => [key, n[5][i]])) })) },
+    trends: Object.fromEntries(trend.map((metric: string, i: number) => [metric, { points: packet.trends[i].map((p: PackedPoint) => ({ day: packet.strings[p[0]], value: p[1], status: packet.strings[p[2]], fetched_at: text(p[3]) })) }])) },
+    comparison: packet.comparison === null ? null : { metrics: Object.fromEntries(comparison.map((metric: string, i: number) => { const c = packet.comparison![i];
+      return [metric, { baseline: period(c[0]), period: period(c[1]), change: { status: packet.strings[c[2]], mean_difference: c[3] }, warnings: c[4].map((index: number) => packet.strings[index]) }]; })) } };
+}
+const snapshot = decodeTransport(/*__RECOVERY_SNAPSHOT__*/);
 const stageKeys = ["sleep_deep", "sleep_light", "sleep_rem", "sleep_unmeasurable"];
 const stageNames = ["Deep", "Light", "REM", "Unclassified"];
 const metrics: Metric[] = ["sleep_duration", "sleep_need", "sleep_awake", "sleep_score", "overnight_hrv", "resting_heart_rate", "body_battery_charged"];

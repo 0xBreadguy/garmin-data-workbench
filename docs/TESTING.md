@@ -52,6 +52,7 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | Interactive sleep/recovery query parity, snapshots and MCP Apps resource transport | `test_recovery.py` |
 | Native widget snapshot parity, bounds, escaping and private CLI exports | `test_widgets.py` |
 | Grok TSX snapshot parity, source escaping, provenance, bounds and exclusive exports | `test_grok_widgets.py` |
+| Bounded Grok native edit plans, atomic verification, exact reconstruction and private handoff artifacts | `test_grok_handoff.py`, `test_grok_handoff_cli.py` |
 | Units and time zones | `test_preferences.py` |
 | Entry points and POSIX/PowerShell command examples | `test_platforms.py` |
 | Stdio MCP handshake and responses | `test_workbench_mcp.py` |
@@ -82,6 +83,7 @@ npm ci --prefix scripts/grok_harness
 npm exec --prefix scripts/grok_harness -- playwright install chromium
 uv run --locked python scripts/preview_grok_widget.py --output-dir /absolute/new/grok-fixtures
 node scripts/test_grok_widget.mjs --fixtures /absolute/new/grok-fixtures --output-dir /absolute/new/grok-checks
+node scripts/test_grok_transport.mjs --fixtures /absolute/new/grok-fixtures
 ```
 
 It exercises linked pointer/drag, keyboard and emulated touch selection; tabs;
@@ -91,8 +93,13 @@ middle-date gaps; independent failed refreshes and zeroes; incomplete stages;
 requests. Output includes screenshots and source hashes. It needs no HTTP server,
 credentials, personal archive or Grok connection. A controlled warning fixture
 injects flags into a synthetic snapshot without moving observations to today.
+The transport check executes the packaged decoder against an independently
+specified projection of canonical query fields, rejects unsupported versions and
+compares static rendered output with the full snapshot in both themes and all
+views. A Python test splits an actual Unicode JSON escape across an inert string
+declaration boundary and verifies the exact text survives joining and decoding.
 The shim proves neither native compilation nor mobile delivery. Follow the
-[native acceptance boundary](GROK_CHARTS.md#native-delivery-boundary) separately.
+[native acceptance boundary](GROK_CHARTS.md#bounded-native-delivery) separately.
 
 ## Dependency advisories
 
