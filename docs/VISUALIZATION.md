@@ -102,6 +102,11 @@ Lead with the measurements. Keep dates, units, denominators, legends and meaning
 
 ## Agent delivery
 
+For an explicitly requested interactive view in Grok Bot, use its [native private Page route](GROK_CHARTS.md)
+when available. It uses bounded query results and the host's supported components;
+the packaged HTML widget is not interchangeable with a Grok Page. Verify visible
+interaction separately from successful generation.
+
 Create images in a private location and deliver them through the host's supported attachment/image interface. A local path alone may not be visible to the user. If rendering or delivery is unavailable, explain the limitation and provide a concise table from `trend`. Do not substitute image-generation models for plotting actual measurements.
 
 Query results and images can reach the selected AI provider. Do not publish/upload them elsewhere without authorization. Avoid precise coordinates and routes by default; the chart command does not draw routes. Charting does not authorize syncing or reconfiguring services.

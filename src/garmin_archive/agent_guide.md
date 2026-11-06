@@ -84,6 +84,27 @@ The supported collection source is Garmin's Personal API. Do not add unofficial 
 
 For a client handoff, use `agent-guide --client muse` (or dot/codex/claude/other); it appends the same handoff as `assistant-guide --client muse`. Neither command opens the archive or configures a client.
 
+## Grok native interactive Pages (experimental)
+
+For an explicit interactive request, a Grok host with `WriteCanvas` can author a
+private native Page from bounded `sleep` and `trend` query results. Check the
+current tool contract first. The observed route uses a self-contained
+`.canvas.tsx` module with `grok/canvas` imports, embedded observations and local
+React state; it does not accept the Muse HTML/D3 export or establish MCP Apps
+support. Keep the Page owner-only and deliver its native card in the conversation.
+
+Use one selected date across charts and night details, with chart click/tap and
+keyboard controls. Preserve each field's units, missingness, coverage and fetch
+freshness; label the fixed snapshot and exact inclusive dates. Re-query for a new
+range rather than pretending the Page updates itself. Use the returned
+`stages_complete` flag; deep/light/REM/unclassified are the sleep stages, while
+awake stays separate. Preserve source-local timestamps without inventing an
+offset from the current profile. Use shared `compare`
+results for period comparisons when available. Never sync or change installations
+to render a view. Verify the actual native Page: a browser sign-in redirect or
+unavailable preview does not prove the native card failed to display. Physical
+touch, phone delivery and saved interaction state require separate tests.
+
 ## Muse native interactive widgets (experimental)
 
 When Muse's native `widget.create_html_file_widget` tool is available, export the
