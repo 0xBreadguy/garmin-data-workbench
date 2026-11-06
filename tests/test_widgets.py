@@ -9,9 +9,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from garmin_archive.brand import brand_tokens_css, get_brand
 from garmin_archive.cli import main
+from garmin_archive.mcp_apps import recovery_app_html
 from garmin_archive.queries import open_archive
 from garmin_archive.recovery import compare_sleep_recovery, get_sleep_recovery
+from garmin_archive.sleep import STAGES
 from garmin_archive.widgets import recovery_widget_html, recovery_widget_snapshot
 from test_recovery import seed
 
@@ -56,6 +59,30 @@ class WidgetTest(unittest.TestCase):
         with patch('garmin_archive.widgets.MAX_WIDGET_BYTES', 10):
             with self.assertRaisesRegex(ValueError, '1 MB'):
                 recovery_widget_html(value)
+
+    def test_both_routes_share_brand_tokens_stage_order_and_signature(self):
+        brand = get_brand()
+        stages = [stage.removeprefix('sleep_') for stage in STAGES]
+        self.assertEqual(list(brand['colors']['sleep_stages']), stages)
+        self.assertEqual(list(brand['dark_colors']['sleep_stages']), stages)
+        logo = re.findall(r'<path\b[^>]*/>', Path(brand['assets']['logo_svg']).read_text(encoding='utf-8'))
+        self.assertEqual(len(logo), 3)
+        with open_archive(self.archive) as db:
+            widget = recovery_widget_html(recovery_widget_snapshot(db, '2026-01-01', '2026-01-04'))
+        for html in (recovery_app_html(), widget):
+            self.assertIn(brand_tokens_css(), html)
+            for path in logo:
+                self.assertIn(path, html)
+            self.assertIn(repr(stages), html.replace('"', "'"))
+            self.assertIn("['Deep', 'REM', 'Light', 'Unclassified']", html)
+
+    def test_interactive_ui_colors_come_from_brand_tokens(self):
+        ui = Path(__file__).parents[1] / 'src' / 'garmin_archive' / 'ui'
+        hex_color = r'#[0-9a-fA-F]{3,8}\b'
+        css = (ui / 'recovery.css').read_text(encoding='utf-8')
+        # White text on brand fills and the logo plate, plus the shared focus ring, are the only literals.
+        self.assertLessEqual(set(re.findall(hex_color, css)), {'#fff', '#438dff'})
+        self.assertEqual(re.findall(hex_color, (ui / 'recovery.js').read_text(encoding='utf-8')), [])
 
     def test_cli_private_export_no_overwrite_no_sync(self):
         before = {p.name: p.read_bytes() for p in self.archive.iterdir() if p.is_file()}

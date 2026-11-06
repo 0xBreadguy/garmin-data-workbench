@@ -44,14 +44,14 @@ def recovery_widget_html(snapshot: dict) -> str:
                         "The loaded dates are split into earlier and later periods. Ask Muse for other dates.")
     body = body.replace("Reads your local archive; loading dates never starts a Garmin sync.",
                         "Saved archive snapshot. Ask Muse to load another date range; this widget never syncs.")
-    body = body.replace('<button type="button" class="control" id="ask-night" disabled>Ask about this night</button>', "")
+    body = re.sub(r'<button\b[^>]*\bid="ask-night".*?</button>', "", body, flags=re.S)
     payload = json.dumps(snapshot, ensure_ascii=True, separators=(",", ":"), allow_nan=False).replace("<", "\\u003c")
     bootstrap = '<script type="application/json" id="recovery-snapshot">' + payload + '</script>'
-    theme = """<style>:root{--background:var(--hatch-widget-bg,light-dark(#fff,#101114));
---foreground:var(--hatch-widget-text,light-dark(#152b4b,#edf2fa));
---muted-foreground:var(--hatch-widget-muted,light-dark(#526079,#a4adbc));
---secondary:var(--hatch-widget-surface,light-dark(#eff3f8,#1c2028));
---border:var(--hatch-widget-border,light-dark(#dce2ec,#313743));
+    theme = """<style>:root{--background:var(--hatch-widget-bg,var(--brand-background));
+--foreground:var(--hatch-widget-text,var(--brand-ink));
+--muted-foreground:var(--hatch-widget-muted,var(--brand-secondary));
+--secondary:var(--hatch-widget-surface,var(--brand-tint));
+--border:var(--hatch-widget-border,var(--brand-rule));
 --ring:var(--hatch-widget-focus,#438dff)}
 #demo{width:100%;max-width:880px;margin:auto;overflow-wrap:anywhere;padding:4px}
 </style>"""

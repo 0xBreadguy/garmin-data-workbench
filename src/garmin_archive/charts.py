@@ -186,7 +186,7 @@ def build_trend_figure(result: dict, *, synthetic: bool = False, layout: str = "
         needs = [n["values"].get("sleep_need") for n in sleep_report["nights"]]
         ax.set_ylim(0, max(max(available + [v / 60 for v in needs if v is not None], default=0) * 1.2, 1))
         stage_labels = ("Deep", "REM", "Light", "Unclassified")
-        stage_colors = (colors["ink"], colors["primary"], "#8EB5ED", "#D3DFEF")
+        stage_colors = tuple(colors["sleep_stages"][stage.removeprefix("sleep_")] for stage in STAGES)
         indices = [i for i, night in enumerate(sleep_report["nights"]) if night["stages_complete"]]
         bottom = [0.] * len(indices)
         for stage, label, color in zip(STAGES, stage_labels, stage_colors):
