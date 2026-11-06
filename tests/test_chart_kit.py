@@ -87,7 +87,8 @@ class ChartKitTests(unittest.TestCase):
         muse = (UI / "starter.html").read_text()
         self.assertNotRegex(muse, r'<(?:form|iframe)\b|(?:src|href)=[\"\']https?://|\bfetch\(')
         for name in ("starter.canvas.tsx", "starter.html"):
-            content = (UI / name).read_bytes()
+            # Match the exporter's UTF-8/universal-newline read, independent of Git's CRLF checkout setting.
+            content = (UI / name).read_text(encoding="utf-8").encode("utf-8")
             self.assertLessEqual(len(content), 14_600, name)
             self.assertLessEqual(len(content.splitlines()), 250, name)
         for name, limit in (("src/garmin_archive/ui/chart_rules.md", 100), ("tests/test_chart_kit.py", 120),

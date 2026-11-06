@@ -67,6 +67,7 @@ class GrokHandoffCliTest(unittest.TestCase):
         with patch("garmin_archive.grok_handoff.write_handoff", side_effect=OSError("injected write failure")):
             code, out, err = self.invoke(output, self.root / "handoff")
         self.assertEqual((code, out), (1, ""))
-        self.assertEqual(json.loads(err)["error"]["code"], "handoff_error")
-        self.assertIn(str(output), err)
+        error = json.loads(err)["error"]
+        self.assertEqual(error["code"], "handoff_error")
+        self.assertIn(str(output), error["message"])
         self.assertTrue(output.exists())
