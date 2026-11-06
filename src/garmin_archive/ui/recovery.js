@@ -43,6 +43,9 @@
   const STATUS_GLYPHS = {error:'×', empty:'□', not_checked:'|', metric_not_returned:'◇', response_missing:'+'};
   const marks = new Map();
   let data = [], report = null, selected = 0, windowSize = 0, tab = 'trends';
+  // A mouse hover previews a night without selecting it; a press or drag selects.
+  let preview = null;
+  const shownIndex = () => preview ?? selected;
   let initialized = false, capabilities = {}, requestId = 0, loadEpoch = 0, compareEpoch = 0;
   const snapshotNode = document.getElementById('recovery-snapshot');
   let nativeStateReady = false, restoringState = false, lastState = '';
@@ -73,7 +76,7 @@
     const index = data.findIndex(d => d.date === state.selectedDate);
     if (index < 0) return;
     restoringState = true;
-    selected = index; setWindow(state.window); showTab(state.tab);
+    selected = index; preview = null; setWindow(state.window); showTab(state.tab);
     lastState = JSON.stringify(currentState()); restoringState = false;
   }
   const pending = new Map();
@@ -163,6 +166,7 @@
   }
   function acceptReport(value) {
     const oldDate = data[selected]?.date;
+    preview = null;
     const parsed = parseReport(value);
     report = value; data = parsed; selected = Math.max(0,data.findIndex(d => d.date === oldDate));
     if (!oldDate) selected = data.length - 1;
@@ -209,15 +213,15 @@
   // Nearest visible night to a pointer; single-night windows have nothing to interpolate.
   function bindScrub(svg, node, x0, x1) {
     const visible = visibleData();
-    const pick = e => {
+    const nearest = e => {
       const px = e.clientX-node.getBoundingClientRect().left;
       const i = visible.length === 1 ? 0 : Math.max(0,Math.min(visible.length-1,Math.round((px-x0)/((x1-x0)/(visible.length-1)))));
-      selectDay(visible[i].i,false);
+      return visible[i].i;
     };
     // Stops a mouse drag from selecting the text around the chart.
     svg.on('mousedown', e => e.preventDefault())
-      .on('pointerdown', function(e) { this.setPointerCapture(e.pointerId); pick(e); })
-      .on('pointermove', e => { if (e.buttons || e.pointerType === 'mouse') pick(e); });
+      .on('pointerdown', function(e) { this.setPointerCapture(e.pointerId); selectDay(nearest(e),false); })
+      .on('pointermove', e => { if (e.buttons) selectDay(nearest(e),false); else if (e.pointerType === 'mouse') previewDay(nearest(e)); });
   }
   const roundedTop = (x,y,w,h,r) => `M${x},${y+h}V${y+r}Q${x},${y} ${x+r},${y}H${x+w-r}Q${x+w},${y} ${x+w},${y+r}V${y+h}Z`;
   function drawLane(p) {
@@ -291,7 +295,7 @@
     requestAnimationFrame(() => { band.classed('sel-move',true); guide.classed('sel-move',true); dot?.classed('sel-move',true); });
   }
   function markLane(key) {
-    const m = marks.get(key), d = data[selected]; if (!m || !d) return;
+    const m = marks.get(key), d = data[shownIndex()]; if (!m || !d) return;
     const x = m.x(d.i), shown = x != null;
     [m.band,m.guide].forEach(g => { g.style('display',shown ? null : 'none'); if (shown) g.style('transform',`translate(${x}px,0)`); });
     if (m.dot) {
@@ -301,7 +305,7 @@
     }
   }
   function placeScrub() {
-    const w = $('#lanes').clientWidth, d = data[selected];
+    const w = $('#lanes').clientWidth, d = data[shownIndex()];
     $('#scrub').hidden = windowSize < 2;
     if (!w || !d || windowSize < 2) return;
     const x = plotScale(w)(d.i); if (x == null) return;
@@ -328,7 +332,7 @@
     markHero();
   }
   function markHero() {
-    const d = data[selected]; if (!heroMark || !d) return;
+    const d = data[shownIndex()]; if (!heroMark || !d) return;
     const x = heroMark.x(d.i), shown = x != null && finite(d.minutes);
     heroMark.dot.style('display',shown ? null : 'none');
     if (shown) heroMark.dot.attr('cx',x).attr('cy',heroMark.y(d.minutes));
@@ -336,11 +340,11 @@
   const drawCharts = () => { marks.clear(); panels.forEach(drawLane); placeScrub(); };
   function updateSelection(announce=false) {
     if (!data.length) return;
-    const d = data[selected];
+    const d = data[shownIndex()];
     const heading = $('#selected-date'); heading.textContent = dateLabel(d.date); heading.dataset.date = d.date;
     $('#hero-sleep').textContent = fmt(d,'minutes'); $('#hero-sleep').classList.toggle('is-missing',d.minutes == null);
     $('#hero-need').textContent = fmt(d,'need');
-    $('#day-range').value = selected;
+    $('#day-range').value = shownIndex();
     $('#day-range').setAttribute('aria-valuetext',`${dateLabel(d.date)}, sleep ${fmt(d,'minutes')}, HRV ${fmt(d,'hrv')}`);
     panels.forEach(p => { $(`#value-${p.key}`).textContent = fmt(d,p.key); markLane(p.key); });
     placeScrub(); markHero();
@@ -351,14 +355,21 @@
   }
   function selectDay(index, announce=true) {
     if (!data.length || !Number.isInteger(index)) return;
-    const next = Math.max(0,Math.min(data.length-1,index));
-    if (next === selected && !announce) return;
+    const next = Math.max(0,Math.min(data.length-1,index)), hadPreview = preview != null;
+    preview = null;
+    if (next === selected && !announce && !hadPreview) return;
     selected = next;
     if (selected < data.length-windowSize) setWindow('all');
     updateSelection(announce); if (tab === 'night') renderNight();
     persistState();
   }
+  function previewDay(index) {
+    if (index === preview) return;
+    preview = index;
+    updateSelection(); if (tab === 'night') renderNight();
+  }
   function setWindow(value) {
+    preview = null;
     windowSize = value === '7' ? Math.min(7,data.length) : data.length;
     selected = Math.max(data.length-windowSize,selected); $('#day-range').min = data.length-windowSize;
     $$('[data-window]').forEach(b => b.setAttribute('aria-pressed',b.dataset.window === value));
@@ -374,15 +385,16 @@
     drawCharts(); drawHero(); updateSelection(); persistState();
   }
   function renderNight() {
-    const d = data[selected], active = document.activeElement;
+    const d = data[shownIndex()], active = document.activeElement;
     const refocus = active?.hasAttribute?.('data-prev') ? '[data-prev]' : active?.hasAttribute?.('data-next') ? '[data-next]' : active?.id === 'night-picker' ? '#night-picker' : null;
-    $('#night').innerHTML = `<div class="stepper"><button type="button" class="control" data-prev aria-label="Previous night" ${selected === 0 ? 'disabled' : ''}>←</button><label for="night-picker" class="sr">Associated night date</label><span class="select-wrap"><select class="night-select" id="night-picker">${data.map(v => `<option value="${v.i}" ${v.i === selected ? 'selected' : ''}>${dateLabel(v.date)}</option>`).join('')}</select></span><button type="button" class="control" data-next aria-label="Next night" ${selected === data.length-1 ? 'disabled' : ''}>→</button></div><h3>Sleep composition</h3>${stagesHTML(d)}<p class="help">Awake: ${fmt(d,'awake')}, reported separately from total sleep. Garmin need is an estimate, not a prescribed target.</p><div class="detail-grid">${[
+    $('#night').innerHTML = `<div class="stepper"><button type="button" class="control" data-prev aria-label="Previous night" ${selected === 0 ? 'disabled' : ''}>←</button><label for="night-picker" class="sr">Associated night date</label><span class="select-wrap"><select class="night-select" id="night-picker">${data.map(v => `<option value="${v.i}" ${v.i === d.i ? 'selected' : ''}>${dateLabel(v.date)}</option>`).join('')}</select></span><button type="button" class="control" data-next aria-label="Next night" ${selected === data.length-1 ? 'disabled' : ''}>→</button></div><h3>Sleep composition</h3>${stagesHTML(d)}<p class="help">Awake: ${fmt(d,'awake')}, reported separately from total sleep. Garmin need is an estimate, not a prescribed target.</p><div class="detail-grid">${[
       ['Overnight HRV','hrv','Nightly observation; no personal baseline inferred'],['Resting heart rate','rhr','Daily observation, not the overnight minimum'],['Sleep score','score','Garmin assessment'],['Body Battery charged','charge','Daily charge, not attributed solely to sleep']
     ].map(([name,key,note]) => `<div class="detail-item"><div class="stat-label">${name}</div><div class="stat-value num">${fmt(d,key)}</div><p class="small">${d[key] == null ? escape(statusName(d.statuses[key])) : note}</p></div>`).join('')}</div><p class="notes">${escape(notes(d))}</p><details class="freshness"><summary>Source sleep window</summary>${Object.entries(d.timing || {}).map(([k,v]) => `<p>${escape(k.replaceAll('_',' '))}: ${escape(v || 'not returned')}</p>`).join('')}<p>Wall times without an offset have an unspecified historical zone.</p></details>`;
     $('#night-picker').addEventListener('change', e => selectDay(Number(e.target.value)));
     if (refocus) (($(refocus)?.disabled ? $('#night-picker') : $(refocus)) || $('#night-picker')).focus();
   }
   function showTab(next) {
+    preview = null;
     tab = next; $$('.view').forEach(e => e.hidden = e.id !== next);
     root.dataset.view = next; $('#hero').hidden = next === 'compare';
     $$('[data-tab]').forEach(b => { b.setAttribute('aria-selected',b.dataset.tab === next); b.tabIndex = b.dataset.tab === next ? 0 : -1; });
@@ -456,6 +468,10 @@
     } catch (e) { $('#ask-status').textContent = e.message; }
     finally { $('#ask-night').disabled = false; }
   });
+  // Crossing between charts keeps the preview; leaving them restores the selected night.
+  const endPreview = e => { if (e.pointerType === 'mouse') previewDay(null); };
+  $('#lanes').addEventListener('pointerleave',endPreview);
+  $('#hero-line').addEventListener('pointerleave',endPreview);
   new ResizeObserver(() => { if (tab === 'trends') drawCharts(); }).observe($('#lanes'));
   new ResizeObserver(() => drawHero()).observe($('#hero'));
   let lastHeight = 0;

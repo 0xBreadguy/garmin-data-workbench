@@ -33,6 +33,10 @@ try{
  select(11);assert('linked day selection',$('#selected-date').dataset.date==='2026-04-28');
  const svg=$('.lane svg'),bounds=svg.getBoundingClientRect();svg.dispatchEvent(new frame.contentWindow.PointerEvent('pointermove',{clientX:bounds.left+1,pointerType:'touch',buttons:1,bubbles:true}));
  assert('touch movement after redraw',$('#selected-date').dataset.date==='2026-04-17');
+ const hoverStart=$('#selected-date').dataset.date;svg.dispatchEvent(new frame.contentWindow.PointerEvent('pointermove',{clientX:bounds.right-1,pointerType:'mouse',buttons:0,bubbles:true}));
+ assert('mouse hover previews without selecting',$('#selected-date').dataset.date==='2026-04-30'&&true);
+ $('#lanes').dispatchEvent(new frame.contentWindow.PointerEvent('pointerleave',{pointerType:'mouse'}));
+ assert('leaving the charts restores the selected night',$('#selected-date').dataset.date===hoverStart);
  click('[data-window="7"]');assert('last-seven window bounds',Number($('#day-range').min)===7);
  click('#inspect-night');assert('night drill-down',!$('#night').hidden&&$('#night').textContent.includes('Unclassified'));
  click('#ask-night');await until(()=>messages.length===1);
