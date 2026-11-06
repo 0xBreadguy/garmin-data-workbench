@@ -50,7 +50,7 @@ button:disabled{cursor:default;opacity:.5}
 .segmented .control[aria-pressed=true]{background:var(--brand-primary-fill);color:#fff}
 
 /* Hero: the logo's two overlapping bubbles, joined by this archive's own data line. */
-.hero{position:relative;isolation:isolate;margin:18px 0 6px;padding:0 22px 44px 0}
+.hero{position:relative;isolation:isolate;margin:18px 0 6px;padding:0 22px 44px 0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .bubble{border-radius:var(--bubble-radius);color:#fff}
 .bubble-front,.fill-ink{background:var(--brand-ink-fill)}
 .bubble-back,.fill-blue{background:var(--brand-primary-fill)}
@@ -90,7 +90,7 @@ button:disabled{cursor:default;opacity:.5}
 #demo .lane-head h3{font-size:14px;font-weight:650;color:var(--brand-ink)}
 .lane-sub{display:block;margin-top:1px;color:var(--muted-foreground);font-size:11px;font-weight:400}
 .lane-head .value{flex:none;color:var(--brand-ink);font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
-.lane svg{display:block;width:100%;margin-top:6px;overflow:visible;touch-action:pan-y;cursor:ew-resize}
+.lane svg{display:block;width:100%;margin-top:6px;overflow:visible;touch-action:pan-y;cursor:ew-resize;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .lane svg text{fill:var(--muted-foreground);font:11px var(--font-sans);font-variant-numeric:tabular-nums}
 .lane svg .glyph{fill:var(--brand-ink);font-size:12px;font-weight:700}
 .lane svg .no-observations{paint-order:stroke;stroke:var(--background);stroke-width:4px}
@@ -124,9 +124,11 @@ button:disabled{cursor:default;opacity:.5}
 #demo[data-view=compare] .ask-row{display:none}
 
 /* Night detail */
-.stepper{display:flex;align-items:center;gap:6px;margin:12px 0 18px}
+.stepper{display:flex;align-items:stretch;gap:6px;margin:12px 0 18px}
 .stepper .control{flex:none;width:44px;padding:8px 0;font-size:16px}
-.night-select{flex:1 1 auto;min-width:0;min-height:38px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:transparent;color:var(--brand-ink);font-weight:600;font-variant-numeric:tabular-nums}
+.select-wrap{position:relative;flex:1 1 auto;min-width:0}
+.select-wrap::after{content:"";position:absolute;top:50%;right:14px;width:7px;height:7px;margin-top:-5px;border:solid var(--brand-ink);border-width:0 2px 2px 0;transform:rotate(45deg);pointer-events:none}
+.night-select{-webkit-appearance:none;appearance:none;display:block;width:100%;height:100%;min-height:38px;padding:8px 32px 8px 12px;border:1px solid var(--border);border-radius:10px;background:transparent;color:var(--brand-ink);font-weight:600;font-variant-numeric:tabular-nums}
 #demo #night h3{font-size:14px;font-weight:650;color:var(--brand-ink)}
 .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin-top:12px}
 .detail-item{min-width:0;padding:12px 0;border-top:1px solid var(--border)}
@@ -184,5 +186,6 @@ input[type=date]{min-width:0;max-width:100%;min-height:40px;padding:6px;border:1
   .comparison td:last-child{white-space:nowrap}
 }
 @media(max-width:520px){.compare-form{grid-template-columns:1fr}.date-form label{flex:1 1 120px}.date-form button{flex:1 1 auto}input[type=date]{font-size:16px}}
-@media(pointer:coarse){.control,.tab,.night-select{min-height:44px}.segmented .control{min-height:38px}.scrubber{height:44px}}
+/* iOS zooms the page when a control under 16px takes focus. */
+@media(pointer:coarse){.control,.tab,.night-select{min-height:44px}.segmented .control{min-height:38px}.scrubber{height:44px}.night-select{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.sel-move,.scrub-bubble,.scrub-tail{transition:none}}

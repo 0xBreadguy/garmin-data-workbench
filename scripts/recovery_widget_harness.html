@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}iframe{width:100%;height:1250px;border:0;display:block}#checks{font:12px system-ui}</style></head><body><p id="checks">Synthetic widget harness · checking…</p><iframe id="app" title="Native widget test"></iframe><script>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}iframe{width:100%;height:1250px;border:0;display:block}#checks{font:12px system-ui}</style></head><body><p id="checks">Synthetic widget harness · checking…</p><iframe id="app" title="Native widget test"></iframe><script>
 (async()=>{
 const html=__APP_JSON__,frame=document.getElementById('app'),checks=[];let calls=0,writes=0,saved;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -16,10 +16,18 @@ assert('brand signature uses the authored logo',$('.signature svg').querySelecto
 assert('tab selectors reach only tab buttons',[...doc.querySelectorAll('[data-tab]')].every(e=>e.getAttribute('role')==='tab'));
 select(11);assert('linked selection saved',saved.selectedDate==='2026-04-28'&&$('#selected-date').dataset.date===saved.selectedDate);
 assert('hero and scrubber follow selection',$('#hero-sleep').textContent===$('#value-minutes').textContent&&$('#scrub-bubble').textContent==='Apr 28');
-const svg=$('.lane svg'),bounds=svg.getBoundingClientRect();svg.dispatchEvent(new frame.contentWindow.PointerEvent('pointermove',{clientX:bounds.left+1,pointerType:'touch',buttons:1,bubbles:true}));
+select(12);const older={...saved};select(13);
+frame.contentWindow.dispatchEvent(new frame.contentWindow.CustomEvent('hatch-widget-state',{detail:{state:older}}));
+assert('late echo of own write keeps the newer selection',saved.selectedDate==='2026-04-30'&&$('#selected-date').dataset.date==='2026-04-30');
+const slider=$('#day-range');slider.value=5;slider.dispatchEvent(new frame.contentWindow.Event('change',{bubbles:true}));
+assert('slider change event selects a night',$('#selected-date').dataset.date==='2026-04-22');
+const svg=$('.lane svg'),bounds=svg.getBoundingClientRect();
+const press=new frame.contentWindow.MouseEvent('mousedown',{bubbles:true,cancelable:true});svg.dispatchEvent(press);
+assert('dragging a chart cannot select text',press.defaultPrevented);svg.dispatchEvent(new frame.contentWindow.PointerEvent('pointermove',{clientX:bounds.left+1,pointerType:'touch',buttons:1,bubbles:true}));
 assert('touch selection saved',saved.selectedDate==='2026-04-17');
 click('[data-window="7"]');assert('window and clamped date saved',saved.window==='7'&&saved.selectedDate==='2026-04-24');
 click('#inspect-night');assert('night detail saved',saved.tab==='night'&&!$('#night').hidden);
+assert('night picker matches its buttons',Math.abs($('#night-picker').getBoundingClientRect().height-$('[data-next]').getBoundingClientRect().height)<=1);
 click('[data-prev]');assert('earlier night expands window',saved.window==='all'&&saved.selectedDate==='2026-04-23');
 click('[data-tab="compare"]');assert('canonical snapshot comparison',$('#comparison-result tbody').children.length===5&&$('#comparison-result').textContent.includes('Apr 24–30, 2026'));
 const writesBefore=writes;

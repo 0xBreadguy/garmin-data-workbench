@@ -46,6 +46,10 @@
   let initialized = false, capabilities = {}, requestId = 0, loadEpoch = 0, compareEpoch = 0;
   const snapshotNode = document.getElementById('recovery-snapshot');
   let nativeStateReady = false, restoringState = false, lastState = '';
+  // A host may echo this widget's own writes late; replaying one would pull a drag backward.
+  const ECHO_WINDOW_MS = 5000, recentWrites = new Map();
+  const stateKey = s => [s.from,s.to,s.selectedDate,s.tab,s.window].join('|');
+  const isOwnEcho = s => Date.now()-(recentWrites.get(stateKey(s)) ?? -Infinity) < ECHO_WINDOW_MS;
   function currentState() {
     return {version:1, from:report.from, to:report.to, selectedDate:data[selected].date,
       tab, window:windowSize === data.length ? 'all' : '7'};
@@ -55,6 +59,8 @@
     const state = currentState(), encoded = JSON.stringify(state);
     if (encoded === lastState) return;
     lastState = encoded;
+    recentWrites.forEach((at,key) => { if (Date.now()-at >= ECHO_WINDOW_MS) recentWrites.delete(key); });
+    recentWrites.set(stateKey(state),Date.now());
     try {
       Promise.resolve(window.hatchWidget.setState(state)).catch(() => {
         $('#ask-status').textContent = 'Selection could not be saved. You can still explore this snapshot.';
@@ -208,7 +214,9 @@
       const i = visible.length === 1 ? 0 : Math.max(0,Math.min(visible.length-1,Math.round((px-x0)/((x1-x0)/(visible.length-1)))));
       selectDay(visible[i].i,false);
     };
-    svg.on('pointerdown', function(e) { this.setPointerCapture(e.pointerId); pick(e); })
+    // Stops a mouse drag from selecting the text around the chart.
+    svg.on('mousedown', e => e.preventDefault())
+      .on('pointerdown', function(e) { this.setPointerCapture(e.pointerId); pick(e); })
       .on('pointermove', e => { if (e.buttons || e.pointerType === 'mouse') pick(e); });
   }
   const roundedTop = (x,y,w,h,r) => `M${x},${y+h}V${y+r}Q${x},${y} ${x+r},${y}H${x+w-r}Q${x+w},${y} ${x+w},${y+r}V${y+h}Z`;
@@ -368,7 +376,7 @@
   function renderNight() {
     const d = data[selected], active = document.activeElement;
     const refocus = active?.hasAttribute?.('data-prev') ? '[data-prev]' : active?.hasAttribute?.('data-next') ? '[data-next]' : active?.id === 'night-picker' ? '#night-picker' : null;
-    $('#night').innerHTML = `<div class="stepper"><button type="button" class="control" data-prev aria-label="Previous night" ${selected === 0 ? 'disabled' : ''}>←</button><label for="night-picker" class="sr">Associated night date</label><select class="night-select" id="night-picker">${data.map(v => `<option value="${v.i}" ${v.i === selected ? 'selected' : ''}>${dateLabel(v.date)}</option>`).join('')}</select><button type="button" class="control" data-next aria-label="Next night" ${selected === data.length-1 ? 'disabled' : ''}>→</button></div><h3>Sleep composition</h3>${stagesHTML(d)}<p class="help">Awake: ${fmt(d,'awake')}, reported separately from total sleep. Garmin need is an estimate, not a prescribed target.</p><div class="detail-grid">${[
+    $('#night').innerHTML = `<div class="stepper"><button type="button" class="control" data-prev aria-label="Previous night" ${selected === 0 ? 'disabled' : ''}>←</button><label for="night-picker" class="sr">Associated night date</label><span class="select-wrap"><select class="night-select" id="night-picker">${data.map(v => `<option value="${v.i}" ${v.i === selected ? 'selected' : ''}>${dateLabel(v.date)}</option>`).join('')}</select></span><button type="button" class="control" data-next aria-label="Next night" ${selected === data.length-1 ? 'disabled' : ''}>→</button></div><h3>Sleep composition</h3>${stagesHTML(d)}<p class="help">Awake: ${fmt(d,'awake')}, reported separately from total sleep. Garmin need is an estimate, not a prescribed target.</p><div class="detail-grid">${[
       ['Overnight HRV','hrv','Nightly observation; no personal baseline inferred'],['Resting heart rate','rhr','Daily observation, not the overnight minimum'],['Sleep score','score','Garmin assessment'],['Body Battery charged','charge','Daily charge, not attributed solely to sleep']
     ].map(([name,key,note]) => `<div class="detail-item"><div class="stat-label">${name}</div><div class="stat-value num">${fmt(d,key)}</div><p class="small">${d[key] == null ? escape(statusName(d.statuses[key])) : note}</p></div>`).join('')}</div><p class="notes">${escape(notes(d))}</p><details class="freshness"><summary>Source sleep window</summary>${Object.entries(d.timing || {}).map(([k,v]) => `<p>${escape(k.replaceAll('_',' '))}: ${escape(v || 'not returned')}</p>`).join('')}<p>Wall times without an offset have an unspecified historical zone.</p></details>`;
     $('#night-picker').addEventListener('change', e => selectDay(Number(e.target.value)));
@@ -434,6 +442,8 @@
   $('#range-form')?.addEventListener('submit',loadRange);
   $('#compare-form')?.addEventListener('submit',loadComparison);
   $('#day-range').addEventListener('input',e => selectDay(Number(e.target.value)));
+  // Assistive technology can change a range input without firing input.
+  $('#day-range').addEventListener('change',e => { if (Number(e.target.value) !== selected) selectDay(Number(e.target.value)); });
   $('#inspect-night').addEventListener('click',() => { showTab('night'); $('#tab-night').focus(); });
   $('#ask-night')?.addEventListener('click',async () => {
     if (!data.length || !capabilities.message) return;
@@ -467,7 +477,7 @@
           let receivedState;
           window.addEventListener('hatch-widget-state', event => {
             receivedState = event.detail?.state;
-            if (nativeStateReady) restoreState(receivedState);
+            if (nativeStateReady && receivedState && !isOwnEcho(receivedState)) restoreState(receivedState);
           });
           try {
             const saved = await window.hatchWidget.getState(currentState());
