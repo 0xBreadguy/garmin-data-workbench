@@ -41,7 +41,7 @@ class MCPTest(unittest.IsolatedAsyncioTestCase):
                     self.assertIn("using Garmin profile preferences", initialized.instructions)
                     tools = await client.list_tools()
                     self.assertEqual({t.name for t in tools.tools},
-                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync", "get_sleep", "agent_guide", "setup_receipt", "get_body_battery", "api_catalog", "source_data", "source_series", "chart", "brand", "compare_periods", "get_workout_summary"})
+                                     {"archive_status", "list_activities", "daily_health", "activity_records", "get_day", "get_trend", "setup_status", "configure_sync", "get_sleep", "agent_guide", "setup_receipt", "get_body_battery", "api_catalog", "source_data", "source_series", "chart", "brand", "compare_periods", "get_workout_summary", "explore_sleep_recovery", "compare_sleep_recovery"})
                     self.assertTrue(all(t.annotations.readOnlyHint for t in tools.tools if t.name != 'configure_sync'))
                     self.assertFalse(next(t for t in tools.tools if t.name == 'configure_sync').annotations.readOnlyHint)
                     async def call(name, args):

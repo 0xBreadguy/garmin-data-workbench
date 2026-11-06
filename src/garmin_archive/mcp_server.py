@@ -27,6 +27,8 @@ from .sleep import get_sleep as query_sleep
 from .body_battery import get_body_battery as query_body_battery
 from .comparisons import compare_periods as query_comparison
 from .workouts import get_workout_summary as query_workouts, list_activities as query_activities
+from .recovery import get_sleep_recovery as query_recovery, compare_sleep_recovery as query_recovery_comparison
+from .mcp_apps import APP_META, APP_MIME, RECOVERY_URI, recovery_app_html
 from .guidance import agent_guide as read_agent_guide
 from .schedule import configure_schedule, schedule_status
 
@@ -50,6 +52,43 @@ def create_server(data_dir: Path) -> FastMCP:
                       "Responses may be sent to your AI provider. Read agent_guide for detailed sleep, chart and interpretation guidance. "
                       "A configured schedule is not verified recurring execution. " + read_agent_guide()),
     )
+
+    @server.resource(RECOVERY_URI, name="sleep_recovery_app", mime_type=APP_MIME, meta=APP_META)
+    def sleep_recovery_app() -> str:
+        """Self-contained interactive sleep/recovery UI. No archive access or network assets."""
+        return recovery_app_html()
+
+    @server.tool(annotations=READ_ONLY, meta={"ui": {"resourceUri": RECOVERY_URI}})
+    def explore_sleep_recovery(start: str = "", end: str = "") -> CallToolResult:
+        """Open an interactive sleep/recovery explorer inside an MCP Apps-capable chat.
+
+        Linked sleep stages/estimated need, HRV, resting HR, score and daily Body Battery
+        charge, night details and period comparison. 1–90 inclusive dates; default 14 days.
+        Reads the archive only, never syncs. Synthetic archives remain labeled.
+        The host displays the linked app separately from the model's text response.
+        After success, briefly state the requested dates and provenance; let the app
+        provide the detail. Missing browser/computer-use access is not evidence of
+        display failure. Do not claim either visible success or failure without evidence.
+        Use PNG/table fallback only for an explicit host error, known lack of MCP Apps,
+        or a user-reported missing app; honor requests to keep delivery interactive.
+        Do not open an external browser.
+        """
+        with open_archive(data_dir) as db:
+            result = query_recovery(db, start, end)
+        return CallToolResult(structuredContent=result,
+                              content=[TextContent(type="text", text=json.dumps(result))])
+
+    @server.tool(annotations=READ_ONLY, meta={"ui": {"visibility": ["app"]}})
+    def compare_sleep_recovery(start: str, end: str, baseline_start: str, baseline_end: str) -> CallToolResult:
+        """Compare five recovery metrics with shared units, missingness and covered means.
+
+        Explicit inclusive periods, each 1–90 days; baseline must end before start.
+        Read-only archive query; never refreshes Garmin data or changes scheduling.
+        """
+        with open_archive(data_dir) as db:
+            result = query_recovery_comparison(db, start, end, baseline_start, baseline_end)
+        return CallToolResult(structuredContent=result,
+                              content=[TextContent(type="text", text=json.dumps(result))])
 
     @server.tool(annotations=READ_ONLY)
     def chart(metric: str, start: str = "", end: str = "", layout: str = "chat") -> CallToolResult:

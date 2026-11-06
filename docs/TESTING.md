@@ -49,6 +49,8 @@ Use `uv run python -m unittest discover -s tests -p '<file>' -v`:
 | Chart semantics and branding | `test_charts.py` |
 | Versioned demo answers, DST and archive provenance | `test_demo_provenance.py` |
 | MCP image/brand resource transport and chart failures | `test_chart_delivery.py` |
+| Interactive sleep/recovery query parity, snapshots and MCP Apps resource transport | `test_recovery.py` |
+| Native widget snapshot parity, bounds, escaping and private CLI exports | `test_widgets.py` |
 | Units and time zones | `test_preferences.py` |
 | Entry points and POSIX/PowerShell command examples | `test_platforms.py` |
 | Stdio MCP handshake and responses | `test_workbench_mcp.py` |

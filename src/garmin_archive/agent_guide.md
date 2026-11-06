@@ -49,6 +49,10 @@ Use the renderer's caption/alt text when provided. It should state title, inclus
 
 For MCP, use `chart` with `metric="sleep"` or a named scalar metric. It returns PNG image content and structured caption, coverage, provenance and explanation metadata without creating a file. `brand` returns settings and asset resource URIs retrievable with MCP resources/read. Host display still needs verification.
 
+For an explicitly interactive sleep/recovery request in an MCP Apps-capable host, use `explore_sleep_recovery(start, end)`. It opens a bundled in-chat explorer with linked sleep stages/need, HRV, resting heart rate, sleep score, night details and daily Body Battery charge. Dates are inclusive and bounded to 90 days (default 14). Its comparison view uses the shared comparison queries, not frontend metric definitions. Loading dates reads the archive; it never syncs Garmin. A user's “Ask about this night” action sends a dated question to this conversation when the host supports it.
+
+The host mounts the linked UI separately from the model's text response. After a successful call, keep narration brief: for example, “Requested the explorer for April 17–30, using synthetic data.” Do not repeat the whole report or add an unsolicited rendering disclaimer. Tool success alone does not prove visible display; missing browser/computer-use access or an absent surface in those tools does not prove display failure either. Do not inspect unrelated apps merely to infer whether the chart appeared. Treat the user's report that they can see and interact with it as display evidence. Use PNG/table fallback only when the host explicitly reports an error or unsupported MCP Apps, or the user reports missing UI; respect an explicit interactive-only request. Explain confirmed limitations without taking the user to a browser or publishing health data. Preserve text-only requests and sparse-data interpretation rules. This experimental surface needs per-host acceptance testing.
+
 For CLI delivery, add `--json` to `chart` to receive the saved `output_path`, `caption`, `alt_text`, `freshness` and `explanations`. Attach that PNG and carry its caption, fetch-time meaning and relevant explanations into the answer, including sampled-level limits for Body Battery. Null fetch bounds mean no available fetch timestamp; synthetic timestamps remain simulated. File creation alone does not establish host display or MCP transport.
 
 Read `brand` before producing a custom chart. Prefer `chart sleep` for a sleep overview (stages, duration and a separate score panel), or `chart METRIC` for a single metric. Both accept `--from`, `--to`, a new `--output file.png`, and `--layout chat` (default) or `wide`. Charts require the optional charts extra. For a source install use `uv tool install --from '.[charts]' garmin-data-workbench`; this changes the installed tool, so coordinate it with the user's setup. Synthetic archive provenance automatically labels CLI and MCP images, including legacy `SYNTHETIC.txt` archives. `--synthetic` can additionally label an explicitly generated CLI example; it does not anonymize real data. Summary/native query envelopes include `archive_provenance`; unmarked means unknown, not proven real. Synthetic fetch times are fixture timestamps, not evidence of a live Garmin refresh.
@@ -79,6 +83,21 @@ Use raw `health` / `daily_health` only when a whole response is necessary. First
 The supported collection source is Garmin's Personal API. Do not add unofficial Connect authentication, Grafana collection, or an invented readiness score to fill unavailable fields. Report a missing source field explicitly.
 
 For a client handoff, use `agent-guide --client muse` (or dot/codex/claude/other); it appends the same handoff as `assistant-guide --client muse`. Neither command opens the archive or configures a client.
+
+## Muse native interactive widgets (experimental)
+
+When Muse's native `widget.create_html_file_widget` tool is available, export the
+same sleep/recovery explorer with `garmin-archive --data-dir /absolute/archive
+widget sleep-recovery --from YYYY-MM-DD --to YYYY-MM-DD --output /absolute/new.html`.
+The CLI returns JSON with the saved path. Present that file unchanged in the
+conversation with the native widget tool; do not substitute a file preview,
+external page or PNG for an interactive request. Keep widget files outside
+`workspace/your_files/` and `workspace/visual_grounding/` in Muse.
+This is a fixed 1–90 day archive snapshot, with a comparison of its earlier and
+later halves. Selection, tabs and Last 7 are interactive. Ask the CLI for a new
+export when dates change. The widget cannot sync, query the archive or send a
+message. A saved file or successful tool result does not establish visible
+delivery; follow the user's report and avoid unsupported display disclaimers.
 
 ## Finish setup honestly
 

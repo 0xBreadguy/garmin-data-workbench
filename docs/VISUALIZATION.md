@@ -30,6 +30,18 @@ Body Battery scalar charts follow the [observed-reading definitions](BODY_BATTER
 
 ## MCP chart delivery
 
+### Experimental in-chat explorer
+
+`explore_sleep_recovery(start, end)` returns the shared sleep report plus HRV, resting heart rate and daily Body Battery charge from one read snapshot. It references `ui://garmin-workbench/sleep-recovery-v1.html` with MIME type `text/html;profile=mcp-app`. An MCP Apps-capable host renders the packaged HTML inside the conversation. Ordinary MCP support alone does not establish interactive rendering support.
+
+The component provides linked day inspection, full night details, date loading, explicit two-period comparisons and an optional “Ask about this night” action through the host. The comparison action calls the app-visible `compare_sleep_recovery` tool; definitions, covered means and change calculations remain in Python's shared query layer. All four sleep stages must reconcile before stacking; zeros, missing fields and failed retained values preserve their query meanings. Source wall times are not converted using today's profile zone.
+
+The template contains no health observations. JavaScript, styles and D3 7.9.0 (ISC license included) ship in the wheel; it requests no network origins or device permissions. No server, CDN, browser navigation, live sync or scheduler is required. Results can still reach the selected AI provider and the host may retain rendered results as conversation content. Loading a date range rereads the archive, not Garmin. Default range is 14 days, maximum 90 inclusive dates. Comparisons accept two nonoverlapping periods of at most 90 days each.
+
+This is an experimental local-trial feature, not a claim of compatibility with every assistant. Verify tool/resource discovery, the host's `ui/initialize` handshake, initial display, touch/keyboard inspection, in-frame tool calls and conversation follow-up separately. Hosts without MCP Apps retain the structured result and existing PNG/table fallback. Do not open an external page as a substitute for an in-chat request. See [the local trial guide](INTERACTIVE_CHARTS.md).
+
+### PNG delivery
+
 The read-only `chart` tool accepts `metric` (`sleep` or any trend metric), `start`, `end` and `layout` (`chat`/`wide`). Dates are inclusive and bounded to 90 days. It returns a PNG as MCP image content plus identical JSON in structured content and a text block: contract version, title/metric, dates, rendered units, layout, per-series denominators/status counts, available-value fetch timestamps, synthetic provenance, caption/alt text and explanations. Sleep duration, score and need retain independent coverage.
 
 Rendering happens in memory; the tool accepts no filesystem output path and creates no chart file. Images are bounded to 1600 × 4096 pixels and 4 MiB. The CLI remains the file-export fallback. Missing plotting dependencies return `dependency_unavailable` with no image; invalid metrics, dates/layouts or archive errors are tool failures. Use query values for a small table if delivery is unavailable. A returned image does not prove a host displayed it to the person; run the host acceptance check.

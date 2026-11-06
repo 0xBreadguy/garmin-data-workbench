@@ -28,7 +28,15 @@ async def check_mcp(executable: Path, archive: Path, workdir: Path, env: dict[st
         async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as client:
             await client.initialize()
             tools = await client.list_tools()
-            assert {"archive_status", "get_day", "chart", "brand"}.issubset({tool.name for tool in tools.tools})
+            assert {"archive_status", "get_day", "chart", "brand", "explore_sleep_recovery"}.issubset({tool.name for tool in tools.tools})
+            recovery_ui = await client.read_resource('ui://garmin-workbench/sleep-recovery-v1.html')
+            assert recovery_ui.contents[0].mimeType == 'text/html;profile=mcp-app'
+            assert 'ui/initialize' in recovery_ui.contents[0].text
+            assert '/*__' not in recovery_ui.contents[0].text
+            recovery = await client.call_tool('explore_sleep_recovery', {'start': '2026-01-01', 'end': '2026-01-03'})
+            assert not recovery.isError
+            assert recovery.structuredContent['archive_provenance']['synthetic'] is True
+            assert recovery.structuredContent['sleep']['nights'][0]['values']['sleep_need'] == 500
             branding = await client.call_tool('brand', {})
             assert not branding.isError
             resource = await client.read_resource('garmin-brand://assets/icon_png')
@@ -194,6 +202,14 @@ finally:
         activities = json.loads(run([str(cli), "--data-dir", str(archive), "activities", "--from", "2026-01-01", "--to", "2026-01-02", "--type", "running"]))
         assert [row["activity_id"] for row in activities] == [42], activities
         mcp_results = asyncio.run(asyncio.wait_for(check_mcp(mcp, archive, workdir, env, args.charts), timeout=30))
+        widget = workdir / "recovery.html"
+        widget_info = json.loads(run([str(cli), "--data-dir", str(archive), "widget", "sleep-recovery",
+            "--from", "2026-01-01", "--to", "2026-01-03", "--output", str(widget)]))
+        assert widget_info["output_path"] == str(widget) and widget_info["archive_provenance"]["synthetic"]
+        fragment = widget.read_text(encoding="utf-8")
+        assert 'id="recovery-snapshot"' in fragment and 'window.hatchWidget' in fragment
+        assert '<form' not in fragment and '/*__' not in fragment
+        assert widget.stat().st_size < 1_000_000
         assert mcp_results == {"comparison": comparison, "workouts": workouts}, "Installed CLI and MCP disagree"
         if args.charts:
             chart = workdir / "steps.png"

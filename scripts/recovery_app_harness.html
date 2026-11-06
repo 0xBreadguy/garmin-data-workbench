@@ -1,0 +1,58 @@
+<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}iframe{width:100%;height:1200px;border:0;display:block}#checks{font:12px system-ui;color:var(--muted-foreground);margin:6px 0}</style></head><body><p id="checks">Synthetic browser harness · checking interactions…</p><iframe id="app" title="Sleep and recovery test app"></iframe><script>
+(async()=>{
+const payloads=__PAYLOADS__,comparison=__COMPARISON__,frame=document.getElementById('app');
+const checks=[],calls=[],messages=[];let waiting=true,ready=false;
+const initial=payloads['2026-04-17|2026-04-30'];
+const reply=(id,result)=>frame.contentWindow.postMessage({jsonrpc:'2.0',id,result},'*');
+const notify=(method,params)=>frame.contentWindow.postMessage({jsonrpc:'2.0',method,params},'*');
+window.addEventListener('message',e=>{
+ if(e.source!==frame.contentWindow||e.data?.jsonrpc!=='2.0')return;
+ const {id,method,params}=e.data;
+ if(method==='ui/initialize')reply(id,{protocolVersion:'2026-01-26',hostInfo:{name:'offline-test-host',version:'1'},hostCapabilities:{serverTools:{},message:{text:{}}},hostContext:{theme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}});
+ else if(method==='ui/notifications/initialized'){ready=true;notify('ui/notifications/tool-result',{structuredContent:initial,content:[]});}
+ else if(method==='ui/notifications/size-changed')frame.style.height=params.height+'px';
+ else if(method==='tools/call'){
+  calls.push(params);let value;
+  if(params.name==='explore_sleep_recovery')value=payloads[params.arguments.start+'|'+params.arguments.end];
+  if(params.name==='compare_sleep_recovery'&&params.arguments.start==='2026-04-24'&&params.arguments.end==='2026-04-30'&&params.arguments.baseline_start==='2026-04-17'&&params.arguments.baseline_end==='2026-04-23')value=comparison;
+  reply(id,value?{structuredContent:value,content:[]}:{isError:true,content:[{type:'text',text:'Invalid or unavailable test range'}]});
+ }else if(method==='ui/message'){messages.push(params);reply(id,{});}
+});
+frame.srcdoc=__APP_JSON__;
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const until=async(fn)=>{for(let i=0;i<150;i++){if(fn())return;await wait(10);}throw Error('Timed out waiting for app');};
+const assert=(name,pass)=>{checks.push({name,pass:!!pass});if(!pass)throw Error(name);};
+try{
+ await until(()=>ready&&!frame.contentDocument.getElementById('workspace').hidden);
+ const doc=frame.contentDocument,$=s=>doc.querySelector(s),click=s=>$(s).click();
+ const select=i=>{const e=$('#day-range');e.value=i;e.dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));};
+ const load=async(start,end)=>{$('#range-from').value=start;$('#range-to').value=end;$('#range-form').dispatchEvent(new frame.contentWindow.Event('submit',{bubbles:true,cancelable:true}));await until(()=>!$('#workspace').hidden||!$('#error').hidden);};
+ assert('real shared query payload reaches view',$('#range-label').textContent.includes('2026-04-17')&&$('#lanes').querySelectorAll('svg').length===4);
+ select(11);assert('linked day selection',$('#selected-date').textContent==='2026-04-28');
+ const svg=$('.lane svg'),bounds=svg.getBoundingClientRect();svg.dispatchEvent(new frame.contentWindow.PointerEvent('pointermove',{clientX:bounds.left+78,pointerType:'touch',buttons:1,bubbles:true}));
+ assert('touch movement after redraw',$('#selected-date').textContent==='2026-04-17');
+ click('[data-window="7"]');assert('last-seven window bounds',Number($('#day-range').min)===7);
+ click('#inspect-night');assert('night drill-down',!$('#night').hidden&&$('#night').textContent.includes('Unmeasurable'));
+ click('#ask-night');await until(()=>messages.length===1);
+ assert('question carries synthetic provenance and selected date',messages[0].content[0].text.includes('synthetic demo')&&messages[0].content[0].text.includes('2026-04-24'));
+ click('[data-tab="compare"]');$('#compare-form').dispatchEvent(new frame.contentWindow.Event('submit',{bubbles:true,cancelable:true}));await until(()=>$('#comparison-result table'));
+ assert('comparison uses server tool',calls.some(c=>c.name==='compare_sleep_recovery')&&$('#comparison-result table').querySelectorAll('tbody tr').length===5);
+ await load('2026-01-12','2026-01-18');click('[data-tab="trends"]');select(4);
+ assert('failed HRV masked',$('#value-hrv').textContent==='Unavailable'&&$('#data-note').textContent.includes('failed refresh'));
+ await load('2026-02-05','2026-02-08');select(0);assert('incomplete stages never inferred',$('#selection-summary').textContent.includes('incomplete'));
+ await load('2026-03-12','2026-03-18');assert('empty range explicit',$('#value-minutes').textContent==='Unavailable'&&$('#lanes').textContent.includes('No observations'));
+ await load('2026-01-16','2026-01-16');assert('single day has valid geometry',!Array.from($('#lanes').querySelectorAll('[d],[x],[y],[cx],[cy]')).some(e=>Array.from(e.attributes).some(a=>/NaN|Infinity/.test(a.value))));
+ await load('2026-01-01','2026-12-31');assert('failed new range hides old values',$('#workspace').hidden&&!$('#error').hidden);
+ await load('2026-04-17','2026-04-30');click('[data-tab="night"]');$('#tab-night').dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));assert('keyboard tab navigation',!$('#compare').hidden);
+ assert('no sync or schedule calls',calls.every(c=>['explore_sleep_recovery','compare_sleep_recovery'].includes(c.name)));
+ click('[data-tab="'+__FINAL_VIEW__+'"]');
+ if(__FINAL_VIEW__==='compare'){$('#compare-form').dispatchEvent(new frame.contentWindow.Event('submit',{bubbles:true,cancelable:true}));await until(()=>$('#comparison-result table'));}
+ await wait(30);
+ assert('no horizontal overflow',doc.documentElement.scrollWidth<=frame.clientWidth+1);
+ const forged={...initial,from:'FORGED'};frame.contentWindow.dispatchEvent(new frame.contentWindow.MessageEvent('message',{source:frame.contentWindow,data:{jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{structuredContent:forged}}}));
+ assert('untrusted message source ignored',!$('#range-label').textContent.includes('FORGED'));
+ document.getElementById('checks').textContent='Synthetic browser harness · '+checks.length+'/'+checks.length+' checks passed';
+ console.log(JSON.stringify({checks:checks.length,passed:checks.filter(c=>c.pass).length,view:__FINAL_VIEW__}));
+}catch(e){document.getElementById('checks').textContent='CHECK FAILED: '+e.message;console.error(e.message);}
+})();
+</script></body></html>
