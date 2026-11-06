@@ -111,6 +111,7 @@ Archive selection: put --data-dir DIRECTORY before the command.
 Read-only queries: day, trend, compare, workout-summary, sleep, body-battery, status, activities, health,
 records, source-data, source-series. They never sync or create an archive.
 Exports: chart, widget and export-original write new files and never overwrite.
+chart-kit writes a new directory without opening an archive.
 Live/configuration: sync uses credentials/network; install also connects clients
 and may schedule; connect registers clients; setup changes the macOS schedule;
 save-key authenticates and saves a key unless --dry-run is selected.
