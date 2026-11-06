@@ -55,6 +55,8 @@ Touch or drag any chart, use Last 7, or switch between Trends, Night detail, and
 
 Native capability observation, November 5, 2026: Muse 11.0 on Mac rendered a counter and its button visibly changed the value. Muse reported native HTML widget tools and no custom MCP Apps host. This established a route worth testing, not Garmin chart or mobile acceptance by itself.
 
+Subsequent trial: branch revision `e854d04` was transferred as a Git bundle, installed in a fresh Muse environment and used to generate a synthetic April 17–30 widget (359,164 bytes). The actual Mac app displayed it in the conversation. Last 7, selected-night changes, Night detail, previous-night navigation and the five-metric comparison responded visibly. Muse reported matching revision and manifest verification. The local suite passed 182 tests, both installed-wheel modes passed, and the native/MCP browser harnesses passed 13/16 assertions respectively at widths 320, 390 and 728 in both themes. Physical-phone rendering, cross-device state and persistence after host restart remain separate acceptance checks. No public push, live sync or scheduler change was part of this trial.
+
 ## Verify the implementation
 
 ```sh
