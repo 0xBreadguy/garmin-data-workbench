@@ -60,7 +60,9 @@ Subsequent trial: branch revision `e854d04` was transferred as a Git bundle, ins
 ## Verify the implementation
 
 For Grok Bot's separate native React Page route, see [Grok interactive charts](GROK_CHARTS.md).
-That host authors a view over shared query results; it does not consume this HTML export.
+That host has a separate packaged TSX export (`--host grok`) over the same shared
+snapshot. Its native source transport is still experimental; it does not consume
+this HTML export.
 
 ```sh
 uv run --locked --extra charts python -m unittest discover -s tests -p 'test_recovery.py' -v

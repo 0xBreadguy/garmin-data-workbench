@@ -210,6 +210,15 @@ finally:
         assert 'id="recovery-snapshot"' in fragment and 'window.hatchWidget' in fragment
         assert '<form' not in fragment and '/*__' not in fragment
         assert widget.stat().st_size < 1_000_000
+        canvas = workdir / "recovery.canvas.tsx"
+        canvas_info = json.loads(run([str(cli), "--data-dir", str(archive), "widget", "sleep-recovery",
+            "--host", "grok", "--from", "2026-01-01", "--to", "2026-01-03", "--output", str(canvas)]))
+        assert canvas_info["output_path"] == str(canvas) and canvas_info["archive_provenance"]["synthetic"]
+        source = canvas.read_text(encoding="utf-8")
+        assert 'grok/canvas' in source and '/*__RECOVERY_SNAPSHOT__*/' not in source
+        assert '"view":"sleep_recovery"' in source and '"view":"sleep_recovery_comparison"' in source
+        assert 'WriteCanvas' in canvas_info["delivery"] and 'private Page' in canvas_info["delivery"]
+        assert canvas_info["bytes"] == canvas.stat().st_size <= 1_048_576
         assert mcp_results == {"comparison": comparison, "workouts": workouts}, "Installed CLI and MCP disagree"
         if args.charts:
             chart = workdir / "steps.png"

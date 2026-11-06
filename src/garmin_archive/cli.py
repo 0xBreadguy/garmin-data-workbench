@@ -210,11 +210,12 @@ JSON on stderr (exit 2 invalid input, 1 operational failure, 3 not found).
     chart.add_argument("--json", action="store_true", help="Print the saved PNG path and shared caption, coverage and freshness metadata as JSON")
     chart.add_argument("--synthetic", action="store_true", help="Label generated/demo data visibly and identify its source as synthetic")
     chart.add_argument("--layout", choices=("chat", "wide"), default="chat", help="Readable chat/phone layout or wide report layout (default: chat)")
-    widget = commands.add_parser("widget", help="Export an interactive snapshot for Muse's in-chat HTML widget tool")
+    widget = commands.add_parser("widget", help="Export an interactive snapshot for a native Muse widget or Grok Page")
     widget.add_argument("view", choices=("sleep-recovery",))
+    widget.add_argument("--host", choices=("muse", "grok"), default="muse", help="Native delivery host (default: muse)")
     widget.add_argument("--from", dest="start", type=_date, help="First of 1–90 inclusive dates; default fourteen days ending at --to")
     widget.add_argument("--to", dest="end", type=_date)
-    widget.add_argument("--output", required=True, type=Path, help="New private HTML fragment; present with the host's native widget tool")
+    widget.add_argument("--output", required=True, type=Path, help="New private .html fragment for Muse or .canvas.tsx source for Grok; present with the host's native tool")
     commands.add_parser("brand", help="Print shared brand colors, rules and local logo paths as JSON; no archive needed")
 
     commands.add_parser("status", help="Show archive coverage and sync errors as JSON",
@@ -483,9 +484,9 @@ def _read(args: argparse.Namespace) -> int:
                 from .widgets import write_recovery_widget
                 try:
                     result = write_recovery_widget(db, args.output,
-                        args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else "")
+                        args.start.isoformat() if args.start else "", args.end.isoformat() if args.end else "", host=args.host)
                 except OSError:
-                    return _error("output_error", "Could not write widget; choose a new writable HTML path. Existing files are not overwritten.")
+                    return _error("output_error", "Could not write widget; choose a new writable output path. Existing files are not overwritten.")
                 _print_json(result)
             elif args.command == "compare":
                 _print_json(compare_periods(db, args.metric, args.start.isoformat(), args.end.isoformat(),

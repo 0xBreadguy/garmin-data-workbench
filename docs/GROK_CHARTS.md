@@ -1,9 +1,83 @@
-# Grok native interactive chart trial
+# Grok native interactive explorer
 
-Grok Bot can present a private native Page beside its conversation. This is an
-assistant-authored view over the workbench's shared query results, separate from
-the packaged [Muse HTML widget and MCP App](INTERACTIVE_CHARTS.md). The existing
-HTML export is not a Grok Page adapter.
+Grok Bot can present a private native Page beside its conversation. This is a
+view over the workbench's shared query results, separate from the
+[Muse HTML widget and MCP App](INTERACTIVE_CHARTS.md). The workbench now packages
+a native TSX renderer so the layout and behavior can stay consistent between
+requests. The HTML export is not interchangeable with a Grok Page.
+
+**Status:** the packaged source passes local export and interaction tests. Native
+delivery of that exact source remains experimental: the observed writer accepts
+inline source but has no supported file-to-tool binding. The earlier,
+assistant-authored Page was visibly interactive; that does not establish native
+acceptance of this packaged renderer.
+See the [packaged trial report](acceptance/2026-11-05-grok-packaged-explorer.md)
+for the source-transfer failure and the separately passing local checks.
+
+## Packaged framework
+
+```sh
+garmin-archive --data-dir /absolute/existing/archive widget sleep-recovery \
+  --host grok --from 2026-04-17 --to 2026-04-30 \
+  --output /absolute/new/recovery.canvas.tsx
+```
+
+Use dates actually covered by the selected archive. The command reads 1–90
+inclusive dates (default 14) and exclusively creates a private file. It embeds
+the same coherent snapshot and midpoint comparison used by Muse. The two halves
+retain independent metric coverage; one date has no comparison. No Garmin
+credentials, sync, Node runtime, CDN, chart extra or network listener is needed.
+The workbench applies a 1 MiB export guardrail; this is not a documented Grok
+host limit. The file contains health observations when the archive is personal.
+
+`ui/recovery.canvas.tsx` owns presentation: a linked selected date across five
+chart lanes, Trends / Night detail / Compare, Last 7, pointer and keyboard
+selection, light/dark colors, explicit unavailable states and segmented gaps.
+The four sleep stages exclude awake. All period averages and differences come
+from shared Python queries. The renderer cannot query, sync or send a message.
+Its view state is held only in local React state, with no persistence bridge;
+actual native reopening behavior remains untested. Request a new snapshot to
+refresh data.
+
+### Native delivery boundary
+
+The observed contract is `WriteCanvas({contents: source, title: "Sleep & recovery"})`.
+`contents` must be the complete source string. A file path or `$file:` reference
+is rejected. A reported update uses the same call with `canvas_id`; `ReadCanvas`
+can read a Page by ID or URL. Confirm the current tool contract before use.
+
+In the tested session, file tools could read/hash the attachment and Shell could
+read it on disk, but neither could bind those bytes directly into `WriteCanvas`.
+An exported file is therefore not yet the one-step native handoff available in
+Muse. Do not silently replace it with a newly invented chart and call that the
+packaged renderer. If the model copies source inline, compare saved source
+against the export and report any normalization or differences. Check actual
+compilation, owner-only access and visible interaction separately.
+
+A follow-up two-day synthetic export (48,146 source bytes) was submitted through
+the normal inline path once. Grok reported truncated tool-argument JSON and an
+unterminated string at position 20,379. No Page or compiler result was produced.
+This is an observed failure of that attempt, not a documented universal size
+limit. Compact transport could be explored, but reducing bytes alone does not
+establish faithful transfer or native rendering.
+
+The dependable integration needs a supported file reference/upload on the native
+writer, or supported orchestration that passes file contents into its argument.
+This boundary belongs to the Grok host integration. The query/export/rendering
+framework belongs to Garmin Workbench; no Crumb harness change is required to
+generate it. A local harness change cannot supply an unavailable Grok API.
+
+### Next design and copy pass
+
+Keep this framework while refining the surface: establish a consistent spacing
+and type scale; strengthen the selected-night hierarchy and shared cursor;
+balance chart density against night details; shorten repeated status/source copy;
+and tune stage contrast, focus treatments and touch targets in both themes.
+`palette`, `Lane`, `StageDetail`, `ComparisonView` and the formatters isolate these
+changes from query semantics. Compare screenshots against Muse's actual delivered
+widget, then repeat native keyboard, touch, reopen and narrow-screen checks.
+Native compilation and exact-source delivery come before claiming that polish
+is consistently available in Grok.
 
 ## What has been observed
 
@@ -62,7 +136,10 @@ documented gap value or separate contiguous segments, independently per metric.
 Verify a three-day case with values on either side of a missing middle date;
 data-projection assertions alone do not establish visible gap rendering.
 
-## Reusable request
+## Assistant-authored prototype fallback
+
+This request describes the earlier prototype route, not acceptance of the
+packaged export. Keep that distinction visible if the packaged handoff is blocked.
 
 > Use this conversation's existing Garmin archive read-only to create a private
 > native interactive Page for [inclusive start–end dates]. Use bounded `sleep`

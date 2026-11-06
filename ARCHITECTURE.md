@@ -56,3 +56,13 @@ CLI and MCP share query definitions, deterministic chart metadata and an in-memo
 The experimental MCP Apps sleep/recovery explorer packages a static, self-contained `ui://` HTML resource. `recovery.py` composes existing sleep/trend/comparison queries in one read snapshot; it adds no schema or metric definitions. The browser component receives structured results from its host and calls only read-only recovery tools. Date changes do not collect data. Comparison aggregates stay in Python. The app requests no external origins, device permissions or separate web server; host integration and actual in-chat rendering remain separate acceptance checks. D3 7.9.0 is vendored with its ISC license under `ui/` so a Python installation needs no Node build or runtime CDN.
 
 `widgets.py` adapts that same renderer to Muse's native HTML widget tool. The CLI exports a bounded snapshot and midpoint comparison in a private, exclusively created HTML fragment. It has no forms, remote assets, nested frames or archive connection. `hatchWidget` persists only presentation state; date-range changes require a new assistant export. The MCP resource remains static and data-free. See [the trial guide](docs/INTERACTIVE_CHARTS.md#muse-native-widget-trial) for delivery and acceptance boundaries.
+
+`widget sleep-recovery --host grok` embeds the identical snapshot in the packaged
+`ui/recovery.canvas.tsx` renderer. It uses only the host's `grok/canvas` exports,
+local React state and inline SVG. No production dependency, collector, database
+schema or harness extension is added. Rendering differs by host; metric and
+comparison definitions remain shared. The optional development React shim tests
+the exported component without claiming to implement Grok's compiler or sandbox.
+The native writer currently requires inline source and rejects file references;
+exact-source transport, compilation and visible Page delivery are separate
+acceptance gates. See [Grok delivery](docs/GROK_CHARTS.md#native-delivery-boundary).

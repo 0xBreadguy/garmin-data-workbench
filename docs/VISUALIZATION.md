@@ -103,9 +103,12 @@ Lead with the measurements. Keep dates, units, denominators, legends and meaning
 ## Agent delivery
 
 For an explicitly requested interactive view in Grok Bot, use its [native private Page route](GROK_CHARTS.md)
-when available. It uses bounded query results and the host's supported components;
-the packaged HTML widget is not interchangeable with a Grok Page. Verify visible
-interaction separately from successful generation.
+when available. Export the shared snapshot with `widget sleep-recovery --host grok`
+to a new `.canvas.tsx` file. The native writer requires its entire source inline;
+the observed session has no supported file-to-writer bridge. Treat exact-source
+transport and native compilation as separate acceptance gates. The packaged HTML
+widget is not interchangeable with a Grok Page. Verify visible interaction
+separately from successful generation.
 
 Create images in a private location and deliver them through the host's supported attachment/image interface. A local path alone may not be visible to the user. If rendering or delivery is unavailable, explain the limitation and provide a concise table from `trend`. Do not substitute image-generation models for plotting actual measurements.
 

@@ -1,4 +1,4 @@
-"""Native in-chat HTML snapshots using the same renderer and shared queries.
+"""Native interactive snapshots using shared queries and packaged views.
 
 The export contains bounded health observations. It never syncs, hosts a server,
 or publishes a page. The assistant must present it with its native widget tool.
@@ -14,6 +14,9 @@ from .mcp_apps import bundle_recovery, recovery_template
 from .recovery import _snapshot, compare_sleep_recovery, get_sleep_recovery
 
 MAX_WIDGET_BYTES = 1_000_000
+# Project guardrail for bounded exports, not a documented Grok host limit.
+MAX_GROK_CANVAS_BYTES = 1_048_576
+GROK_SNAPSHOT_MARKER = "/*__RECOVERY_SNAPSHOT__*/"
 
 
 def recovery_widget_snapshot(db, start: str = "", end: str = "") -> dict:
@@ -55,16 +58,45 @@ def recovery_widget_html(snapshot: dict) -> str:
     return html
 
 
-def write_recovery_widget(db, output: Path, start: str = "", end: str = "") -> dict:
-    snapshot = recovery_widget_snapshot(db, start, end)
-    html = recovery_widget_html(snapshot)
+def recovery_grok_canvas(snapshot: dict) -> str:
+    """Embed the canonical snapshot in the packaged native Grok Page source."""
+    template = (Path(__file__).with_name("ui") / "recovery.canvas.tsx").read_text(encoding="utf-8")
+    if template.count(GROK_SNAPSHOT_MARKER) != 1:
+        raise ValueError("Grok Page template must contain exactly one snapshot marker.")
+    # ASCII JSON also escapes JS line separators. Escape HTML delimiters even
+    # though this is source code, so data cannot terminate a later script wrapper.
+    payload = json.dumps(snapshot, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
+    for character, escaped in (("<", "\\u003c"), (">", "\\u003e"), ("&", "\\u0026")):
+        payload = payload.replace(character, escaped)
+    source = template.replace(GROK_SNAPSHOT_MARKER, payload)
+    if len(source.encode("utf-8")) > MAX_GROK_CANVAS_BYTES:
+        raise ValueError("Grok Page exceeds the workbench's 1 MiB export limit; choose a shorter date range. This is not a documented Grok host limit.")
+    return source
+
+
+def write_recovery_widget(db, output: Path, start: str = "", end: str = "", *, host: str = "muse") -> dict:
     output = output.expanduser().absolute()
-    if output.suffix.lower() != ".html":
+    if host not in {"muse", "grok"}:
+        raise ValueError("Widget host must be muse or grok.")
+    if host == "grok" and not output.name.endswith(".canvas.tsx"):
+        raise ValueError("Grok Page output must be a new .canvas.tsx file.")
+    if host == "muse" and output.suffix.lower() != ".html":
         raise ValueError("Widget output must be a new .html file.")
-    with open(output, "x", encoding="utf-8", opener=lambda path, flags: os.open(path, flags, 0o600)) as file:
-        file.write(html)
+    snapshot = recovery_widget_snapshot(db, start, end)
+    source = recovery_grok_canvas(snapshot) if host == "grok" else recovery_widget_html(snapshot)
+    encoded = source.encode("utf-8")
+    with open(output, "xb", opener=lambda path, flags: os.open(path, flags, 0o600)) as file:
+        file.write(encoded)
     report = snapshot["report"]
-    return {"output_path": str(output), "bytes": len(html.encode("utf-8")),
+    delivery = ("Saved native Grok Page source. Read this file and pass its entire unchanged contents to "
+                "WriteCanvas({contents: source, title: 'Sleep & recovery'}) as a private Page; "
+                "do not pass a file path or $file substitution. Verify Only you access and do not publish "
+                "or enable public sharing. The observed host has no file-to-writer binding; if copying "
+                "source inline, compare the saved source with this export. Report a blocked handoff "
+                "instead of silently rewriting the chart. File creation does not prove native compilation or display."
+                if host == "grok" else
+                "Saved HTML fragment. Present unchanged using widget.create_html_file_widget; file creation does not prove display.")
+    return {"output_path": str(output), "bytes": len(encoded),
             "from": report["from"], "to": report["to"],
             "archive_provenance": report["archive_provenance"],
-            "delivery": "Saved HTML fragment. Present unchanged using widget.create_html_file_widget; file creation does not prove display."}
+            "delivery": delivery}
