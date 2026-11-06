@@ -30,6 +30,14 @@ The demo ends April 30, 2026; “this week” does not move those observations. 
 
 Removal is just removing this separate trial registration. Keep the old executable/registration as the rollback; do not uninstall or replace the scheduled collector to test the UI. An existing personal archive can be selected later with a deliberate read-only registration; do not mix it with synthetic data.
 
+## Diagnose missing delivery
+
+Treat query success, UI loading, and visible interaction as separate evidence. The host displays the app independently of the model's text. An agent's lack of browser/computer-use access does not establish that the app is absent. After success, a brief date/provenance acknowledgement is enough; do not automatically add a disclaimer, data dump, or PNG. Follow the user's report of what actually appeared.
+
+For a missing app, compare the original tool event's `mcpAppResourceUri`, success/error state and structured result with a working conversation, then check whether the host read the UI resource and initialized the app. Record where the conversation was created and where it was viewed separately. Identical tool results with different app-load activity point toward host delivery; they do not by themselves identify the precise host defect. Test a desktop-created conversation on mobile and a mobile-created conversation on desktop, including reopening each. A narrow browser viewport alone does not test that path.
+
+Local acceptance observation, November 5, 2026: the user reported a working interactive chart in the ChatGPT/Codex Mac app, despite the agent claiming it had not appeared. A phone-created conversation reportedly showed no app on either device. Two matching local Codex trial runs returned identical structured results and UI resource references. Desktop logs recorded resource loading and app initialization for one run, with no corresponding load events found for the other. Both agents inferred failure from unavailable computer-use/browser surfaces and generated PNG fallbacks. The guidance now avoids that inference. Mobile delivery remains unresolved; no rendering fix or general mobile compatibility is claimed.
+
 ## Verify the implementation
 
 ```sh

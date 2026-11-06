@@ -64,9 +64,14 @@ def create_server(data_dir: Path) -> FastMCP:
 
         Linked sleep stages/estimated need, HRV, resting HR, score and daily Body Battery
         charge, night details and period comparison. 1–90 inclusive dates; default 14 days.
-        Reads the archive only, never syncs. Synthetic archives remain labeled. Hosts
-        without MCP Apps can use the structured data or the existing PNG chart tool;
-        do not open a browser or claim this rendered merely because the tool succeeded.
+        Reads the archive only, never syncs. Synthetic archives remain labeled.
+        The host displays the linked app separately from the model's text response.
+        After success, briefly state the requested dates and provenance; let the app
+        provide the detail. Missing browser/computer-use access is not evidence of
+        display failure. Do not claim either visible success or failure without evidence.
+        Use PNG/table fallback only for an explicit host error, known lack of MCP Apps,
+        or a user-reported missing app; honor requests to keep delivery interactive.
+        Do not open an external browser.
         """
         with open_archive(data_dir) as db:
             result = query_recovery(db, start, end)
