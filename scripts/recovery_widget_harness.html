@@ -6,19 +6,22 @@ const until=async fn=>{for(let i=0;i<200;i++){if(fn())return;await wait(10);}thr
 const assert=(name,pass)=>{checks.push({name,pass:!!pass});if(!pass)throw Error(name);};
 window.addEventListener('message',e=>{if(e.source===frame.contentWindow&&e.data?.jsonrpc)calls++;});
 window.widgetState={getState:defaults=>saved??(saved=defaults),setState:state=>{writes++;saved=state;}};
-const mount=async()=>{frame.srcdoc='<script>window.hatchWidget=parent.widgetState;<\/script>'+html;await until(()=>frame.contentDocument?.getElementById('workspace')?.hidden===false);await wait(30);};
+const mount=async(host='')=>{await new Promise(r=>{frame.onload=r;frame.srcdoc=host+'<script>window.hatchWidget=parent.widgetState;<\/script>'+html;});await until(()=>frame.contentDocument?.getElementById('workspace')?.hidden===false);await wait(30);};
 try{
 await mount();let doc=frame.contentDocument,$=s=>doc.querySelector(s),click=s=>$(s).click();
 const select=i=>{const e=$('#day-range');e.value=i;e.dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));};
 assert('native snapshot renders four charts',$('#lanes').querySelectorAll('svg').length===4);
 assert('no forms or unsupported chat action',!$('form')&&!$('#ask-night'));
-select(11);assert('linked selection saved',saved.selectedDate==='2026-04-28'&&$('#selected-date').textContent===saved.selectedDate);
-const svg=$('.lane svg'),bounds=svg.getBoundingClientRect();svg.dispatchEvent(new frame.contentWindow.PointerEvent('pointermove',{clientX:bounds.left+78,pointerType:'touch',buttons:1,bubbles:true}));
+assert('brand signature uses the authored logo',$('.signature svg').querySelectorAll('path').length===3&&$('.signature').textContent.includes('Garmin Data Workbench'));
+assert('tab selectors reach only tab buttons',[...doc.querySelectorAll('[data-tab]')].every(e=>e.getAttribute('role')==='tab'));
+select(11);assert('linked selection saved',saved.selectedDate==='2026-04-28'&&$('#selected-date').dataset.date===saved.selectedDate);
+assert('hero and scrubber follow selection',$('#hero-sleep').textContent===$('#value-minutes').textContent&&$('#scrub-bubble').textContent==='Apr 28');
+const svg=$('.lane svg'),bounds=svg.getBoundingClientRect();svg.dispatchEvent(new frame.contentWindow.PointerEvent('pointermove',{clientX:bounds.left+1,pointerType:'touch',buttons:1,bubbles:true}));
 assert('touch selection saved',saved.selectedDate==='2026-04-17');
 click('[data-window="7"]');assert('window and clamped date saved',saved.window==='7'&&saved.selectedDate==='2026-04-24');
 click('#inspect-night');assert('night detail saved',saved.tab==='night'&&!$('#night').hidden);
 click('[data-prev]');assert('earlier night expands window',saved.window==='all'&&saved.selectedDate==='2026-04-23');
-click('[data-tab="compare"]');assert('canonical snapshot comparison',$('#comparison-result tbody').children.length===5&&$('#comparison-result').textContent.includes('2026-04-24'));
+click('[data-tab="compare"]');assert('canonical snapshot comparison',$('#comparison-result tbody').children.length===5&&$('#comparison-result').textContent.includes('Apr 24–30, 2026'));
 const writesBefore=writes;
 frame.contentWindow.dispatchEvent(new frame.contentWindow.CustomEvent('hatch-widget-state',{detail:{state:{...saved,tab:'night',selectedDate:'2026-04-20'}}}));
 assert('remote state restores without echo',$('#night-picker').value==='3'&&writes===writesBefore);
@@ -26,6 +29,9 @@ frame.contentWindow.dispatchEvent(new frame.contentWindow.CustomEvent('hatch-wid
 assert('unrelated saved state ignored',$('#night-picker').value==='3');
 click('[data-next]');const expected={...saved};await mount();doc=frame.contentDocument;
 assert('reopen restores selection and tab',$('#night-picker').value==='4'&&!$('#night').hidden&&saved.selectedDate===expected.selectedDate);
+const scheme=async bg=>{await mount('<style>:root{--hatch-widget-bg:'+bg+'}</style>');doc=frame.contentDocument;return doc.getElementById('demo').style.colorScheme;};
+assert('brand steps follow the host surface, not the OS theme',await scheme('#111')==='dark'&&await scheme('#fff')==='light');
+await mount();doc=frame.contentDocument;
 click('[data-tab="'+__FINAL_VIEW__+'"]');await wait(30);
 assert('no horizontal overflow',doc.documentElement.scrollWidth<=frame.clientWidth+1);
 assert('no MCP requests from native widget',calls===0);

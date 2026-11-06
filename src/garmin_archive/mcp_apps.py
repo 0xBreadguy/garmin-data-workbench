@@ -2,6 +2,8 @@
 from functools import lru_cache
 from pathlib import Path
 
+from .brand import brand_tokens_css, inline_logo
+
 RECOVERY_URI = "ui://garmin-workbench/sleep-recovery-v1.html"
 APP_MIME = "text/html;profile=mcp-app"
 APP_META = {"ui": {"prefersBorder": False, "csp": {
@@ -16,6 +18,7 @@ def recovery_template() -> str:
 
 def bundle_recovery(page: str) -> str:
     root = Path(__file__).with_name("ui")
+    page = page.replace("/*__brand-tokens__*/", brand_tokens_css()).replace("/*__logo.svg__*/", inline_logo())
     for name in ("recovery.css", "d3.min.js", "recovery.js"):
         page = page.replace("/*__" + name + "__*/", (root / name).read_text(encoding="utf-8"))
     return page

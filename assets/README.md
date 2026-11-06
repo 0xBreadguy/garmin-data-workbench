@@ -1,6 +1,6 @@
 # Documentation and brand assets
 
-`logo.svg`, `icon.svg` and `icon.png` are the Workbench brand assets. The installed package includes these fixed resources for CLI/MCP charts; documentation screenshots are not runtime resources.
+`logo.svg`, `icon.svg` and `icon.png` are the Workbench brand assets. The installed package includes these fixed resources for CLI/MCP charts and the interactive views' footer signature; documentation screenshots are not runtime resources.
 
 ## Muse sleep demonstration
 

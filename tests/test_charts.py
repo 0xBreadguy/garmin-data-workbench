@@ -289,6 +289,9 @@ class ChartsTest(unittest.TestCase):
         self.assertIn('hours', [t.get_text() for t in figure.texts])
         with open_archive(self.data_dir) as db:
             report = build_sleep_figure(get_sleep(db, '2026-01-01', '2026-01-30'))
+        from matplotlib.colors import to_hex
+        self.assertEqual({to_hex(bar.get_facecolor()).upper() for bar in report.axes[0].patches},
+                         set(get_brand()['colors']['sleep_stages'].values()))
         line = next(line for line in report.axes[0].lines if line.get_label() == 'Garmin need')
         self.assertEqual(line.get_ydata()[0], need['points'][0]['value'] / 60)
         self.assertTrue(math.isnan(line.get_ydata()[11]))
