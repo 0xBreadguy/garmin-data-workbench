@@ -74,6 +74,14 @@ Before replying, reuse returned aggregates where present rather than recomputing
 - **Garmin assessment:** “Garmin reports a sleep score of 68 on 2026-11-01.” Attribute explicit source feedback to Garmin. A low score alongside low estimated deep sleep is an observed association; it does not show that deep sleep caused the score. Quantify a correlation over matched available nights before calling it one, and keep causal explanations labeled as hypotheses. The synthetic demo generates scores separately from stages, so their co-occurrence cannot explain the cause of a score.
 - **Observed sequence:** synthetic REM of 1h 47m on 2026-11-02, 1h 54m on 2026-11-03 and 1h 52m on 2026-11-04 rose then dipped. It ended 5 minutes above the first night; it did not rise every night or establish a sustained trend. Check intermediate values before describing direction, retain missing dates as gaps, and report exact inclusive dates, coverage and source/fetch context.
 
+## Experimental agent-authored interactive charts
+
+For any topic on Grok or Muse, run `chart-kit --host grok|muse --output /absolute/new/dir`.
+Read its RULES.md, query explicit dates with the existing commands, and build the chart the
+question needs, taking what helps from its starter and reference. Verify embedded data and layout
+by script against the query JSON, then inspect delivery. This is experimental; the starter holds
+sample data and is not an archive query or a finished view.
+
 ## Raw-data fallback
 
 Prefer `api_catalog` plus `source_data` for fields the summaries do not expose. These retain native values and provide pagination for large arrays. Nap summaries include up to 20 episodes per date and 100 per report with source offsets; page `/dailyNapDTOS` for remaining episodes or additional fields. Missing episode data does not mean zero naps.

@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 
-def brand_tokens_css() -> str:
+def brand_tokens_css(series: bool = False) -> str:
     """Theme-aware CSS properties for interactive views, derived only from brand.json."""
     brand = get_brand()
     light, dark = brand["colors"], brand["dark_colors"]
@@ -16,6 +16,8 @@ def brand_tokens_css() -> str:
                for stage in light["sleep_stages"]}
     tokens["--brand-ink-fill"] = (light["ink"], dark["ink_fill"])
     tokens["--brand-primary-fill"] = (light["primary"], light["primary"])
+    if series:
+        tokens |= {f"--series-{i}": pair for i, pair in enumerate(zip(light["series"], dark["series"]), 1)}
     return ":root{" + ";".join(f"{name}:light-dark({a},{b})" for name, (a, b) in tokens.items()) + "}"
 
 
@@ -27,7 +29,7 @@ def inline_logo() -> str:
     return f'<svg class="logo" viewBox="{view_box}" aria-hidden="true" focusable="false">{paths}</svg>'
 
 
-def brand_tokens_canvas() -> str:
+def brand_tokens_canvas(series: bool = False) -> str:
     """The same tokens and logo as a literal for the native Grok Page, which has no stylesheet."""
     brand = get_brand()
     light, dark = brand["colors"], brand["dark_colors"]
@@ -45,8 +47,10 @@ def brand_tokens_canvas() -> str:
     paths = [{jsx_names[name]: value for name, value in re.findall(r'([a-z-]+)="([^"]*)"', tag)}
              for tag in re.findall(r"<path\b[^>]*/>", source)]
     logo = {"viewBox": re.search(r'viewBox="([^"]+)"', source).group(1), "paths": paths}
-    return json.dumps({"light": tone(light, light["ink"]), "dark": tone(dark, dark["ink_fill"]), "logo": logo},
-                      ensure_ascii=True, separators=(",", ":"))
+    tones = {"light": tone(light, light["ink"]), "dark": tone(dark, dark["ink_fill"])}
+    if series:
+        tones["light"]["series"], tones["dark"]["series"] = light["series"], dark["series"]
+    return json.dumps(tones | {"logo": logo}, ensure_ascii=True, separators=(",", ":"))
 
 
 def get_brand() -> dict:

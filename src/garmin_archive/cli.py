@@ -210,6 +210,10 @@ JSON on stderr (exit 2 invalid input, 1 operational failure, 3 not found).
     chart.add_argument("--json", action="store_true", help="Print the saved PNG path and shared caption, coverage and freshness metadata as JSON")
     chart.add_argument("--synthetic", action="store_true", help="Label generated/demo data visibly and identify its source as synthetic")
     chart.add_argument("--layout", choices=("chat", "wide"), default="chat", help="Readable chat/phone layout or wide report layout (default: chat)")
+    kit = commands.add_parser("chart-kit", help="Export an experimental, data-free interactive chart starter")
+    kit.add_argument("--host", choices=("grok", "muse"), required=True)
+    kit.add_argument("--output", required=True, type=Path, help="New private directory; never overwritten")
+
     widget = commands.add_parser("widget", help="Export an interactive snapshot for a native Muse widget or Grok Page")
     widget.add_argument("view", choices=("sleep-recovery",))
     widget.add_argument("--host", choices=("muse", "grok"), default="muse", help="Native delivery host (default: muse)")
@@ -773,6 +777,13 @@ def main(argv: list[str] | None = None) -> int:
             _print_json(routine_template(args.data_dir, args.lookback_days))
         except ValueError as error:
             return _error("invalid_argument", str(error), 2)
+        return 0
+    if args.command == "chart-kit":
+        from .chart_kit import write_chart_kit
+        try:
+            _print_json(write_chart_kit(args.output, args.host))
+        except OSError:
+            return _error("output_error", "Could not create chart kit; choose a new directory in an existing writable parent. Existing paths are not overwritten.")
         return 0
     if args.command == "brand":
         from .brand import get_brand

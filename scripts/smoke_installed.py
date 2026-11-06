@@ -133,6 +133,12 @@ def main() -> None:
         assert installed_version["source"] == installation_info()["source"], "Installed version command has stale provenance"
         assert "garmin-data-workbench" in run([str(cli), "--version"])
         assert "chart sleep" in run([str(cli), "agent-guide"])
+        for host, starter in (("grok", "starter.canvas.tsx"), ("muse", "starter.html")):
+            kit = json.loads(run([str(cli), "--data-dir", str(workdir / "missing"), "chart-kit",
+                                  "--host", host, "--output", str(workdir / host)]))
+            source = Path(kit["paths"][starter]).read_text(encoding="utf-8")
+            assert "SAMPLE DATA, REPLACE" in source and "__BRAND" not in source
+            assert Path(kit["paths"]["RULES.md"]).is_file()
         assert "same host" in run([str(cli), "assistant-guide", "--client", "other"])
         receipt = json.loads(run([str(cli), "--data-dir", str(workdir / "missing"), "setup-receipt"]))
         assert receipt["archive"]["status"] == "unavailable", receipt

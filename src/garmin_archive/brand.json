@@ -7,6 +7,7 @@
     "secondary": "#5B6980",
     "rule": "#E2E8F1",
     "tint": "#EFF5FF",
+    "series": ["#0863E8", "#C75A00", "#0B8A7A", "#7B4FD0", "#B83A7A"],
     "sleep_stages": {
       "deep": "#0B2855",
       "rem": "#0863E8",
@@ -22,6 +23,7 @@
     "secondary": "#A4ADBC",
     "rule": "#313743",
     "tint": "#15243D",
+    "series": ["#5C9DFF", "#D9701F", "#1E9E8A", "#9C7BE8", "#D65C9A"],
     "sleep_stages": {
       "deep": "#2C66CC",
       "rem": "#5C9DFF",
@@ -62,6 +64,7 @@
     "Label dates, units and available-day denominators on charts; explain relevant source and freshness in the accompanying response.",
     "Label synthetic data visibly. Do not imply rising or falling values are inherently good or bad.",
     "Use the same sleep stage colors, order and names in every chart: Deep, REM, Light, Unclassified. Keep Deep the deepest step in light and dark themes.",
-    "Interactive views may take surfaces and body text from the host. Marks, titles, summary values and the signature keep brand colors, selected for the host's light or dark surface."
+    "Interactive views may take surfaces and body text from the host. Marks, titles, summary values and the signature keep brand colors, selected for the host's light or dark surface.",
+    "Assign series colors in their listed order and keep each metric's color across a chart. Use primary for one series, dashed secondary for a reference such as a goal or need, and sleep_stages for sleep stages. Color never means good or bad."
   ]
 }

@@ -116,3 +116,5 @@ Create images in a private location and deliver them through the host's supporte
 Query results and images can reach the selected AI provider. Do not publish/upload them elsewhere without authorization. Avoid precise coordinates and routes by default; the chart command does not draw routes. Charting does not authorize syncing or reconfiguring services.
 
 The optional [skill](../skills/garmin-visualization/SKILL.md) can be read directly by any agent with repository access. Discovery and installation differ by host; it is not automatically installed. MCP access alone does not imply filesystem access or image display support.
+
+For experimental agent-authored interactive charts on any topic, use `chart-kit --host grok|muse --output /absolute/new/dir`; follow its RULES.md, query, build what the question needs and verify. See the installed `agent-guide`.

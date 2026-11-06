@@ -1,0 +1,240 @@
+<style>
+/*__BRAND_CSS__*/
+:root { color-scheme: light dark; }
+#chart {
+  --surface: var(--hatch-widget-bg,var(--brand-background));
+  --text: var(--hatch-widget-text,var(--brand-ink));
+  --muted: var(--hatch-widget-muted,var(--brand-secondary));
+  max-width: 800px;
+  margin: auto;
+  padding: 16px;
+  box-sizing: border-box;
+  background: var(--surface);
+  color: var(--text);
+  font: 14px/1.45 system-ui,sans-serif;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#chart * { box-sizing: border-box; }
+.title { margin: 0 0 12px; color: var(--brand-ink); font-size: 24px; font-weight: 700; letter-spacing: -.02em; }
+.meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; font-size: 11px; color: var(--muted); }
+.badge { padding: 4px 8px; border-radius: 5px; background: var(--brand-tint); color: var(--brand-primary); font-weight: 700; }
+.selection { margin-top: 16px; }
+.date { color: var(--brand-ink); font-size: 16px; font-weight: 650; }
+.readouts { display: grid; grid-template-columns: repeat(auto-fit,minmax(115px,1fr)); gap: 10px 16px; margin-top: 10px; }
+.label { font-size: 11px; color: var(--muted); }
+.value { font-size: 24px; letter-spacing: -.02em; font-weight: 700; color: var(--brand-ink); }
+.scrub, .lane { user-select: none; -webkit-user-select: none; touch-action: pan-y; cursor: ew-resize; }
+.scrub { position: relative; height: 44px; margin-top: 6px; }
+.track { position: absolute; left: 26px; right: 48px; height: 44px; }
+.rail { position: absolute; left: 0; right: 0; top: 21px; height: 3px; border-radius: 3px; background: var(--brand-rule); }
+.thumb { position: absolute; top: 12px; width: 20px; height: 20px; border-radius: 50%; background: var(--brand-primary); transform: translateX(-50%); }
+input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; pointer-events: none; }
+.track:focus-within .thumb { outline: 2px solid var(--hatch-widget-focus,var(--brand-primary)); outline-offset: 3px; }
+.section { border-top: 1px solid var(--brand-rule); padding-top: 12px; margin-top: 12px; }
+.heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: var(--brand-ink); }
+.heading b { font-weight: 650; }
+.lane { position: relative; height: 126px; margin-top: 8px; overflow: hidden; }
+.plot { position: absolute; left: 26px; right: 48px; height: 120px; }
+.grid { position: absolute; left: -12px; right: -12px; height: 1px; background: var(--brand-rule); }
+.tick { position: absolute; right: -48px; color: var(--muted); font-size: 10px; white-space: nowrap; }
+.column { position: absolute; transform: translateX(-50%); }
+.guide { top: 4px; height: 108px; width: 1px; background: var(--brand-primary); opacity: .45; }
+.bar { background: var(--brand-primary); border-radius: 3px 3px 0 0; }
+svg.series { position: absolute; overflow: visible; }
+.gap { top: 91px; font-size: 15px; font-weight: 650; color: var(--muted); }
+.axis { position: relative; height: 26px; margin-left: 26px; margin-right: 48px; color: var(--muted); font-size: 10px; }
+.axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; color: var(--muted); font-size: 12px; }
+.freshness { margin-top: 14px; color: var(--muted); font-size: 11px; }
+.signature { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--brand-rule); color: var(--brand-ink); font-size: 12px; font-weight: 650; }
+.plate { display: block; padding: 3px 5px; border-radius: 5px; background: var(--brand-tint); }
+.logo { display: block; height: 22px; width: auto; }
+</style>
+<div id="chart" data-chart>
+  <div class="title" role="heading" aria-level="1"></div>
+  <div class="meta"><span data-range></span><span class="badge" data-badge></span></div>
+  <div class="selection"><div class="date" data-selected-date></div><div class="readouts"></div></div>
+  <div class="scrub" data-scrubber><div class="track" data-track>
+    <div class="rail"></div><div class="thumb" data-thumb></div>
+    <input id="day-range" type="range" min="0" step="1" aria-label="Selected date; arrow keys move one day">
+  </div></div>
+  <div class="label">Drag or tap a chart · arrow keys move the date</div>
+  <div data-lanes></div><div class="axis" data-date-axis></div><div class="key" data-gap-key></div>
+  <div class="freshness"></div>
+  <div class="signature"><span class="plate"><!--__LOGO__--></span>Garmin Data Workbench</div>
+</div>
+<script>
+(() => {
+  // Seconds as 7h 42m. For minutes, use (v) => duration(v, 1).
+  const duration = (value, perMinute = 60) => {
+    const minutes = Math.round(Math.abs(value) / perMinute);
+    return `${value < 0 ? "−" : ""}${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ""}`;
+  };
+  // CONFIGURATION: replace this block with script-verified query data.
+  const title = "A week in view";
+  const provenance = "SAMPLE DATA, REPLACE";
+  const freshness = "Invented observations · no archive read";
+  const dates = ["2030-01-01", "2030-01-02", "2030-01-03", "2030-01-04", "2030-01-05", "2030-01-06", "2030-01-07"];
+  const lanes = [
+    { label: "Example volume", unit: "units", mark: "bar", values: [4, 0, null, 8, null, 5, 6],
+      statuses: ["ok", "ok", "error", "ok", "empty", "ok", "ok"], coverage: "5/7" },
+    { label: "Example level", unit: "points", mark: "line", values: [2, 3, null, 6, null, null, 4],
+      statuses: ["ok", "ok", "metric_not_returned", "ok", "not_checked", "response_missing", "ok"], coverage: "4/7" },
+  ];
+  // Optional lane fields: domain: [0, 100] fixes a score scale; format: duration and step: 7200 show seconds as hours.
+  // END CONFIGURATION. Reusable code follows.
+  const root = document.getElementById("chart");
+  const find = (selector) => root.querySelector(selector);
+  const glyphs = { error: "×", empty: "□", not_checked: "|", metric_not_returned: "◇", response_missing: "+" };
+  const names = { error: "failed refresh", empty: "empty response", not_checked: "not collected", metric_not_returned: "not returned", response_missing: "response missing" };
+  const x = (i) => dates.length < 2 ? 50 : i / (dates.length - 1) * 100;
+  // UTC here keeps a calendar date from shifting across a time zone.
+  const shortDate = (date) => new Date(`${date}T00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+  const longDate = (date) => new Date(`${date}T00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  const span = first === last ? "" : first.slice(0, 7) === last.slice(0, 7) ? `–${Number(last.slice(8))}` : ` – ${shortDate(last)}`;
+  const period = `${shortDate(first)}${span}, ${last.slice(0, 4)}`;
+  const display = (lane, value) => value === null ? "N/A" : lane.format ? lane.format(value) : value.toLocaleString("en-US");
+  const tickText = (value) => Math.abs(value) >= 10000 ? `${value / 1000}k` : value.toLocaleString("en-US");
+  // Bars include zero; lines may focus on their range; ticks are round.
+  function scaleOf(lane) {
+    const values = lane.values.filter((v) => v !== null);
+    const base = lane.mark === "bar" ? [0] : [];
+    let low = lane.domain ? lane.domain[0] : values.length ? Math.min(...values, ...base) : 0;
+    let high = lane.domain ? lane.domain[1] : values.length ? Math.max(...values, ...base) : 1;
+    if (high === low) {
+      low = low >= 0 ? Math.max(0, low - 1) : low - 1;
+      high += 1;
+    }
+    const power = Math.pow(10, Math.floor(Math.log10(high - low)));
+    const ratio = (high - low) / power;
+    const step = lane.step ?? power * (ratio > 5 ? 5 : ratio >= 2 ? 1 : 0.5);
+    if (!lane.domain) {
+      low = Math.floor(low / step) * step;
+      high = Math.ceil(high / step) * step;
+    }
+    const steps = [];
+    for (let t = Math.ceil(low / step); t * step <= high; t++) steps.push(t * step);
+    return { low, high, steps };
+  }
+  const ticks = [...new Set([0, Math.round((dates.length - 1) / 2), dates.length - 1])];
+  const gaps = [...new Set(lanes.flatMap((lane) => lane.statuses.filter((s, i) => lane.values[i] === null)))];
+  let selected = dates.length - 1;
+  let preview = null;
+  function node(tag, attrs = {}, text = "", parent = root, svg = false) {
+    const el = svg ? document.createElementNS("http://www.w3.org/2000/svg", tag) : document.createElement(tag);
+    Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+    el.textContent = text;
+    parent.appendChild(el);
+    return el;
+  }
+  function column(parent, cls, i, attrs = {}, text = "") {
+    return node("div", { class: `column ${cls}`, style: `left:${x(i)}%`, ...attrs }, text, parent);
+  }
+  function drawLane(lane, index) {
+    const section = node("div", { class: "section" }, "", find("[data-lanes]"));
+    const heading = node("div", { class: "heading" }, "", section);
+    node("b", { role: "heading", "aria-level": 2 }, lane.label, heading);
+    node("span", { class: "label" }, `${lane.unit} · ${lane.coverage} days`, heading);
+    const plotLane = node("div", { class: "lane", "data-lane": index, role: "img", "aria-label": `${lane.label} by date; the slider inspects values.` }, "", section);
+    const plot = node("div", { class: "plot", "data-plot": "" }, "", plotLane);
+    const { low, high, steps } = scaleOf(lane);
+    const y = (v) => 108 - (v - low) / (high - low) * 96;
+    steps.forEach((v) => {
+      node("div", { class: "grid", style: `top:${y(v)}px` }, "", plot);
+      node("span", { class: "tick", "data-tick": "", style: `top:${y(v) - 7}px` }, lane.format ? lane.format(v) : tickText(v), plot);
+    });
+    column(plot, "guide", selected, { "data-guide": "" });
+    // EXTEND MARKS HERE: bar or unsmoothed, gap-split line.
+    if (lane.mark === "bar") lane.values.forEach((v, i) => {
+      if (v === null) return;
+      const bar = column(plot, "bar", i, { "data-mark": "bar", "data-index": i, "data-value": v });
+      bar.style.width = `min(22px, ${60 / dates.length}%)`;
+      bar.style.top = `${Math.min(y(v), y(0)) - (v === 0 ? 2 : 0)}px`;
+      bar.style.height = `${Math.max(2, Math.abs(y(0) - y(v)))}px`;
+    });
+    if (lane.mark === "line") {
+      const svg = node("svg", { class: "series", width: "100%", height: 120 }, "", plot, true);
+      const paths = node("svg", { width: "100%", height: 120, viewBox: "0 0 100 120", preserveAspectRatio: "none", style: "overflow:visible" }, "", svg, true);
+      const runs = [];
+      lane.values.forEach((v, i) => {
+        if (v === null) return;
+        if (i === 0 || lane.values[i - 1] === null) runs.push([]);
+        runs[runs.length - 1].push(i);
+      });
+      runs.forEach((run) => {
+        if (run.length > 1) node("path", { "data-run": run.join(","), d: run.map((i, k) => `${k ? "L" : "M"}${x(i)},${y(lane.values[i])}`).join(" "),
+          fill: "none", stroke: "var(--brand-primary)", "stroke-width": 2.5, "vector-effect": "non-scaling-stroke", "stroke-linejoin": "round" }, "", paths, true);
+        if (dates.length <= 31 || run.length === 1) run.forEach((i) => node("circle", { "data-mark": "dot", "data-lone": run.length === 1,
+          "data-index": i, cx: `${x(i)}%`, cy: y(lane.values[i]), r: 3, fill: "var(--brand-primary)" }, "", svg, true));
+      });
+    }
+    lane.values.forEach((v, i) => {
+      if (v === null) column(plot, "gap", i, { "data-gap": lane.statuses[i], "data-index": i }, glyphs[lane.statuses[i]] || "—");
+    });
+  }
+  find(".title").textContent = title;
+  find("[data-range]").textContent = `${period} · ${dates.length} ${dates.length === 1 ? "day" : "days"}`;
+  find("[data-badge]").textContent = provenance;
+  find(".freshness").textContent = freshness;
+  lanes.forEach((lane, i) => {
+    const readout = node("div", {}, "", find(".readouts"));
+    node("div", { class: "label" }, lane.label, readout);
+    node("div", { class: "value", "data-readout": i }, "", readout);
+    node("div", { class: "label", "data-unit": i }, "", readout);
+    drawLane(lane, i);
+  });
+  ticks.forEach((i) => node("span", { "data-date-label": "", style: `left:${x(i)}%` }, shortDate(dates[i]), find(".axis")));
+  gaps.forEach((s) => node("span", {}, `${glyphs[s] || "—"} ${names[s] || s}`, find(".key")));
+  const range = find("input");
+  range.max = dates.length - 1;
+  function update() {
+    const shown = preview ?? selected;
+    root.dataset.committed = dates[selected];
+    find("[data-selected-date]").textContent = longDate(dates[shown]);
+    find("[data-selected-date]").setAttribute("data-selected-date", dates[shown]);
+    range.value = shown;
+    range.setAttribute("aria-valuetext", longDate(dates[shown]));
+    find(".thumb").style.left = `${x(shown)}%`;
+    lanes.forEach((lane, i) => {
+      const value = lane.values[shown];
+      find(`[data-readout="${i}"]`).textContent = display(lane, value);
+      find(`[data-unit="${i}"]`).textContent = value === null ? names[lane.statuses[shown]] || lane.statuses[shown] : lane.unit;
+      find(`[data-lane="${i}"]`).dataset.date = dates[shown];
+      find(`[data-lane="${i}"] [data-guide]`).style.left = `${x(shown)}%`;
+    });
+  }
+  function select(i) {
+    preview = null;
+    selected = i;
+    update();
+  }
+  root.querySelectorAll(".scrub,.lane").forEach((el) => {
+    const nearest = (e) => Math.max(0, Math.min(dates.length - 1, Math.round((e.clientX - el.getBoundingClientRect().left - 26) / (el.clientWidth - 74) * (dates.length - 1))));
+    el.addEventListener("mousedown", (e) => e.preventDefault());
+    el.addEventListener("pointerdown", (e) => {
+      el.setPointerCapture(e.pointerId);
+      if (e.pointerType === "mouse") range.focus({ preventScroll: true });
+      select(nearest(e));
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (e.buttons) select(nearest(e));
+      else if (e.pointerType === "mouse") {
+        preview = nearest(e);
+        update();
+      }
+    });
+    el.addEventListener("pointerleave", () => {
+      preview = null;
+      update();
+    });
+  });
+  range.addEventListener("input", () => select(Number(range.value)));
+  // Choose the palette from the host surface, not the OS theme.
+  const rgb = getComputedStyle(root).backgroundColor.match(/[\d.]+/g).map(Number);
+  root.style.colorScheme = rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722 < 140 ? "dark" : "light";
+  update();
+})();
+</script>

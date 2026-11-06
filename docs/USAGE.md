@@ -222,3 +222,5 @@ Adjust executable, archive and log paths for your installation. Use the same OS 
 Check for duplicate jobs, protect logs and verify an actual execution and archive status. The job needs the same storage and key after restarts. Sleeping/offline hosts may update later. More frequent syncs and longer lookbacks make more requests; uploads outside the lookback may need a manual refresh. Garmin's exact quota isn't published, and catch-up can't guarantee historical data.
 
 Summary and native-query envelopes include `archive_provenance`. Explicit synthetic provenance (or a legacy `SYNTHETIC.txt` marker) labels charts automatically. Unmarked provenance is unknown; fetch timestamps do not prove live Garmin freshness for synthetic data. Legacy bare-list activity/record exports retain their existing format.
+
+`garmin-archive chart-kit --host {grok,muse} --output /absolute/new/dir` exports experimental, data-free chart rules, an editable starter, a read-only reference view and brand assets; no archive needed.
