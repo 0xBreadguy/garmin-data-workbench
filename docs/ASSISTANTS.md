@@ -6,6 +6,8 @@ Before setup commands, tell the user where commands and the archive will run. Fo
 
 Finish with the [compact host/query handoff](SETUP.md#hand-off): selected revision, absolute executable/archive paths on that same host, and expected versus tested persistence. This guidance addresses an observed discovery/adherence gap; whether it improves assistant behavior still needs an authorized retest.
 
+For Muse credential requests using a complete-header vault adapter, show the [exact entry instructions](SETUP.md#muse-complete-header-entry-copy) before the private card. The prefix is `ApiKey` (capital A and K), followed by one space and the key unchanged. This adapter is not included yet; confirm it is available before requesting a real key. Normal installer, environment and file inputs take only the raw key. The private card does not enforce the prefix, and its connected status does not establish Garmin authentication.
+
 ## Shell access on the workstation
 
 No MCP client or Codex registration required:

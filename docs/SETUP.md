@@ -111,6 +111,32 @@ The second command makes live authentication/profile requests and saves the key,
 
 File import doesn't provide private entry. If neither delivery route nor a verified hidden terminal prompt is available, stop before requesting a key and explain the host limitation. A pseudo-terminal alone doesn't establish private entry; the installer also refuses echoed key entry.
 
+### Muse complete-header entry copy
+
+**Adapter required:** this copy is for a Muse vault connector whose authentication adapter consumes a complete `Authorization` value. That adapter is not included in the workbench yet. The [dummy-only investigation](acceptance/2026-11-07-muse-vault-auth-probe.md) established formatting/routing evidence, not successful real-key authentication or sync. Confirm an appropriate adapter is available before requesting a real credential; this copy alone does not make live setup supported.
+
+Show these instructions immediately before the private-entry card:
+
+> In Muse's private **API key** box, enter the prefix and your key together:
+>
+> 1. Type `ApiKey` exactly: capital **A** and **K**, all other letters lowercase.
+> 2. Add **one space**.
+> 3. Paste your Garmin key **exactly as issued**. Keep every character and its capitalization unchanged.
+>
+> For example, if your key were `exampleKey123`, the full entry would be:
+>
+> ```text
+> ApiKey exampleKey123
+> ```
+>
+> Replace `exampleKey123` with your own key. Do not include quotes, brackets or line breaks. Before selecting **Add**, check that the entry starts with `ApiKey` followed by one space. The form will not add or correct the prefix for you.
+>
+> Enter the complete value only in the private box. Never send your key in chat.
+
+These instructions apply only to that complete-header vault route. The normal installer prompt, `GARMIN_PERSONAL_API_KEY` environment variable and `save-key --from-file` source all take **only the raw key**, without `ApiKey `; the SDK adds the prefix itself. Do not pass a complete-header vault value to those raw-key inputs.
+
+Copy cannot enforce correct entry in Muse's native form. A connected card is not authentication evidence. If authentication fails, ask the user to recheck the format privately; never ask them to paste the value into chat or echo it for inspection. A 400 response alone does not prove a typing mistake, so also check the adapter's request construction.
+
 ### Key and archive paths
 
 | Item | Default |
