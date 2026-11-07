@@ -52,6 +52,17 @@ caption/freshness details or qualified statistics only after clarification;
 guidance cannot guarantee adherence. Earlier Dot access remains blocked as
 recorded below; no new Dot run was performed.
 
+## Credential delivery investigation — November 7, 2026
+
+A [Muse vault probe](acceptance/2026-11-07-muse-vault-auth-probe.md) supports a
+candidate local authentication adapter using the existing private-entry card
+and documented shell credential helper. A complete authorization value stored
+in an isolated dummy registration produced a reported HTTP 401, matching a
+direct dummy control; malformed authorization returned 400. This corrects the
+earlier categorical claim that shell substitution cannot work. The adapter,
+real-key authentication, full setup, Android flow and recurring sync remain
+unverified. This is not a new supported setup route yet.
+
 ## Assistant acceptance snapshot
 
 November 4, 2026 synthetic checks at source revision `28e2aa9`; reports:
