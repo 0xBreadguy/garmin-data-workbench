@@ -98,3 +98,42 @@ failure handling and any caching policy still require design and tests.
 - Next step: implement and test the narrow local auth adapter, then separately
   validate real-key authentication with the user's authorization. The dummy
   probe alone does not justify advertising live Muse setup as supported.
+
+## Follow-up: automatic prefix handling
+
+BREAD asked whether the integration could add `ApiKey ` so users enter only
+their raw key. The observer inspected the installed application's shipped
+`Contents/Resources/hatch/index.html`, without accessing user settings,
+credentials, sessions or conversations through filesystem APIs.
+
+Inspected application: Muse 11.1, build `1109246656`. The HTML bundle SHA-256
+was `309ba1eb17d775f951f6bbabb72caf4db2212b18b9c6bf0023ffad67289e7095`.
+This is evidence about this desktop build, not Android or future releases.
+
+- `useApiKeyConnect` trims the entered string and calls
+  `submitApiKeyConnection` with that value.
+- The dynamic-credential request builder forwards entry name, type, placement
+  and the trimmed value. It does not use an entry prefix/transform parameter.
+- The custom API-key connector request builder also forwards the trimmed key.
+  Its token-placement specification is forwarded separately; this inspection
+  does not establish undocumented server behavior for extra placement fields.
+
+An offline Node check of the two extracted, unmodified request-builder
+functions with public dummy input confirmed that both forward the value
+unchanged apart from trimming. A synthetic `prefix` property on a dynamic
+credential entry was not forwarded. The check made zero network requests and
+did not register credentials. No shipped application files were changed.
+
+**Conclusion:** adding a prefix during entry is not implemented by the inspected
+native form path. A repository change cannot assume that form will transform a
+raw key. Preserving an adapter-added prefix during surrogate substitution
+remains an empirical question; the complete-header dummy probe above did not
+test a raw dummy stored in the vault with the prefix added by the adapter.
+
+That independent test could not be completed in this follow-up: native app
+access returned `cgWindowNotFound`, and two browser snapshot attempts returned
+`Preview automation snapshot timed out after 15000ms`. The observer closed
+the newly opened browser tab. No new credential registrations or live requests
+were made in the follow-up. Resume with an isolated raw-dummy registration and
+the same bounded controls once Muse is accessible; do not treat older real-key
+failures as a substitute for that controlled test.
