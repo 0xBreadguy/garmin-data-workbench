@@ -61,7 +61,10 @@ in an isolated dummy registration produced a reported HTTP 401, matching a
 direct dummy control; malformed authorization returned 400. This corrects the
 earlier categorical claim that shell substitution cannot work. The adapter,
 real-key authentication, full setup, Android flow and recurring sync remain
-unverified. This is not a new supported setup route yet.
+unverified. A subsequent isolated raw-key dummy test returned 400 when the
+prefix was added locally, while the complete-header control again returned
+401. Automatic prefix handling is not supported by the tested construction.
+This is not a new supported setup route yet.
 
 ## Assistant acceptance snapshot
 

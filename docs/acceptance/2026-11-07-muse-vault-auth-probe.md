@@ -5,6 +5,9 @@ card produced a reported HTTP 401 through its documented shell credential
 helper, matching a direct dummy control. A malformed control returned 400.
 This supports a local authentication adapter using the existing vault; it is
 not a working workbench integration or a real-key authentication result.
+A resumed raw-key experiment failed when the adapter added the prefix locally,
+while the complete-header positive control continued to return 401. Automatic
+prefix handling is not established by the tested Muse interfaces.
 
 ## Scope and evidence
 
@@ -91,13 +94,14 @@ failure handling and any caching policy still require design and tests.
   unattended execution or Android interaction was verified in this probe.
 - No real Garmin credential, archive, schedule or sealed-handoff prototype was
   intentionally changed. Preservation inside the VM remains assistant-reported.
-- The **Garmin Test Dummy** registration remains as disposable test state.
-  A final review/cleanup message could not be sent after the native app stopped
-  exposing a window (`noWindowsAvailable` / `cgWindowNotFound`). Do not confuse
-  that registration's connected status with a live Garmin connection.
-- Next step: implement and test the narrow local auth adapter, then separately
-  validate real-key authentication with the user's authorization. The dummy
-  probe alone does not justify advertising live Muse setup as supported.
+- The **Garmin Test Dummy** and **Garmin Test Raw** registrations remain as
+  disposable test state. Initial cleanup was blocked by window access; the
+  resumed investigation performed only the raw-key test below. Do not confuse
+  either registration's connected status with a live Garmin connection.
+- A candidate adapter must use the tested complete-header stored value;
+  raw-key-only entry requires another supported prefix mechanism. Real-key
+  validation remains separate and needs the user's authorization. The dummy
+  probes alone do not justify advertising live Muse setup as supported.
 
 ## Follow-up: automatic prefix handling
 
@@ -124,16 +128,55 @@ unchanged apart from trimming. A synthetic `prefix` property on a dynamic
 credential entry was not forwarded. The check made zero network requests and
 did not register credentials. No shipped application files were changed.
 
-**Conclusion:** adding a prefix during entry is not implemented by the inspected
-native form path. A repository change cannot assume that form will transform a
-raw key. Preserving an adapter-added prefix during surrogate substitution
-remains an empirical question; the complete-header dummy probe above did not
-test a raw dummy stored in the vault with the prefix added by the adapter.
+**Source-inspection conclusion:** adding a prefix during entry is not implemented
+by the inspected native form path. A repository change cannot assume that form
+will transform a raw key. The initial complete-header probe did not test a raw
+dummy stored in the vault with the prefix added by the adapter.
 
 That independent test could not be completed in this follow-up: native app
 access returned `cgWindowNotFound`, and two browser snapshot attempts returned
 `Preview automation snapshot timed out after 15000ms`. The observer closed
 the newly opened browser tab. No new credential registrations or live requests
-were made in the follow-up. Resume with an isolated raw-dummy registration and
-the same bounded controls once Muse is accessible; do not treat older real-key
-failures as a substitute for that controlled test.
+were made during that blocked attempt. The user subsequently unlocked the Mac,
+allowing the controlled follow-up below.
+
+## Resumed raw-key experiment
+
+Muse prepared a separate **Garmin Test Raw** card under
+`custom.garmin-test-raw`, reportedly restricted to the same Garmin host and
+`custom_header:Authorization`. The observer entered only the same public dummy
+string, without `ApiKey `. The native form accepted it. On card submission,
+Muse reported automatically running the four previously specified dummy-only
+probes; no further confirmation message was sent. Real credentials, the real
+registration, health queries and sync were excluded from the instructions.
+
+Muse reported confirming the two dummy providers' placement before executing
+one token POST per arm, with 15-second timeouts, no redirects, bodies discarded
+and status-only output:
+
+| Arm | Reported result |
+| --- | --- |
+| Direct `ApiKey ` plus public dummy | HTTP 401 |
+| Locally added `ApiKey ` plus raw-provider surrogate | HTTP 400 |
+| Raw-provider surrogate as the complete header, using the helper | HTTP 400 |
+| Complete-header dummy provider using the helper | HTTP 401 |
+
+This settles the proposed request construction for this tested configuration:
+adding the prefix locally to a raw-value surrogate did not reproduce the
+complete-header route. It supports whole-value matching as an explanation,
+but neither the HTTP statuses nor the source inspection prove the internal
+substitution algorithm. A defect specific to the raw registration is a residual
+alternative; stored values were not read back. No real authentication succeeded
+or was attempted by this experiment.
+
+Muse also reported rechecking its documented registration schema, connector
+skill and helper: no custom authorization-scheme or prefix/template option was
+found. URL-path substitution is documented, but does not construct an
+authorization header. Extra fields accepted by a permissive frontend parser
+are not evidence of a supported server capability.
+
+**Practical result:** the tested existing route needs the complete authorization
+value entered privately. To let users enter only the raw key, Muse would need
+to expose a supported entry transform or custom authorization-scheme/template
+mechanism, or another independently verified supported route would need to be
+found. Merely hardcoding `ApiKey ` in workbench Python did not solve it.
