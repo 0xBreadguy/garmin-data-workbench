@@ -21,6 +21,9 @@ the foundation; PNG delivery is still available without an interactive host.
   dates, summaries and missing-data marks, and the approved README wordmark.
 - Approved real README conversation/chart captures with recorded provenance.
   The chart remains an unchanged historical renderer capture, not a v0.2.0 render.
+- Clarified private environment/file key delivery and the proposed Muse
+  complete-header entry format. The Muse vault adapter is not implemented;
+  these documentation changes do not add a supported authentication route.
 
 ### Install or upgrade
 
