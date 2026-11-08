@@ -5,7 +5,7 @@ card produced a reported HTTP 401 through its documented shell credential
 helper, matching a direct dummy control. A malformed control returned 400.
 This supports a local authentication adapter using the existing vault; it is
 not a working workbench integration or a real-key authentication result.
-A resumed raw-key experiment failed when the adapter added the prefix locally,
+A resumed raw-key experiment failed when the probe added the prefix locally,
 while the complete-header positive control continued to return 401. Automatic
 prefix handling is not established by the tested Muse interfaces.
 

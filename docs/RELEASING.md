@@ -3,8 +3,9 @@
 Use a reviewed PR and the protected default branch. This checklist covers a source release; there is no automatic PyPI upload, deployment or release-publishing workflow.
 
 Version history and user-facing notes live in [CHANGELOG.md](../CHANGELOG.md).
-The first release is `v0.1.0`, matching the existing package version; its
-preparation changes documentation only. GitHub release assets include the wheel,
+Each release tag must match `project.version` (`v0.2.0` for package `0.2.0`).
+Preserve earlier tags and release assets, including `v0.1.0`; publish a new
+version rather than replacing historical artifacts. GitHub release assets include the wheel,
 source distribution and `SHA256SUMS`, built from the clean tagged revision.
 GitHub's automatic source archives are separate from the built source
 distribution. The package is not published to PyPI.
@@ -12,10 +13,10 @@ distribution. The package is not published to PyPI.
 ## Prepare the candidate
 
 1. Reconcile the intended changes and preserve concurrent work. Check the diff for credentials, real health data, routes, archives and unrelated/generated files.
-2. Update `project.version` in `pyproject.toml` when cutting a new version, run `uv lock` and review both files. Keep README version wording aligned. For the first `v0.1.0` release, confirm the existing version matches the tag.
+2. Update `project.version` in `pyproject.toml` when cutting a new version, run `uv lock` and review both files. Keep the changelog, README badge, pinned clone/upgrade commands and current wheel examples aligned with the candidate. Leave historical captures and acceptance versions unchanged.
 3. Review dependency advisories and the resolved lockfile. Upgrade vulnerable direct/transitive dependencies deliberately; don't equate a clean advisory scan with a security audit. See the [dependency audit commands](TESTING.md#dependency-advisories).
 4. Check setup, CLI/MCP guidance, compatibility claims and example output against the candidate. Use generated data for public screenshots by default. A selected real-data example needs its owner's explicit approval for that exact public image. Keep dates, coverage and provenance visible, and retain synthetic labels on generated examples.
-5. Write release notes describing capabilities, breaking behavior, upgrade instructions and known limits. For 0.1.0, call out macOS-only built-in scheduling, incomplete Windows live privacy validation and separately tested assistant connections.
+5. Write release notes describing capabilities, breaking behavior, upgrade instructions and known limits. Call out macOS-only built-in scheduling, incomplete Windows live privacy validation and separately tested assistant connections. For interactive charts, distinguish native observations, user reports and browser harnesses; keep host delivery, restart persistence and cross-device limits explicit.
 
 ## Verify before merging
 
