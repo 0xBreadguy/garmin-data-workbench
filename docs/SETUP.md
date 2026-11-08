@@ -94,7 +94,11 @@ Alternatively, after secure key setup, `garmin-archive install --manual --client
 
 ### Without an interactive terminal
 
-Have the host's **verified private secret facility** deliver a file, then:
+First check the host's actual secret-delivery capabilities; don't assume that a vault can inject a process environment or create a file. The workbench supports either route below. A vault storing a secret alone does not establish that it can deliver it to the process. Never ask for the key in chat or put it in a command, argument, or log.
+
+**Environment injection:** If the host can privately inject the secret as `GARMIN_PERSONAL_API_KEY` into the actual workbench process, use that facility and run `garmin-archive install --manual --client shell` or `sync` in that process. Follow the host's documented secret workflow; do not print the variable to check it. The installer recognizes an existing environment key but does not separately validate or save it: the subsequent sync authenticates with Garmin. Check the sync result to establish whether it worked. The environment key takes precedence over a saved key and must be delivered again to future sync processes; it may not survive a new session or reach scheduled jobs. The built-in macOS schedule requires a matching saved key, so environment injection alone is not sufficient for that schedule.
+
+**Private file delivery:** If the host can deliver a private file, use it with:
 
 ```sh
 /absolute/path/to/garmin-archive save-key --from-file /absolute/private/provider-secret --dry-run
@@ -105,7 +109,33 @@ The dry run checks a bounded single-value UTF-8 source, local file privacy where
 
 The second command makes live authentication/profile requests and saves the key, but doesn't sync, connect a client or schedule anything. Replace both paths; the second is a file, never a key value. On POSIX, it must be a regular file owned by the current user with no group/other permissions, usually `0600`. Symlink sources are rejected; POSIX also opens with `O_NOFOLLOW` where available and checks the opened file identity. Existing key files aren't overwritten. Live validation prints its authentication/profile phase and uses a 15-second timeout per request; `--timeout` accepts 1–120 seconds. A timeout reports failure instead of a saved key. Dispose of the source through the provider's facility afterward.
 
-File import doesn't provide private entry. If no tested secret facility exists, stop before requesting a key. A pseudo-terminal alone doesn't solve this; the installer also refuses echoed key entry.
+File import doesn't provide private entry. If neither delivery route nor a verified hidden terminal prompt is available, stop before requesting a key and explain the host limitation. A pseudo-terminal alone doesn't establish private entry; the installer also refuses echoed key entry.
+
+### Muse complete-header entry copy
+
+**Adapter required:** this copy is for a Muse vault connector whose authentication adapter consumes a complete `Authorization` value. That adapter is not included in the workbench yet. The [dummy-only investigation](acceptance/2026-11-07-muse-vault-auth-probe.md) established formatting/routing evidence, not successful real-key authentication or sync. Confirm an appropriate adapter is available before requesting a real credential; this copy alone does not make live setup supported.
+
+Show these instructions immediately before the private-entry card:
+
+> In Muse's private **API key** box, enter the prefix and your key together:
+>
+> 1. Type `ApiKey` exactly: capital **A** and **K**, all other letters lowercase.
+> 2. Add **one space**.
+> 3. Paste your Garmin key **exactly as issued**. Keep every character and its capitalization unchanged.
+>
+> For example, if your key were `exampleKey123`, the full entry would be:
+>
+> ```text
+> ApiKey exampleKey123
+> ```
+>
+> Replace `exampleKey123` with your own key. Do not include quotes, brackets or line breaks. Before selecting **Add**, check that the entry starts with `ApiKey` followed by one space. The form will not add or correct the prefix for you.
+>
+> Enter the complete value only in the private box. Never send your key in chat.
+
+These instructions apply only to that complete-header vault route. The normal installer prompt, `GARMIN_PERSONAL_API_KEY` environment variable and `save-key --from-file` source all take **only the raw key**, without `ApiKey `; the SDK adds the prefix itself. Do not pass a complete-header vault value to those raw-key inputs.
+
+Copy cannot enforce correct entry in Muse's native form. A connected card is not authentication evidence. If authentication fails, ask the user to recheck the format privately; never ask them to paste the value into chat or echo it for inspection. A 400 response alone does not prove a typing mistake, so also check the adapter's request construction.
 
 ### Key and archive paths
 
