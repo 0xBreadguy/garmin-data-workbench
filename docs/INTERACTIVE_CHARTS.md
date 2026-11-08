@@ -9,7 +9,7 @@ Use a new environment and a new synthetic archive outside the repository. Preser
 ```sh
 uv build
 uv venv /absolute/new/trial/venv --python 3.12
-uv pip install --python /absolute/new/trial/venv/bin/python dist/garmin_data_workbench-0.1.0-py3-none-any.whl
+uv pip install --python /absolute/new/trial/venv/bin/python dist/garmin_data_workbench-0.2.0-py3-none-any.whl
 uv run --quiet --locked python scripts/create_demo_archive.py /absolute/new/trial/archive
 ```
 

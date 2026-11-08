@@ -1,6 +1,6 @@
 [project]
 name = "garmin-data-workbench"
-version = "0.1.0"
+version = "0.2.0"
 description = "A local-first, open-source workbench for your Garmin health and activity data"
 readme = "README.md"
 license = "MIT"

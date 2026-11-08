@@ -5,6 +5,25 @@ Keep one archive on a chosen host; assistants use its CLI or a supported MCP
 connection. Cross-platform support does not require sharing a writable SQLite
 archive between machines.
 
+## Interactive chart routes in v0.2.0
+
+PNG rendering needs the optional `[charts]` extra. Interactive exports and
+`chart-kit` use the base installation; the assistant still needs the matching
+native delivery tools or an MCP Apps host.
+
+| Route | Evidence and current boundary |
+| --- | --- |
+| PNG via CLI or MCP | [Rendering and transport checks](TESTING.md#focused-checks) are separate from visible host delivery. The [v0.1.0 acceptance reports](#release-acceptance--november-5-2026) below remain historical evidence. |
+| MCP Apps sleep/recovery explorer | Packaged `ui://` resource and read-only tools; [browser bridge harness](INTERACTIVE_CHARTS.md#verify-the-implementation) checks are offline. [Desktop display was user-reported](INTERACTIVE_CHARTS.md#diagnose-missing-delivery); phone-created conversation delivery remains unresolved. |
+| Muse native HTML widget | [Mac desktop display and controls were directly observed](INTERACTIVE_CHARTS.md#muse-native-widget-trial). Phone dragging, scrolling, night picker and Compare were user-reported, without a recorded device model. Cross-device state and host-restart persistence remain unverified. |
+| Grok native React Page | [Packaged branded explorer observed in the Mac app's dark theme](acceptance/2026-11-06-grok-design-pass.md), including selection, keyboard, sparse data and Compare; hover/drag were user-reported. [Bounded native edits and source checks](GROK_CHARTS.md#bounded-native-delivery) are separate from rendering. Native light theme, phones/touch and restart/cross-device behavior remain unverified. |
+| Agent-authored charts | `chart-kit --host grok\|muse` exports rules, brand tokens and working starters for an agent to adapt to the question. [Starter browser/type checks](TESTING.md#grok-renderer-harness) use a Grok stand-in; they do not establish native acceptance of an agent's new chart. See [delivery guidance](VISUALIZATION.md#agent-delivery). |
+
+Muse and Grok native exports embed a fixed read-only snapshot; request a new
+export for fresh data. Browser checks cover their exercised engines, themes,
+viewports and controls, not the host compiler, native styling or persistence.
+None of these chart trials establishes live Garmin setup or recurring sync.
+
 ## What is checked
 
 [CI](../.github/workflows/tests.yml) targets `macos-latest`, `windows-latest` and

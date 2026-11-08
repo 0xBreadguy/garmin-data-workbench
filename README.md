@@ -7,7 +7,7 @@
 <img src="assets/logo.svg" alt="Two conversation bubbles joined by a data line" width="180">
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-4B6F92?style=flat-square)](https://www.python.org/)
-[![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-0863E8?style=flat-square)](https://github.com/0xBreadguy/garmin-data-workbench/releases/tag/v0.1.0)
+[![Version 0.2.0](https://img.shields.io/badge/version-0.2.0-0863E8?style=flat-square)](https://github.com/0xBreadguy/garmin-data-workbench/releases/tag/v0.2.0)
 [![Main package smoke](https://github.com/0xBreadguy/garmin-data-workbench/actions/workflows/tests.yml/badge.svg?branch=main&event=push)](https://github.com/0xBreadguy/garmin-data-workbench/actions/workflows/tests.yml)
 [![SQLite archive](https://img.shields.io/badge/archive-SQLite-5C7D70?style=flat-square)](https://www.sqlite.org/)
 [![MIT license](https://img.shields.io/badge/license-MIT-777777?style=flat-square)](LICENSE)
@@ -18,10 +18,10 @@ Sync health data and activities into a SQLite archive on your computer or a pers
 
 - Review sleep, Body Battery, heart rate, steps and activities with dates, units and coverage.
 - Compare two metric periods and review workout distance/duration totals by date and sport.
-- Generate charts from the same stored data your agent queries.
+- Generate PNG charts, try experimental in-chat explorers, or let your agent build interactive charts for the question.
 - Explore native fields from all 26 documented Personal API endpoints and retain original activity files for your own analysis.
 
-This is the early **[v0.1.0 release](https://github.com/0xBreadguy/garmin-data-workbench/releases/tag/v0.1.0)**. Read the [release notes](CHANGELOG.md), start with the synthetic demo or a short sync, and check the [tested hosts and assistant paths](docs/COMPATIBILITY.md) before relying on an integration.
+This is the early **[v0.2.0 release](https://github.com/0xBreadguy/garmin-data-workbench/releases/tag/v0.2.0)**. Read the [release notes](CHANGELOG.md), start with the synthetic demo or a short sync, and check the [tested hosts and assistant paths](docs/COMPATIBILITY.md) before relying on an integration.
 
 ![A real exchange in Grok Health Buddy: a question about sleeping longer while receiving a lower sleep score, followed by an answer comparing the night with the rest of the week.](assets/grok-sleep-conversation.png)
 
@@ -36,7 +36,7 @@ A real question in Grok's Health Buddy, answered from my Garmin archive. [Captur
 **Setting it up yourself?** Install Python 3.12+ and [uv](https://docs.astral.sh/uv/), then:
 
 ```sh
-git clone --branch v0.1.0 --depth 1 https://github.com/0xBreadguy/garmin-data-workbench.git
+git clone --branch v0.2.0 --depth 1 https://github.com/0xBreadguy/garmin-data-workbench.git
 cd garmin-data-workbench
 uv tool install --from . garmin-data-workbench
 ```
@@ -70,7 +70,7 @@ Queries use stored data. Available history and fields depend on Garmin, your dev
 
 ![Sleep overview from an existing Garmin archive for October 30–November 5, 2026, showing nightly duration and stages, Garmin sleep need, and sleep scores.](assets/grok-sleep-week.png)
 
-The same week, plotted with `garmin-archive chart sleep`. Sleep duration and score tell different parts of the story. Stages, scores and sleep need are Garmin estimates. You can [try the same queries with demo data](docs/VISUALIZATION.md#try-generated-demo-data).
+Historical renderer capture of the same week, plotted with `garmin-archive chart sleep` before v0.2.0. The approved image is unchanged; see its [capture details](assets/README.md#grok-real-data-examples). Sleep duration and score tell different parts of the story. Stages, scores and sleep need are Garmin estimates. You can [try the same queries with demo data](docs/VISUALIZATION.md#try-generated-demo-data).
 
 ## What works where
 
@@ -87,7 +87,7 @@ See [assistant connections](docs/ASSISTANTS.md) for remote access and the checks
 - [Commands, SQL, exports and scheduling](docs/USAGE.md)
 - [Personal API source and field coverage](docs/API_COVERAGE.md)
 - [Assistant connections and handoffs](docs/ASSISTANTS.md)
-- [Experimental interactive charts on main](docs/VISUALIZATION.md#agent-delivery)
+- [Experimental in-chat and agent-authored charts](docs/VISUALIZATION.md#agent-delivery)
 - [Contribute](CONTRIBUTING.md) · [Agent instructions](AGENTS.md) · [Testing](docs/TESTING.md)
 - [Architecture](ARCHITECTURE.md) · [Security](SECURITY.md)
 
